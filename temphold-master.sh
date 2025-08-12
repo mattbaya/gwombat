@@ -127,9 +127,11 @@
 # - Renames them to include "(Suspended Account - Temporary Hold)"
 # - Logs all changes to `tmp/{username}-fixed.txt`
 #
-# ### Step 3: Rename All Files
+# ### Step 3: Rename Shared Files (Security-Focused)
 # - Generates comprehensive file list using `list-users-files.sh`
-# - Adds "(Suspended Account - Temporary Hold)" suffix to all file names
+# - **ONLY processes files shared with active your-domain.edu accounts**
+# - Skips files shared externally or with already suspended accounts
+# - Adds "(Suspended Account - Temporary Hold)" suffix to qualified file names
 # - Skips files that already have the suffix
 #
 # ### Step 4: Update User Last Name
@@ -215,9 +217,7 @@
 # Master Temporary Hold Script
 # Consolidates all temphold operations with menu system and preview functionality
 
-GAM="/usr/local/bin/gam"
-SCRIPTPATH="/opt/your-path/mjb9/suspended"
-LISTSHARED_PATH="/opt/your-path/mjb9/listshared"
+# Variables now loaded via load_configuration() function
 
 # Organizational Unit paths
 OU_TEMPHOLD="/Suspended Accounts/Suspended - Temporary Hold"
@@ -227,6 +227,131 @@ OU_ACTIVE="/your-domain.edu"
 
 # Google Drive Label IDs for pending deletion
 LABEL_ID="xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb"
+
+# Advanced Logging and Reporting Configuration
+LOG_DIR="./logs"
+BACKUP_DIR="./backups"
+REPORT_DIR="./reports"
+mkdir -p "$LOG_DIR" "$BACKUP_DIR" "$REPORT_DIR"
+
+# Log files
+SESSION_ID=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="${LOG_DIR}/session-${SESSION_ID}.log"
+ERROR_LOG="${LOG_DIR}/errors-$(date +%Y%m%d).log"
+OPERATION_LOG="${LOG_DIR}/operations-$(date +%Y%m%d).log"
+PERFORMANCE_LOG="${LOG_DIR}/performance-$(date +%Y%m%d).log"
+AUDIT_LOG="${LOG_DIR}/audit-$(date +%Y%m%d).log"
+
+# Report files
+DAILY_SUMMARY="${REPORT_DIR}/daily-summary-$(date +%Y%m%d).txt"
+OPERATION_SUMMARY="${REPORT_DIR}/operation-summary-${SESSION_ID}.txt"
+USER_ACTIVITY_REPORT="${REPORT_DIR}/user-activity-$(date +%Y%m%d).txt"
+
+# Configuration Management
+CONFIG_FILE="./config/temphold-config.json"
+CONFIG_DIR="./config"
+mkdir -p "$CONFIG_DIR"
+
+# Load configuration from file or set defaults
+load_configuration() {
+    # Set default values
+    DEFAULT_GAM_PATH="/usr/local/bin/gam"
+    DEFAULT_SCRIPT_PATH="/opt/your-path/mjb9/suspended"
+    DEFAULT_LISTSHARED_PATH="/opt/your-path/mjb9/listshared"
+    DEFAULT_PROGRESS_ENABLED="true"
+    DEFAULT_CONFIRMATION_LEVEL="normal"
+    DEFAULT_LOG_RETENTION_DAYS="30"
+    DEFAULT_BACKUP_RETENTION_DAYS="90"
+    DEFAULT_OPERATION_TIMEOUT="300"
+    
+    # Override with environment variables if set
+    GAM="${GAM_PATH:-$DEFAULT_GAM_PATH}"
+    SCRIPTPATH="${SCRIPT_PATH:-$DEFAULT_SCRIPT_PATH}"
+    LISTSHARED_PATH="${LISTSHARED_PATH:-$DEFAULT_LISTSHARED_PATH}"
+    PROGRESS_ENABLED="${PROGRESS_SETTING:-$DEFAULT_PROGRESS_ENABLED}"
+    CONFIRMATION_LEVEL="${CONFIRMATION_SETTING:-$DEFAULT_CONFIRMATION_LEVEL}"
+    LOG_RETENTION_DAYS="${LOG_RETENTION:-$DEFAULT_LOG_RETENTION_DAYS}"
+    BACKUP_RETENTION_DAYS="${BACKUP_RETENTION:-$DEFAULT_BACKUP_RETENTION_DAYS}"
+    OPERATION_TIMEOUT="${OP_TIMEOUT:-$DEFAULT_OPERATION_TIMEOUT}"
+    
+    # Load from config file if it exists
+    if [[ -f "$CONFIG_FILE" ]]; then
+        # Parse JSON config file
+        local config_gam=$(grep '"gam_path"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_script_path=$(grep '"script_path"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_listshared=$(grep '"listshared_path"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_progress=$(grep '"progress_enabled"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_confirmation=$(grep '"confirmation_level"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_log_retention=$(grep '"log_retention_days"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_backup_retention=$(grep '"backup_retention_days"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        local config_timeout=$(grep '"operation_timeout"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+        
+        # Use config values if available
+        [[ -n "$config_gam" ]] && GAM="$config_gam"
+        [[ -n "$config_script_path" ]] && SCRIPTPATH="$config_script_path"
+        [[ -n "$config_listshared" ]] && LISTSHARED_PATH="$config_listshared"
+        [[ -n "$config_progress" ]] && PROGRESS_ENABLED="$config_progress"
+        [[ -n "$config_confirmation" ]] && CONFIRMATION_LEVEL="$config_confirmation"
+        [[ -n "$config_log_retention" ]] && LOG_RETENTION_DAYS="$config_log_retention"
+        [[ -n "$config_backup_retention" ]] && BACKUP_RETENTION_DAYS="$config_backup_retention"
+        [[ -n "$config_timeout" ]] && OPERATION_TIMEOUT="$config_timeout"
+    fi
+}
+
+# Create default configuration file
+create_default_config() {
+    cat > "$CONFIG_FILE" << EOF
+{
+  "version": "2.0",
+  "description": "Temporary Hold Master Script Configuration",
+  "created": "$(date -Iseconds)",
+  "settings": {
+    "gam_path": "/usr/local/bin/gam",
+    "script_path": "/opt/your-path/mjb9/suspended",
+    "listshared_path": "/opt/your-path/mjb9/listshared",
+    "progress_enabled": "true",
+    "confirmation_level": "normal",
+    "log_retention_days": "30",
+    "backup_retention_days": "90",
+    "operation_timeout": "300"
+  },
+  "organizational_units": {
+    "temphold": "/Suspended Accounts/Suspended - Temporary Hold",
+    "pending_deletion": "/Suspended Accounts/Suspended - Pending Deletion",
+    "suspended": "/Suspended Accounts",
+    "active": "/your-domain.edu"
+  },
+  "google_drive": {
+    "label_id": "xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb",
+    "field_id": "62BB395EC6",
+    "selection_id": "68E9987D43"
+  },
+  "features": {
+    "dry_run_default": false,
+    "backup_enabled": true,
+    "performance_logging": true,
+    "audit_logging": true,
+    "auto_cleanup": true
+  }
+}
+EOF
+    echo -e "${GREEN}Default configuration created: $CONFIG_FILE${NC}"
+}
+
+# Load configuration
+load_configuration
+
+# Initialize session logging
+echo "=== SESSION START: $(date) ===" >> "$LOG_FILE"
+echo "Session ID: $SESSION_ID" >> "$LOG_FILE"
+echo "User: $(whoami)" >> "$LOG_FILE"
+echo "Working Directory: $(pwd)" >> "$LOG_FILE"
+echo "Script Version: Master Temporary Hold Script v2.0" >> "$LOG_FILE"
+echo "GAM Path: $GAM" >> "$LOG_FILE"
+echo "Script Path: $SCRIPTPATH" >> "$LOG_FILE"
+echo "Progress Enabled: $PROGRESS_ENABLED" >> "$LOG_FILE"
+echo "Confirmation Level: $CONFIRMATION_LEVEL" >> "$LOG_FILE"
+
 FIELD_ID="62BB395EC6"
 SELECTION_ID="68E9987D43"
 
@@ -244,6 +369,554 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
+# Advanced Logging Functions
+log_info() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [INFO] $message" >> "$LOG_FILE"
+    if [[ "${2:-}" == "console" ]]; then
+        echo -e "${CYAN}[INFO]${NC} $message"
+    fi
+}
+
+log_error() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [ERROR] $message" >> "$LOG_FILE"
+    echo "[$timestamp] [ERROR] $message" >> "$ERROR_LOG"
+    echo -e "${RED}[ERROR]${NC} $message"
+}
+
+log_warning() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [WARNING] $message" >> "$LOG_FILE"
+    if [[ "${2:-}" == "console" ]]; then
+        echo -e "${YELLOW}[WARNING]${NC} $message"
+    fi
+}
+
+log_operation() {
+    local operation="$1"
+    local user="$2"
+    local status="$3"
+    local details="${4:-}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[$timestamp] [$status] $operation | User: $user | Details: $details" >> "$OPERATION_LOG"
+    echo "[$timestamp] [OPERATION] $operation for $user - $status" >> "$LOG_FILE"
+    
+    # Also log to audit log for compliance
+    echo "[$timestamp] | Session: $SESSION_ID | Operation: $operation | User: $user | Status: $status | Details: $details" >> "$AUDIT_LOG"
+}
+
+log_performance() {
+    local operation="$1"
+    local duration="$2"
+    local user_count="${3:-1}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[$timestamp] Operation: $operation | Duration: ${duration}s | Users: $user_count | Rate: $(echo "scale=2; $user_count / $duration" | bc 2>/dev/null || echo "N/A") users/sec" >> "$PERFORMANCE_LOG"
+}
+
+start_operation_timer() {
+    OPERATION_START_TIME=$(date +%s)
+}
+
+end_operation_timer() {
+    local operation="$1"
+    local user_count="${2:-1}"
+    local end_time=$(date +%s)
+    local duration=$((end_time - OPERATION_START_TIME))
+    log_performance "$operation" "$duration" "$user_count"
+}
+
+create_backup() {
+    local user="$1"
+    local operation="$2"
+    local backup_file="${BACKUP_DIR}/${user}-${operation}-$(date +%Y%m%d_%H%M%S).json"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "DRY-RUN: Would create backup for $user at $backup_file"
+        return 0
+    fi
+    
+    log_info "Creating backup for user $user"
+    
+    # Create backup of user information
+    {
+        echo "{"
+        echo "  \"user\": \"$user\","
+        echo "  \"operation\": \"$operation\","
+        echo "  \"timestamp\": \"$(date -Iseconds)\","
+        echo "  \"session_id\": \"$SESSION_ID\","
+        echo "  \"user_info\": {"
+        
+        local user_info=$($GAM info user "$user" 2>/dev/null || echo "User not found")
+        if [[ "$user_info" != "User not found" ]]; then
+            local lastname=$(echo "$user_info" | grep "Last Name:" | awk -F': ' '{print $2}' | sed 's/"/\\"/g')
+            local firstname=$(echo "$user_info" | grep "First Name:" | awk -F': ' '{print $2}' | sed 's/"/\\"/g')
+            local suspended=$(echo "$user_info" | grep "Account Suspended:" | awk -F': ' '{print $2}')
+            local orgunit=$(echo "$user_info" | grep "Org Unit Path:" | awk -F': ' '{print $2}' | sed 's/"/\\"/g')
+            local department=$(echo "$user_info" | grep "Department:" | awk -F': ' '{print $2}' | sed 's/"/\\"/g')
+            
+            echo "    \"first_name\": \"${firstname:-}\","
+            echo "    \"last_name\": \"${lastname:-}\","
+            echo "    \"suspended\": \"${suspended:-}\","
+            echo "    \"org_unit\": \"${orgunit:-}\","
+            echo "    \"department\": \"${department:-}\""
+        else
+            echo "    \"error\": \"User not found\""
+        fi
+        
+        echo "  }"
+        echo "}"
+    } > "$backup_file"
+    
+    if [[ -f "$backup_file" ]]; then
+        log_info "Backup created successfully: $backup_file"
+        echo "$backup_file"
+    else
+        log_error "Failed to create backup for $user"
+        return 1
+    fi
+}
+
+generate_operation_summary() {
+    local total_users="$1"
+    local operation="$2"
+    local success_count="$3"
+    local error_count="$4"
+    local skip_count="$5"
+    
+    {
+        echo "=== OPERATION SUMMARY ==="
+        echo "Session ID: $SESSION_ID"
+        echo "Timestamp: $(date)"
+        echo "Operation: $operation"
+        echo "Total Users Processed: $total_users"
+        echo "Successful: $success_count"
+        echo "Errors: $error_count"
+        echo "Skipped: $skip_count"
+        echo "Success Rate: $(echo "scale=2; $success_count * 100 / $total_users" | bc 2>/dev/null || echo "N/A")%"
+        echo ""
+        echo "=== DETAILS ==="
+        
+        # Extract relevant log entries for this session
+        grep "Session: $SESSION_ID" "$AUDIT_LOG" 2>/dev/null | while read -r line; do
+            echo "$line"
+        done
+        
+    } > "$OPERATION_SUMMARY"
+    
+    log_info "Operation summary generated: $OPERATION_SUMMARY"
+}
+
+generate_daily_report() {
+    local report_date=$(date +%Y-%m-%d)
+    
+    {
+        echo "=== DAILY ACTIVITY REPORT ==="
+        echo "Date: $report_date"
+        echo "Generated: $(date)"
+        echo ""
+        
+        echo "=== SESSION SUMMARY ==="
+        local session_count=$(grep -c "SESSION START" "${LOG_DIR}"/session-*-*.log 2>/dev/null || echo "0")
+        echo "Total Sessions: $session_count"
+        echo ""
+        
+        echo "=== OPERATIONS SUMMARY ==="
+        if [[ -f "$OPERATION_LOG" ]]; then
+            echo "Total Operations: $(wc -l < "$OPERATION_LOG" 2>/dev/null || echo "0")"
+            echo ""
+            echo "Operations by Type:"
+            grep -o "add_temphold\|remove_temphold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
+            echo ""
+            echo "Operations by Status:"
+            grep -o "SUCCESS\|ERROR\|SKIPPED" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No status data"
+        else
+            echo "No operations logged today"
+        fi
+        echo ""
+        
+        echo "=== ERROR SUMMARY ==="
+        if [[ -f "$ERROR_LOG" ]]; then
+            local error_count=$(wc -l < "$ERROR_LOG" 2>/dev/null || echo "0")
+            echo "Total Errors: $error_count"
+            if [[ $error_count -gt 0 ]]; then
+                echo ""
+                echo "Recent Errors:"
+                tail -10 "$ERROR_LOG" 2>/dev/null || echo "Cannot read error log"
+            fi
+        else
+            echo "No errors logged today"
+        fi
+        echo ""
+        
+        echo "=== PERFORMANCE SUMMARY ==="
+        if [[ -f "$PERFORMANCE_LOG" ]]; then
+            echo "Performance Data Available: Yes"
+            local avg_duration=$(awk -F'Duration: |s' '{sum += $2; count++} END {print (count > 0 ? sum/count : 0)}' "$PERFORMANCE_LOG" 2>/dev/null || echo "N/A")
+            echo "Average Operation Duration: ${avg_duration}s"
+        else
+            echo "No performance data available"
+        fi
+        
+    } > "$DAILY_SUMMARY"
+    
+    log_info "Daily report generated: $DAILY_SUMMARY"
+    echo -e "${GREEN}Daily report generated: $DAILY_SUMMARY${NC}"
+}
+
+cleanup_logs() {
+    local days_to_keep="${1:-30}"
+    log_info "Starting log cleanup (keeping $days_to_keep days)"
+    
+    # Clean up old log files
+    find "$LOG_DIR" -name "*.log" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    find "$REPORT_DIR" -name "*.txt" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    find "$BACKUP_DIR" -name "*.json" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    
+    log_info "Log cleanup completed"
+}
+
+# Function for reports and cleanup menu
+reports_and_cleanup_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== Reports and Maintenance ===${NC}"
+        echo ""
+        echo "1. Generate daily activity report"
+        echo "2. Generate operation summary for current session"
+        echo "3. View current session log"
+        echo "4. View error log"
+        echo "5. View performance statistics"
+        echo "6. Clean up old logs (30+ days)"
+        echo "7. Clean up old logs (custom days)"
+        echo "8. View backup files"
+        echo "9. Configuration management"
+        echo "10. Return to main menu"
+        echo ""
+        read -p "Select an option (1-10): " report_choice
+        echo ""
+        
+        case $report_choice in
+            1)
+                echo -e "${CYAN}Generating daily activity report...${NC}"
+                generate_daily_report
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                echo -e "${CYAN}Generating operation summary for session $SESSION_ID...${NC}"
+                # Count operations from current session
+                local session_ops=$(grep "Session: $SESSION_ID" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
+                local success_count=$(grep "Session: $SESSION_ID.*SUCCESS" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
+                local error_count=$(grep "Session: $SESSION_ID.*ERROR" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
+                local skip_count=$(grep "Session: $SESSION_ID.*SKIPPED\|Session: $SESSION_ID.*DRY-RUN" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
+                
+                generate_operation_summary "$session_ops" "current_session" "$success_count" "$error_count" "$skip_count"
+                echo -e "${GREEN}Operation summary generated: $OPERATION_SUMMARY${NC}"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
+                echo -e "${CYAN}Current session log:${NC}"
+                echo "Session ID: $SESSION_ID"
+                echo "Log file: $LOG_FILE"
+                echo ""
+                if [[ -f "$LOG_FILE" ]]; then
+                    tail -20 "$LOG_FILE"
+                    echo ""
+                    echo -e "${YELLOW}(Showing last 20 lines)${NC}"
+                else
+                    echo "No session log found"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                echo -e "${CYAN}Recent errors:${NC}"
+                if [[ -f "$ERROR_LOG" ]]; then
+                    tail -10 "$ERROR_LOG"
+                    echo ""
+                    echo -e "${YELLOW}(Showing last 10 errors)${NC}"
+                else
+                    echo "No errors logged today"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                echo -e "${CYAN}Performance statistics:${NC}"
+                if [[ -f "$PERFORMANCE_LOG" ]]; then
+                    cat "$PERFORMANCE_LOG"
+                    echo ""
+                    local avg_duration=$(awk -F'Duration: |s' '{sum += $2; count++} END {print (count > 0 ? sum/count : 0)}' "$PERFORMANCE_LOG" 2>/dev/null || echo "N/A")
+                    echo -e "${GREEN}Average operation duration: ${avg_duration}s${NC}"
+                else
+                    echo "No performance data available"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6)
+                echo -e "${CYAN}Cleaning up logs older than 30 days...${NC}"
+                cleanup_logs 30
+                echo -e "${GREEN}Cleanup completed${NC}"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7)
+                read -p "Enter number of days to keep: " custom_days
+                if [[ "$custom_days" =~ ^[0-9]+$ ]]; then
+                    echo -e "${CYAN}Cleaning up logs older than $custom_days days...${NC}"
+                    cleanup_logs "$custom_days"
+                    echo -e "${GREEN}Cleanup completed${NC}"
+                else
+                    echo -e "${RED}Invalid number of days${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            8)
+                echo -e "${CYAN}Recent backup files:${NC}"
+                if [[ -d "$BACKUP_DIR" ]]; then
+                    ls -la "$BACKUP_DIR" | tail -10
+                    echo ""
+                    echo -e "${YELLOW}(Showing 10 most recent backups)${NC}"
+                else
+                    echo "No backup directory found"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            9)
+                configuration_menu
+                ;;
+            10)
+                break
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-10.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Configuration management menu
+configuration_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== Configuration Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Current Configuration:${NC}"
+        echo "GAM Path: $GAM"
+        echo "Script Path: $SCRIPTPATH"
+        echo "Listshared Path: $LISTSHARED_PATH"
+        echo "Progress Enabled: $PROGRESS_ENABLED"
+        echo "Confirmation Level: $CONFIRMATION_LEVEL"
+        echo "Log Retention: $LOG_RETENTION_DAYS days"
+        echo "Backup Retention: $BACKUP_RETENTION_DAYS days"
+        echo "Operation Timeout: $OPERATION_TIMEOUT seconds"
+        echo ""
+        echo "Configuration Options:"
+        echo "1. View full configuration file"
+        echo "2. Create default configuration file"
+        echo "3. Edit GAM path"
+        echo "4. Edit script paths"
+        echo "5. Toggle progress display"
+        echo "6. Change confirmation level"
+        echo "7. Set log retention"
+        echo "8. Set backup retention"
+        echo "9. Test configuration"
+        echo "10. Reset to defaults"
+        echo "11. Return to previous menu"
+        echo ""
+        read -p "Select an option (1-11): " config_choice
+        echo ""
+        
+        case $config_choice in
+            1)
+                echo -e "${CYAN}Configuration file contents:${NC}"
+                if [[ -f "$CONFIG_FILE" ]]; then
+                    cat "$CONFIG_FILE"
+                else
+                    echo "No configuration file found at $CONFIG_FILE"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                echo -e "${CYAN}Creating default configuration file...${NC}"
+                create_default_config
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
+                echo "Current GAM path: $GAM"
+                read -p "Enter new GAM path: " new_gam_path
+                if [[ -x "$new_gam_path" ]]; then
+                    GAM="$new_gam_path"
+                    echo -e "${GREEN}GAM path updated to: $GAM${NC}"
+                    log_info "GAM path updated to: $GAM"
+                else
+                    echo -e "${RED}Warning: File not found or not executable: $new_gam_path${NC}"
+                    echo -e "${YELLOW}Update anyway? (y/n)${NC}"
+                    read -p "> " confirm
+                    if [[ "$confirm" =~ ^[Yy] ]]; then
+                        GAM="$new_gam_path"
+                        echo -e "${GREEN}GAM path updated to: $GAM${NC}"
+                        log_warning "GAM path updated to non-executable file: $GAM"
+                    fi
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                echo "Current script path: $SCRIPTPATH"
+                read -p "Enter new script path: " new_script_path
+                if [[ -d "$new_script_path" ]]; then
+                    SCRIPTPATH="$new_script_path"
+                    echo -e "${GREEN}Script path updated to: $SCRIPTPATH${NC}"
+                    log_info "Script path updated to: $SCRIPTPATH"
+                else
+                    echo -e "${RED}Warning: Directory not found: $new_script_path${NC}"
+                    echo -e "${YELLOW}Update anyway? (y/n)${NC}"
+                    read -p "> " confirm
+                    if [[ "$confirm" =~ ^[Yy] ]]; then
+                        SCRIPTPATH="$new_script_path"
+                        echo -e "${GREEN}Script path updated to: $SCRIPTPATH${NC}"
+                        log_warning "Script path updated to non-existent directory: $SCRIPTPATH"
+                    fi
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                echo "Current progress setting: $PROGRESS_ENABLED"
+                if [[ "$PROGRESS_ENABLED" == "true" ]]; then
+                    PROGRESS_ENABLED="false"
+                    echo -e "${GREEN}Progress display disabled${NC}"
+                else
+                    PROGRESS_ENABLED="true"
+                    echo -e "${GREEN}Progress display enabled${NC}"
+                fi
+                log_info "Progress display setting changed to: $PROGRESS_ENABLED"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6)
+                echo "Current confirmation level: $CONFIRMATION_LEVEL"
+                echo "Available levels: normal, high, minimal"
+                read -p "Enter new confirmation level: " new_level
+                case $new_level in
+                    "normal"|"high"|"minimal")
+                        CONFIRMATION_LEVEL="$new_level"
+                        echo -e "${GREEN}Confirmation level updated to: $CONFIRMATION_LEVEL${NC}"
+                        log_info "Confirmation level updated to: $CONFIRMATION_LEVEL"
+                        ;;
+                    *)
+                        echo -e "${RED}Invalid confirmation level. Use: normal, high, or minimal${NC}"
+                        ;;
+                esac
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7)
+                echo "Current log retention: $LOG_RETENTION_DAYS days"
+                read -p "Enter new log retention (days): " new_retention
+                if [[ "$new_retention" =~ ^[0-9]+$ ]]; then
+                    LOG_RETENTION_DAYS="$new_retention"
+                    echo -e "${GREEN}Log retention updated to: $LOG_RETENTION_DAYS days${NC}"
+                    log_info "Log retention updated to: $LOG_RETENTION_DAYS days"
+                else
+                    echo -e "${RED}Invalid number: $new_retention${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            8)
+                echo "Current backup retention: $BACKUP_RETENTION_DAYS days"
+                read -p "Enter new backup retention (days): " new_backup_retention
+                if [[ "$new_backup_retention" =~ ^[0-9]+$ ]]; then
+                    BACKUP_RETENTION_DAYS="$new_backup_retention"
+                    echo -e "${GREEN}Backup retention updated to: $BACKUP_RETENTION_DAYS days${NC}"
+                    log_info "Backup retention updated to: $BACKUP_RETENTION_DAYS days"
+                else
+                    echo -e "${RED}Invalid number: $new_backup_retention${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            9)
+                echo -e "${CYAN}Testing configuration...${NC}"
+                echo ""
+                
+                # Test GAM
+                echo -n "Testing GAM access: "
+                if [[ -x "$GAM" ]]; then
+                    if timeout 10 "$GAM" version >/dev/null 2>&1; then
+                        echo -e "${GREEN}✓ GAM is accessible and working${NC}"
+                    else
+                        echo -e "${YELLOW}⚠ GAM executable found but may not be configured properly${NC}"
+                    fi
+                else
+                    echo -e "${RED}✗ GAM not found or not executable at: $GAM${NC}"
+                fi
+                
+                # Test directories
+                echo -n "Testing script directory: "
+                if [[ -d "$SCRIPTPATH" ]]; then
+                    echo -e "${GREEN}✓ Directory exists: $SCRIPTPATH${NC}"
+                else
+                    echo -e "${RED}✗ Directory not found: $SCRIPTPATH${NC}"
+                fi
+                
+                echo -n "Testing listshared directory: "
+                if [[ -d "$LISTSHARED_PATH" ]]; then
+                    echo -e "${GREEN}✓ Directory exists: $LISTSHARED_PATH${NC}"
+                else
+                    echo -e "${RED}✗ Directory not found: $LISTSHARED_PATH${NC}"
+                fi
+                
+                # Test log directories
+                echo -n "Testing log directories: "
+                if [[ -d "$LOG_DIR" && -d "$BACKUP_DIR" && -d "$REPORT_DIR" ]]; then
+                    echo -e "${GREEN}✓ All log directories exist${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Some log directories missing (will be created)${NC}"
+                fi
+                
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            10)
+                echo -e "${YELLOW}This will reset all configuration to defaults. Continue? (y/n)${NC}"
+                read -p "> " confirm
+                if [[ "$confirm" =~ ^[Yy] ]]; then
+                    load_configuration
+                    echo -e "${GREEN}Configuration reset to defaults${NC}"
+                    log_info "Configuration reset to defaults"
+                else
+                    echo "Reset cancelled"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            11)
+                break
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 # Function to display the main menu
 show_main_menu() {
     clear
@@ -251,11 +924,13 @@ show_main_menu() {
     echo ""
     echo "1. Process single user"
     echo "2. Process users from file"
-    echo "3. Dry-run mode (Preview changes without making them)"
-    echo "4. Discovery mode (Query and diagnose accounts)"
-    echo "5. Exit"
+    echo "3. Process multiple users (manual entry)"
+    echo "4. Dry-run mode (Preview changes without making them)"
+    echo "5. Discovery mode (Query and diagnose accounts)"
+    echo "6. Generate reports and cleanup logs"
+    echo "7. Exit"
     echo ""
-    read -p "Select an option (1-5): " choice
+    read -p "Select an option (1-7): " choice
     echo ""
     return $choice
 }
@@ -369,17 +1044,252 @@ get_operation_choice() {
     done
 }
 
-# Function to get user input
+# Function to validate user exists
+validate_user_exists() {
+    local user="$1"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo "true"  # Always valid in dry-run mode
+        return 0
+    fi
+    
+    # Check if user exists using GAM
+    local user_info=$($GAM info user "$user" 2>&1)
+    if echo "$user_info" | grep -q "Does not exist"; then
+        echo "false"
+        return 1
+    else
+        echo "true"
+        return 0
+    fi
+}
+
+# Function to get enhanced user status information
+get_user_status() {
+    local user="$1"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}Email:${NC} $user"
+        echo -e "${CYAN}Name:${NC} Sample User"
+        echo -e "${CYAN}Department:${NC} Student (simulated)"
+        echo -e "${CYAN}Status:${NC} ${GREEN}Active (simulated)${NC}"
+        echo -e "${CYAN}Org Unit:${NC} /your-domain.edu (simulated)"
+        echo -e "${CYAN}Pending Deletion:${NC} ${GREEN}No (simulated)${NC}"
+        echo ""
+        echo -e "${CYAN}Group Memberships:${NC}"
+        echo "group1@domain.com, group2@domain.com (simulated)"
+        echo -e "${CYAN}Total Groups:${NC} 2 (simulated)"
+        echo ""
+        echo -e "${CYAN}File Analysis:${NC}"
+        echo "Estimated file count: 150 (simulated)"
+        echo -e "${GREEN}No files with pending deletion marker (simulated)${NC}"
+        return 0
+    fi
+    
+    local user_info=$($GAM info user "$user" 2>&1)
+    if echo "$user_info" | grep -q "Does not exist"; then
+        echo -e "${RED}User does not exist${NC}"
+        return 1
+    fi
+    
+    # Extract key information
+    local email=$(echo "$user_info" | grep "Email:" | awk -F': ' '{print $2}')
+    local firstname=$(echo "$user_info" | grep "First Name:" | awk -F': ' '{print $2}')
+    local lastname=$(echo "$user_info" | grep "Last Name:" | awk -F': ' '{print $2}')
+    local suspended=$(echo "$user_info" | grep "Account Suspended:" | awk -F': ' '{print $2}')
+    local orgunit=$(echo "$user_info" | grep "Org Unit Path:" | awk -F': ' '{print $2}')
+    local department=$(echo "$user_info" | grep "Department:" | awk -F': ' '{print $2}')
+    local creation=$(echo "$user_info" | grep "Creation Time:" | awk -F': ' '{print $2}')
+    
+    # Display formatted information
+    echo -e "${CYAN}Email:${NC} ${email:-$user}"
+    echo -e "${CYAN}Name:${NC} $firstname $lastname"
+    echo -e "${CYAN}Department:${NC} ${department:-'Not specified'}"
+    echo -e "${CYAN}Created:${NC} ${creation:-'Not specified'}"
+    
+    # Show suspension status with color
+    if [[ "$suspended" == "True" ]]; then
+        echo -e "${CYAN}Status:${NC} ${RED}Suspended${NC}"
+    else
+        echo -e "${CYAN}Status:${NC} ${GREEN}Active${NC}"
+    fi
+    
+    echo -e "${CYAN}Org Unit:${NC} ${orgunit:-'Not specified'}"
+    
+    # Check for pending deletion marker
+    if [[ "$lastname" == *"(PENDING DELETION - CONTACT OIT)"* ]]; then
+        echo -e "${CYAN}Pending Deletion:${NC} ${YELLOW}YES - Marked for deletion${NC}"
+    else
+        echo -e "${CYAN}Pending Deletion:${NC} ${GREEN}No${NC}"
+    fi
+    
+    # Show group memberships
+    echo ""
+    echo -e "${CYAN}Group Memberships:${NC}"
+    local groups=$($GAM print groups member "$user" 2>/dev/null | tail -n +2)
+    local group_count=$(echo "$groups" | wc -l)
+    
+    if [[ -n "$groups" && "$groups" != "" ]]; then
+        echo "$groups" | head -5
+        if [[ $group_count -gt 5 ]]; then
+            echo "... (and $((group_count - 5)) more groups)"
+        fi
+        echo -e "${CYAN}Total Groups:${NC} $group_count"
+    else
+        echo "None"
+    fi
+    
+    # Show file count estimate
+    echo ""
+    echo -e "${CYAN}File Analysis:${NC}"
+    local file_count=$($GAM user "$user" show filelist | wc -l 2>/dev/null || echo "0")
+    echo "Estimated file count: $file_count"
+    
+    # Check for pending deletion files
+    local pending_files=$($GAM user "$user" show filelist id name 2>/dev/null | grep "(PENDING DELETION - CONTACT OIT)" | wc -l || echo "0")
+    if [[ $pending_files -gt 0 ]]; then
+        echo -e "${YELLOW}Files with pending deletion marker: $pending_files${NC}"
+    else
+        echo -e "${GREEN}No files with pending deletion marker${NC}"
+    fi
+}
+
+# Function to get enhanced user input with validation
 get_user_input() {
     while true; do
         read -p "Enter username or email address: " user_input
-        if [[ -n "$user_input" ]]; then
-            echo "$user_input"
-            break
-        else
+        if [[ -z "$user_input" ]]; then
             echo -e "${RED}Please enter a valid username or email.${NC}"
+            continue
+        fi
+        
+        # Add @your-domain.edu if just username provided
+        if [[ "$user_input" != *"@"* ]]; then
+            user_input="${user_input}@your-domain.edu"
+            echo "Assuming: $user_input"
+        fi
+        
+        # Validate user exists
+        echo "Validating user..."
+        if [[ $(validate_user_exists "$user_input") == "true" ]]; then
+            # Show user status
+            echo ""
+            echo -e "${CYAN}=== USER STATUS ===${NC}"
+            get_user_status "$user_input"
+            echo ""
+            
+            read -p "Is this the correct user? (y/n): " confirm
+            if [[ "$confirm" =~ ^[Yy] ]]; then
+                echo "$user_input"
+                break
+            else
+                echo "Please try again."
+            fi
+        else
+            echo -e "${RED}User '$user_input' does not exist. Please try again.${NC}"
         fi
     done
+}
+
+# Function to get multiple user input with validation
+get_multiple_user_input() {
+    echo "Enter usernames/emails (one per line, empty line to finish):"
+    local users=()
+    local user_input
+    
+    while true; do
+        read -p "> " user_input
+        if [[ -z "$user_input" ]]; then
+            break
+        fi
+        
+        # Add @your-domain.edu if just username provided
+        if [[ "$user_input" != *"@"* ]]; then
+            user_input="${user_input}@your-domain.edu"
+        fi
+        
+        # Validate user exists
+        if [[ $(validate_user_exists "$user_input") == "true" ]]; then
+            users+=("$user_input")
+            echo "✓ Added: $user_input"
+        else
+            echo -e "${RED}✗ User '$user_input' does not exist. Skipping.${NC}"
+        fi
+    done
+    
+    if [[ ${#users[@]} -eq 0 ]]; then
+        echo -e "${RED}No valid users entered.${NC}"
+        return 1
+    fi
+    
+    echo ""
+    echo "Valid users entered: ${#users[@]}"
+    for user in "${users[@]}"; do
+        echo "  - $user"
+    done
+    
+    # Save to temporary file
+    local temp_file="/tmp/bulk_users_$$.txt"
+    printf '%s\n' "${users[@]}" > "$temp_file"
+    echo "$temp_file"
+}
+
+# Function to check prerequisites before operations
+check_operation_prerequisites() {
+    local user="$1"
+    local operation="$2"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        return 0  # Skip checks in dry-run mode
+    fi
+    
+    local user_info=$($GAM info user "$user" 2>/dev/null)
+    if [[ -z "$user_info" ]]; then
+        echo -e "${RED}Error: User $user does not exist.${NC}"
+        return 1
+    fi
+    
+    local suspended=$(echo "$user_info" | awk -F': ' '/Account Suspended:/ {print $2}')
+    local lastname=$(echo "$user_info" | awk -F': ' '/Last Name:/ {print $2}')
+    local ou=$(echo "$user_info" | awk -F': ' '/Org Unit Path:/ {print $2}')
+    
+    case $operation in
+        "add_pending")
+            if [[ "$suspended" != "True" ]]; then
+                echo -e "${YELLOW}Warning: User $user is not suspended. Proceed anyway? (y/n)${NC}"
+                read -p "> " proceed
+                [[ "$proceed" =~ ^[Yy] ]] || return 1
+            fi
+            if [[ "$lastname" == *"(PENDING DELETION - CONTACT OIT)"* ]]; then
+                echo -e "${YELLOW}Warning: User $user already has pending deletion marker. Skip? (y/n)${NC}"
+                read -p "> " skip
+                [[ "$skip" =~ ^[Yy] ]] && return 2  # Return 2 for skip
+            fi
+            ;;
+        "remove_pending")
+            if [[ "$lastname" != *"(PENDING DELETION - CONTACT OIT)"* ]]; then
+                echo -e "${YELLOW}Warning: User $user does not have pending deletion marker. Proceed anyway? (y/n)${NC}"
+                read -p "> " proceed
+                [[ "$proceed" =~ ^[Yy] ]] || return 1
+            fi
+            ;;
+        "add_temphold")
+            if [[ "$lastname" == *"(Suspended Account - Temporary Hold)"* ]]; then
+                echo -e "${YELLOW}Warning: User $user already has temporary hold marker. Skip? (y/n)${NC}"
+                read -p "> " skip
+                [[ "$skip" =~ ^[Yy] ]] && return 2  # Return 2 for skip
+            fi
+            ;;
+        "remove_temphold")
+            if [[ "$lastname" != *"(Suspended Account - Temporary Hold)"* ]]; then
+                echo -e "${YELLOW}Warning: User $user does not have temporary hold marker. Proceed anyway? (y/n)${NC}"
+                read -p "> " proceed
+                [[ "$proceed" =~ ^[Yy] ]] || return 1
+            fi
+            ;;
+    esac
+    
+    return 0
 }
 
 # Function to load users from file
@@ -411,10 +1321,11 @@ show_summary() {
     echo "   - Rename them to include '(Suspended Account - Temporary Hold)'"
     echo "   - Log changes to tmp/${user}-fixed.txt"
     echo ""
-    echo -e "${GREEN}3. Rename All Files:${NC}"
+    echo -e "${GREEN}3. Rename Shared Files:${NC}"
     echo "   - Generate file list using list-users-files.sh"
-    echo "   - Add '(Suspended Account - Temporary Hold)' to all file names"
-    echo "   - Skip files already having this suffix"
+    echo "   - Filter for files shared with active your-domain.edu accounts ONLY"
+    echo "   - Add '(Suspended Account - Temporary Hold)' to shared file names"
+    echo "   - Skip files already having this suffix or shared externally"
     echo ""
     echo -e "${GREEN}4. Update User Last Name:${NC}"
     echo "   - Add '(Suspended Account - Temporary Hold)' to user's last name"
@@ -422,10 +1333,12 @@ show_summary() {
     echo ""
     echo -e "${GREEN}5. Move to Temporary Hold OU:${NC}"
     echo "   - Move user to '$OU_TEMPHOLD' organizational unit"
+    echo "   - Remove user from all groups (with backup)"
     echo ""
     echo -e "${GREEN}6. Logging:${NC}"
     echo "   - Add user to temphold-done.log"
     echo "   - Add timestamp to file-rename-done.txt"
+    echo "   - Create group membership backup"
     echo ""
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${CYAN}🔍 DRY-RUN MODE: No actual changes will be made${NC}"
@@ -453,10 +1366,12 @@ show_removal_summary() {
     echo -e "${GREEN}3. Move User to Destination OU:${NC}"
     echo "   - Choose destination: Pending Deletion, Suspended, or your-domain.edu"
     echo "   - Move user to selected organizational unit"
+    echo "   - If moving to your-domain.edu, offer to restore groups from backup"
     echo ""
     echo -e "${GREEN}4. Logging:${NC}"
     echo "   - Add user to temphold-removed.log"
     echo "   - Add timestamp to file-removal-done.txt"
+    echo "   - Log any group restoration activity"
     echo ""
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${CYAN}🔍 DRY-RUN MODE: No actual changes will be made${NC}"
@@ -718,11 +1633,160 @@ move_user_to_ou() {
     
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${CYAN}[DRY-RUN] Would move user $user to OU: $target_ou${NC}"
+        
+        # Check if this is a suspension operation that would trigger group removal
+        if [[ "$target_ou" == *"Suspended"* ]]; then
+            echo -e "${CYAN}[DRY-RUN] Would also remove user from all groups${NC}"
+        fi
         return 0
     fi
     
     echo -e "${GREEN}Moving user $user to OU: $target_ou${NC}"
     execute_command "$GAM update user \"$user\" ou \"$target_ou\"" "Move user to OU"
+    
+    # Automatically remove from groups when moving to any suspended OU
+    if [[ "$target_ou" == *"Suspended"* ]]; then
+        echo -e "${YELLOW}User is being moved to a suspended OU. Removing from all groups...${NC}"
+        remove_user_from_all_groups "$user"
+    fi
+    
+    # Offer to restore groups when moving back to active OU
+    if [[ "$target_ou" == "$OU_ACTIVE" ]]; then
+        echo -e "${CYAN}User is being reactivated. Checking for group backup...${NC}"
+        # Look for the most recent group backup for this user
+        local latest_backup=$(ls -t "${BACKUP_DIR}/${user}-groups-"*.txt 2>/dev/null | head -1)
+        if [[ -n "$latest_backup" ]]; then
+            echo -e "${YELLOW}Found group backup: $(basename "$latest_backup")${NC}"
+            echo -e "${YELLOW}Would you like to restore the user's previous group memberships? (y/n)${NC}"
+            read -p "> " restore_groups
+            if [[ "$restore_groups" =~ ^[Yy] ]]; then
+                restore_user_to_groups "$user" "$latest_backup"
+            else
+                echo -e "${CYAN}Skipped group restoration. Groups can be manually restored later.${NC}"
+                log_info "User chose to skip group restoration for $user"
+            fi
+        else
+            echo -e "${YELLOW}No group backup found for user $user${NC}"
+            echo -e "${YELLOW}Groups will need to be manually restored if needed.${NC}"
+            log_warning "No group backup found for reactivated user $user"
+        fi
+    fi
+}
+
+# Function to remove user from all groups
+remove_user_from_all_groups() {
+    local user="$1"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would remove $user from all groups${NC}"
+        return 0
+    fi
+    
+    log_info "Removing user $user from all groups"
+    echo -e "${CYAN}Fetching group memberships for $user...${NC}"
+    
+    # Get all groups the user is a member of
+    local groups=$($GAM print groups member "$user" 2>/dev/null | tail -n +2 | grep your-domain.edu || true)
+    
+    if [[ -z "$groups" ]]; then
+        echo -e "${GREEN}User $user is not a member of any groups${NC}"
+        log_info "User $user has no group memberships to remove"
+        return 0
+    fi
+    
+    local group_count=$(echo "$groups" | wc -l)
+    echo -e "${YELLOW}Removing user from $group_count groups...${NC}"
+    
+    local removed_count=0
+    local failed_count=0
+    
+    # Create backup of group memberships
+    local group_backup_file="${BACKUP_DIR}/${user}-groups-$(date +%Y%m%d_%H%M%S).txt"
+    echo "$groups" > "$group_backup_file"
+    log_info "Group membership backup created: $group_backup_file"
+    
+    while IFS= read -r group; do
+        if [[ -n "$group" ]]; then
+            echo -n "  Removing from $group... "
+            if $GAM update group "$group" remove member "$user" >/dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC}"
+                ((removed_count++))
+                log_operation "remove_from_group" "$user" "SUCCESS" "Removed from group: $group"
+                
+                # Log to the same file format as the original script
+                echo "$(date '+%Y-%m-%d %H:%M:%S'),$user,$group" >> "${SCRIPTPATH}/users-removed-from-groups.txt"
+            else
+                echo -e "${RED}✗${NC}"
+                ((failed_count++))
+                log_operation "remove_from_group" "$user" "ERROR" "Failed to remove from group: $group"
+                log_error "Failed to remove user $user from group $group"
+            fi
+        fi
+    done <<< "$groups"
+    
+    echo ""
+    if [[ $removed_count -gt 0 ]]; then
+        echo -e "${GREEN}Successfully removed user from $removed_count groups${NC}"
+        log_info "Successfully removed user $user from $removed_count groups"
+    fi
+    
+    if [[ $failed_count -gt 0 ]]; then
+        echo -e "${YELLOW}Failed to remove user from $failed_count groups${NC}"
+        log_warning "Failed to remove user $user from $failed_count groups"
+    fi
+    
+    echo -e "${CYAN}Group removal log: ${SCRIPTPATH}/users-removed-from-groups.txt${NC}"
+}
+
+# Function to restore user to groups (for reactivation)
+restore_user_to_groups() {
+    local user="$1"
+    local backup_file="$2"
+    
+    if [[ ! -f "$backup_file" ]]; then
+        echo -e "${YELLOW}No group backup file found: $backup_file${NC}"
+        echo -e "${YELLOW}Skipping group restoration. You may need to manually restore group memberships.${NC}"
+        log_warning "No group backup found for user $user - manual group restoration may be needed"
+        return 1
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would restore user $user to groups from backup: $backup_file${NC}"
+        return 0
+    fi
+    
+    echo -e "${CYAN}Restoring user $user to groups from backup...${NC}"
+    log_info "Restoring user $user to groups from backup: $backup_file"
+    
+    local restored_count=0
+    local failed_count=0
+    
+    while IFS= read -r group; do
+        if [[ -n "$group" ]]; then
+            echo -n "  Adding to $group... "
+            if $GAM update group "$group" add member "$user" >/dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC}"
+                ((restored_count++))
+                log_operation "add_to_group" "$user" "SUCCESS" "Restored to group: $group"
+            else
+                echo -e "${RED}✗${NC}"
+                ((failed_count++))
+                log_operation "add_to_group" "$user" "ERROR" "Failed to restore to group: $group"
+                log_error "Failed to restore user $user to group $group"
+            fi
+        fi
+    done < "$backup_file"
+    
+    echo ""
+    if [[ $restored_count -gt 0 ]]; then
+        echo -e "${GREEN}Successfully restored user to $restored_count groups${NC}"
+        log_info "Successfully restored user $user to $restored_count groups"
+    fi
+    
+    if [[ $failed_count -gt 0 ]]; then
+        echo -e "${YELLOW}Failed to restore user to $failed_count groups${NC}"
+        log_warning "Failed to restore user $user to $failed_count groups"
+    fi
 }
 
 # Function to get user's current OU
@@ -1586,15 +2650,66 @@ rename_all_files() {
     
     # Run the list-users-files.sh to generate reports and CSV files
     echo "Running ${LISTSHARED_PATH}/list-users-files.sh $user_email"
-    "${LISTSHARED_PATH}/list-users-files.sh" "$user_email"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would generate shared file list using ${LISTSHARED_PATH}/list-users-files.sh${NC}"
+        # Create simulated data for dry-run
+        mkdir -p "$(dirname "$INPUT_FILE")"
+        echo "owner,id,filename,shared_with,permission" > "$INPUT_FILE"
+        echo "$user_email,123abc,Document1.pdf,activeuser1@your-domain.edu,reader" >> "$INPUT_FILE"
+        echo "$user_email,456def,Document2.pdf,activeuser2@your-domain.edu,writer" >> "$INPUT_FILE"
+        echo "$user_email,789ghi,Document3.pdf,externaluser@gmail.com,reader" >> "$INPUT_FILE"
+    else
+        "${LISTSHARED_PATH}/list-users-files.sh" "$user_email"
+    fi
     
-    # Generate the master list of all files owned by this account
-    cat "$INPUT_FILE" | awk -F, '{print $1","$2","$3","$4","$5","$6","$7}' | sort | uniq > "$UNIQUE_FILE"
+    if [[ ! -f "$INPUT_FILE" ]]; then
+        echo -e "${YELLOW}Warning: Shared file list not found at $INPUT_FILE${NC}"
+        echo -e "${YELLOW}This may indicate that list-users-files.sh is not available or failed to run${NC}"
+        echo -e "${CYAN}Skipping file renaming step. Only files already marked as pending deletion were processed.${NC}"
+        log_warning "Shared file list not found for user $user_email_full - skipping bulk file renaming"
+        return 0
+    fi
+    
+    # Filter for files shared with active your-domain.edu accounts ONLY
+    # Exclude external domains and already suspended accounts
+    echo "Filtering for files shared with active your-domain.edu accounts..."
+    
+    # Generate list of files shared ONLY with active your-domain.edu accounts
+    # This excludes files shared with external domains or already suspended users
+    awk -F, '
+    NR==1 {next}  # Skip header
+    $4 ~ /@williams\.edu$/ && $4 !~ /suspended|pending|temporary/ {
+        print $1","$2","$3
+    }' "$INPUT_FILE" | sort | uniq > "$UNIQUE_FILE"
+    
+    # Create final temp file with unique shared files
     rm -f "$TEMP_FILE"
     touch "$TEMP_FILE"
-    cat "$UNIQUE_FILE" | awk -F, '{print $1","$2","$3}' | sort | uniq > "$TEMP_FILE"
+    cat "$UNIQUE_FILE" > "$TEMP_FILE"
     
-    echo "Total shared files: $(cat $TEMP_FILE | wc -l)"
+    local shared_count=$(cat "$TEMP_FILE" | wc -l)
+    local total_files=$(awk -F, 'NR>1 {print $3}' "$INPUT_FILE" | wc -l)
+    local external_files=$((total_files - shared_count))
+    
+    echo "Analysis of $user_email file sharing:"
+    echo "  Total files owned: $total_files"
+    echo "  Files shared with active your-domain.edu accounts: $shared_count"
+    echo "  Files shared externally or with suspended accounts: $external_files"
+    echo ""
+    
+    if [[ $shared_count -eq 0 ]]; then
+        echo -e "${GREEN}✓ No files are shared with active your-domain.edu accounts.${NC}"
+        echo -e "${CYAN}This is ideal for security - no internal sharing to protect.${NC}"
+        echo -e "${CYAN}Only files already marked as pending deletion were processed.${NC}"
+        log_info "User $user_email_full has no files shared with active your-domain.edu accounts - optimal security state"
+        return 0
+    fi
+    
+    if [[ $external_files -gt 0 ]]; then
+        echo -e "${CYAN}Note: $external_files files shared externally/with suspended accounts will NOT be renamed${NC}"
+        echo -e "${CYAN}This preserves access for external collaborators and already-processed accounts${NC}"
+        log_info "User $user_email_full: $external_files files preserved (external/suspended sharing)"
+    fi
     
     # Initialize the counter
     total=$(cat "$TEMP_FILE" | egrep -v "(Suspended Account - Temporary Hold)" | egrep -v "owner,id,filename" | wc -l)
@@ -1886,6 +3001,9 @@ remove_pending_users_from_file() {
 process_user() {
     local user="$1"
     
+    log_info "Starting add_temphold operation for user: $user" "console"
+    start_operation_timer
+    
     echo -e "${BLUE}=== Processing user: $user ===${NC}"
     echo ""
     
@@ -1917,9 +3035,14 @@ process_user() {
     # Step 6: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
         echo "$user" >> "${SCRIPTPATH}/temphold-done.log"
+        log_operation "add_temphold" "$user" "SUCCESS" "Temporary hold added successfully"
     else
         echo -e "${CYAN}[DRY-RUN] Would log user to temphold-done.log${NC}"
+        log_operation "add_temphold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
     fi
+    
+    end_operation_timer "add_temphold" 1
+    log_info "Completed add_temphold operation for user: $user" "console"
     echo -e "${GREEN}User $user has been processed successfully.${NC}"
     echo ""
 }
@@ -2054,19 +3177,78 @@ main() {
                 read -p "Press Enter to continue..."
                 ;;
             3)
+                # Manual user entry processing
+                users_array=($(get_multiple_user_input))
+                if [[ ${#users_array[@]} -gt 0 ]]; then
+                    operation=$(get_operation_choice)
+                    echo ""
+                    echo "Processing ${#users_array[@]} users with operation: $operation"
+                    
+                    # Check prerequisites for all users
+                    for user in "${users_array[@]}"; do
+                        check_operation_prerequisites "$user" "$operation"
+                        exit_code=$?
+                        if [[ $exit_code -eq 1 ]]; then
+                            echo -e "${RED}Prerequisites failed for $user. Skipping all operations.${NC}"
+                            break
+                        fi
+                    done
+                    
+                    if enhanced_confirm "process ${#users_array[@]} manually entered users" "${#users_array[@]}" "batch"; then
+                        for user in "${users_array[@]}"; do
+                            echo ""
+                            echo -e "${CYAN}Processing: $user${NC}"
+                            case $operation in
+                                "add_temphold")
+                                    create_backup "$user" "add_temphold"
+                                    process_user "$user"
+                                    ;;
+                                "remove_temphold")
+                                    create_backup "$user" "remove_temphold"
+                                    remove_temphold_user "$user"
+                                    ;;
+                                "add_pending")
+                                    create_backup "$user" "add_pending"
+                                    process_pending_user "$user"
+                                    ;;
+                                "remove_pending")
+                                    create_backup "$user" "remove_pending"
+                                    remove_pending_user "$user"
+                                    ;;
+                            esac
+                            echo "----------------------------------------"
+                        done
+                        echo -e "${GREEN}Manual processing completed for ${#users_array[@]} users.${NC}"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}No users entered. Returning to main menu.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
                 # Dry-run mode
                 dry_run_mode
                 ;;
-            4)
+            5)
                 # Discovery mode
                 discovery_mode
                 ;;
-            5)
+            6)
+                # Generate reports and cleanup
+                reports_and_cleanup_menu
+                ;;
+            7)
                 echo -e "${BLUE}Goodbye!${NC}"
+                log_info "Session ended by user"
+                echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
+                generate_daily_report
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-5.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
