@@ -218,6 +218,11 @@ OU_PENDING_DELETION="/Suspended Accounts/Suspended - Pending Deletion"
 OU_SUSPENDED="/Suspended Accounts"
 OU_ACTIVE="/your-domain.edu"
 
+# Google Drive Label IDs for pending deletion
+LABEL_ID="xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb"
+FIELD_ID="62BB395EC6"
+SELECTION_ID="68E9987D43"
+
 # Global settings
 DRY_RUN=false
 DISCOVERY_MODE=false
@@ -342,13 +347,17 @@ get_operation_choice() {
     echo "Select operation:"
     echo "1. Add temporary hold"
     echo "2. Remove temporary hold"
+    echo "3. Mark for pending deletion"
+    echo "4. Remove pending deletion"
     echo ""
     while true; do
-        read -p "Choose operation (1-2): " op_choice
+        read -p "Choose operation (1-4): " op_choice
         case $op_choice in
-            1) echo "add"; break ;;
-            2) echo "remove"; break ;;
-            *) echo -e "${RED}Please select 1 or 2.${NC}" ;;
+            1) echo "add_temphold"; break ;;
+            2) echo "remove_temphold"; break ;;
+            3) echo "add_pending"; break ;;
+            4) echo "remove_pending"; break ;;
+            *) echo -e "${RED}Please select 1, 2, 3, or 4.${NC}" ;;
         esac
     done
 }
@@ -449,6 +458,78 @@ show_removal_summary() {
     echo ""
 }
 
+# Function to show what actions will be performed for adding pending deletion
+show_pending_summary() {
+    local user=$1
+    echo -e "${YELLOW}=== SUMMARY OF PENDING DELETION ACTIONS FOR: $user ===${NC}"
+    echo ""
+    echo "The following operations will be performed:"
+    echo ""
+    echo -e "${GREEN}1. Add Pending Deletion to Last Name:${NC}"
+    echo "   - Add '(PENDING DELETION - CONTACT OIT)' to user's last name"
+    echo "   - Skip if already present"
+    echo ""
+    echo -e "${GREEN}2. Add Pending Deletion to All Files:${NC}"
+    echo "   - Generate file list using list-users-files.sh"
+    echo "   - Add '(PENDING DELETION - CONTACT OIT)' to all file names"
+    echo "   - Skip files already having this suffix"
+    echo ""
+    echo -e "${GREEN}3. Add Drive Labels to Files:${NC}"
+    echo "   - Temporarily add Education Plus license"
+    echo "   - Add pending deletion labels to all files"
+    echo "   - Remove Education Plus license"
+    echo ""
+    echo -e "${GREEN}4. Remove User from All Groups:${NC}"
+    echo "   - Query user's group memberships"
+    echo "   - Remove user from all groups"
+    echo "   - Log group removals"
+    echo ""
+    echo -e "${GREEN}5. Move to Pending Deletion OU:${NC}"
+    echo "   - Move user to '$OU_PENDING_DELETION' organizational unit"
+    echo ""
+    echo -e "${GREEN}6. Logging:${NC}"
+    echo "   - Add user to pending-deletion-done.log"
+    echo "   - Add timestamp to logs"
+    echo ""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}🔍 DRY-RUN MODE: No actual changes will be made${NC}"
+    fi
+    echo -e "${YELLOW}Note: This process may take several minutes depending on the number of files.${NC}"
+    echo ""
+}
+
+# Function to show what actions will be performed for removing pending deletion
+show_pending_removal_summary() {
+    local user=$1
+    echo -e "${YELLOW}=== SUMMARY OF PENDING DELETION REMOVAL ACTIONS FOR: $user ===${NC}"
+    echo ""
+    echo "The following operations will be performed:"
+    echo ""
+    echo -e "${GREEN}1. Remove Pending Deletion from Last Name:${NC}"
+    echo "   - Remove '(PENDING DELETION - CONTACT OIT)' from user's last name"
+    echo "   - Restore original last name"
+    echo ""
+    echo -e "${GREEN}2. Remove Pending Deletion from All Files:${NC}"
+    echo "   - Find all files with '(PENDING DELETION - CONTACT OIT)' in name"
+    echo "   - Remove the suffix from file names"
+    echo "   - Remove drive labels from files"
+    echo "   - Log changes to tmp/${user}-pending-removed.txt"
+    echo ""
+    echo -e "${GREEN}3. Move User to Destination OU:${NC}"
+    echo "   - Choose destination: Pending Deletion, Suspended, or your-domain.edu"
+    echo "   - Move user to selected organizational unit"
+    echo ""
+    echo -e "${GREEN}4. Logging:${NC}"
+    echo "   - Add user to pending-deletion-removed.log"
+    echo "   - Add timestamp to pending-removal-done.txt"
+    echo ""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}🔍 DRY-RUN MODE: No actual changes will be made${NC}"
+    fi
+    echo -e "${YELLOW}Note: This process may take several minutes depending on the number of files.${NC}"
+    echo ""
+}
+
 # Function to handle dry-run mode
 dry_run_mode() {
     DRY_RUN=true
@@ -468,13 +549,24 @@ dry_run_mode() {
             echo ""
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR: $user${NC}"
             
-            if [[ "$operation" == "add" ]]; then
-                show_summary "$user"
-                process_user "$user"
-            else
-                show_removal_summary "$user"
-                remove_temphold_user "$user"
-            fi
+            case $operation in
+                "add_temphold")
+                    show_summary "$user"
+                    process_user "$user"
+                    ;;
+                "remove_temphold")
+                    show_removal_summary "$user"
+                    remove_temphold_user "$user"
+                    ;;
+                "add_pending")
+                    show_pending_summary "$user"
+                    process_pending_user "$user"
+                    ;;
+                "remove_pending")
+                    show_pending_removal_summary "$user"
+                    remove_pending_user "$user"
+                    ;;
+            esac
             ;;
         2)
             file_path=$(load_users_from_file)
@@ -483,11 +575,20 @@ dry_run_mode() {
             echo ""
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR $user_count USERS${NC}"
             
-            if [[ "$operation" == "add" ]]; then
-                process_users_from_file "$file_path"
-            else
-                remove_temphold_users_from_file "$file_path"
-            fi
+            case $operation in
+                "add_temphold")
+                    process_users_from_file "$file_path"
+                    ;;
+                "remove_temphold")
+                    remove_temphold_users_from_file "$file_path"
+                    ;;
+                "add_pending")
+                    process_pending_users_from_file "$file_path"
+                    ;;
+                "remove_pending")
+                    remove_pending_users_from_file "$file_path"
+                    ;;
+            esac
             ;;
         3)
             DRY_RUN=false
@@ -506,25 +607,33 @@ discovery_mode() {
     echo -e "${MAGENTA}=== DISCOVERY MODE ===${NC}"
     echo ""
     echo "Discovery options:"
-    echo "1. Query all users in Temporary Hold OU"
-    echo "2. Diagnose specific account consistency"
-    echo "3. Check for incomplete operations"
-    echo "4. Return to main menu"
+    echo "1. Query users in Temporary Hold OU"
+    echo "2. Query users in Pending Deletion OU"
+    echo "3. Query all suspended users (all OUs)"
+    echo "4. Diagnose specific account consistency"
+    echo "5. Check for incomplete operations"
+    echo "6. Return to main menu"
     echo ""
-    read -p "Select an option (1-4): " discovery_choice
+    read -p "Select an option (1-6): " discovery_choice
     
     case $discovery_choice in
         1) 
             query_temphold_users
             ;;
         2) 
+            query_pending_users
+            ;;
+        3) 
+            query_all_suspended_users
+            ;;
+        4) 
             user=$(get_user_input)
             diagnose_account "$user"
             ;;
-        3) 
+        5) 
             check_incomplete_operations
             ;;
-        4) 
+        6) 
             DISCOVERY_MODE=false
             return
             ;;
@@ -632,6 +741,56 @@ query_temphold_users() {
     $GAM print users ou "$OU_TEMPHOLD" firstname lastname
 }
 
+# Function to query users in pending deletion OU
+query_pending_users() {
+    echo -e "${CYAN}Querying users in Pending Deletion OU...${NC}"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users ou \"$OU_PENDING_DELETION\"${NC}"
+        echo ""
+        echo "Simulated results:"
+        echo "user4@domain.com,Alice,Brown (PENDING DELETION - CONTACT OIT)"
+        echo "user5@domain.com,David,Wilson (PENDING DELETION - CONTACT OIT)"
+        echo "user6@domain.com,Carol,Davis (PENDING DELETION - CONTACT OIT)"
+        return 0
+    fi
+    
+    echo "Users in $OU_PENDING_DELETION:"
+    $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+}
+
+# Function to query all suspended users
+query_all_suspended_users() {
+    echo -e "${CYAN}Querying all users in Suspended Accounts OUs...${NC}"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query all suspended OUs${NC}"
+        echo ""
+        echo "Simulated results:"
+        echo "OU: $OU_SUSPENDED"
+        echo "  user7@domain.com,Emma,Taylor"
+        echo "  user8@domain.com,Frank,Moore"
+        echo ""
+        echo "OU: $OU_TEMPHOLD"
+        echo "  user1@domain.com,John,Doe (Suspended Account - Temporary Hold)"
+        echo "  user2@domain.com,Jane,Smith (Suspended Account - Temporary Hold)"
+        echo ""
+        echo "OU: $OU_PENDING_DELETION"
+        echo "  user4@domain.com,Alice,Brown (PENDING DELETION - CONTACT OIT)"
+        echo "  user5@domain.com,David,Wilson (PENDING DELETION - CONTACT OIT)"
+        return 0
+    fi
+    
+    echo "=== Users in General Suspended OU ==="
+    $GAM print users ou "$OU_SUSPENDED" firstname lastname
+    echo ""
+    echo "=== Users in Temporary Hold OU ==="
+    $GAM print users ou "$OU_TEMPHOLD" firstname lastname
+    echo ""
+    echo "=== Users in Pending Deletion OU ==="
+    $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+}
+
 # Function to diagnose account consistency
 diagnose_account() {
     local user="$1"
@@ -689,6 +848,280 @@ diagnose_account() {
     else
         echo -e "${RED}❌ Account has inconsistencies that may need attention${NC}"
     fi
+}
+
+# Function to add pending deletion to user's last name
+add_pending_lastname() {
+    local email="$1"
+    echo -e "${GREEN}Step 1: Adding pending deletion to last name for $email${NC}"
+    
+    # Get the current last name of the user using GAM
+    if [[ "$DRY_RUN" == "true" ]]; then
+        current_lastname="Sample User"
+        echo -e "${CYAN}[DRY-RUN] Would query user info for: $email${NC}"
+    else
+        current_lastname=$($GAM info user "$email" | awk -F': ' '/Last Name:/ {print $2}')
+    fi
+    
+    # Check if the current last name already has pending deletion
+    if [[ "$current_lastname" == *"(PENDING DELETION - CONTACT OIT)" ]]; then
+        echo "No change needed for $email, already has pending deletion: '$current_lastname'"
+    else
+        # Add the "(PENDING DELETION - CONTACT OIT)" suffix to the current last name
+        new_lastname="$current_lastname (PENDING DELETION - CONTACT OIT)"
+        
+        # Update the last name
+        echo "Updating $email from '$current_lastname' to '$new_lastname'"
+        execute_command "$GAM update user \"$email\" lastname \"$new_lastname\"" "Update user lastname"
+    fi
+}
+
+# Function to add pending deletion to all files
+add_pending_to_files() {
+    local user_email_full="$1"
+    local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
+    
+    echo -e "${GREEN}Step 2: Adding pending deletion to all files for $user_email_full${NC}"
+    
+    # Define files
+    INPUT_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_active-shares.csv"
+    UNIQUE_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_unique_files.csv"
+    TEMP_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_temp.csv"
+    ALL_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_all_files.csv"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would run file listing and renaming for: $user_email_full${NC}"
+        echo "Simulated: Found 25 files to rename with pending deletion"
+        
+        # Simulate file processing
+        for ((counter=1; counter<=5; counter++)); do
+            show_progress $counter 5 "Processing file $counter"
+            filename="Sample File $counter.pdf"
+            new_filename="Sample File $counter.pdf (PENDING DELETION - CONTACT OIT)"
+            echo -e "${CYAN}[DRY-RUN] Would rename: $filename -> $new_filename${NC}"
+            sleep 0.1
+        done
+        return 0
+    fi
+    
+    # Run the list-users-files.sh to generate reports and CSV files
+    echo "Running ${LISTSHARED_PATH}/list-users-files.sh $user_email"
+    "${LISTSHARED_PATH}/list-users-files.sh" "$user_email"
+    
+    # Generate the master list of all files owned by this account
+    $GAM user ${user_email_full} show filelist id title > "$ALL_FILE"
+    cat "$INPUT_FILE" | awk -F, '{print $1","$2","$3","$4","$5","$6","$7}' | sort | uniq > "$UNIQUE_FILE"
+    
+    # Create temp file with updated filenames
+    rm -f "$TEMP_FILE"
+    touch "$TEMP_FILE"
+    counter=0
+    total=$(cat "$UNIQUE_FILE" | sort | uniq | wc -l)
+    
+    for file_id in $(cat "$UNIQUE_FILE" | sort | uniq | egrep -v mimeType | awk -F, '{print $2}'); do
+        ((counter++))
+        show_progress $counter $total "Collecting file info"
+        grep $file_id "$ALL_FILE" >> "$TEMP_FILE"
+    done
+    
+    echo "Total shared files: $(cat $TEMP_FILE | wc -l)"
+    
+    # Initialize the counter for renaming
+    counter=0
+    total=$(cat "$TEMP_FILE" | egrep -v "Owner,id,name" | egrep -v "PENDING DELETION" | wc -l)
+    echo "$total files need pending deletion suffix"
+    
+    if [[ $total -eq 0 ]]; then
+        echo "All files already have the pending deletion suffix."
+        return
+    fi
+    
+    # Read in the temporary file and extract the relevant information
+    while IFS=, read -r fileid filename; do
+        ((counter++))
+        show_progress $counter $total "Adding pending deletion"
+        
+        if [[ $fileid != *"http"* ]]; then
+            # Get the current filename directly from Google Drive
+            current_filename=$($GAM user "$user_email_full" show fileinfo "$fileid" fields name | grep 'name:' | sed 's/name: //')
+            
+            # Only rename if the filename does not already contain "PENDING DELETION"
+            if [[ $current_filename != *"PENDING DELETION - CONTACT OIT"* ]]; then
+                # Construct the new filename
+                new_filename="${current_filename} (PENDING DELETION - CONTACT OIT)"
+                # Update the filename in Google Drive
+                execute_command "$GAM user \"$user_email_full\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $current_filename"
+                echo "Renamed file: $fileid, $current_filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-added.txt"
+            fi
+        fi
+    done < <(cat "$TEMP_FILE" | egrep -v "PENDING DELETION" | egrep -v "Owner,id,name" | awk -F, '{print $2","$3}')
+    
+    echo "Completed adding pending deletion to files for $user_email"
+    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-added.txt for details"
+}
+
+# Function to add drive labels to files
+add_drive_labels() {
+    local user_email_full="$1"
+    local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
+    
+    echo -e "${GREEN}Step 3: Adding drive labels to files for $user_email_full${NC}"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would add Education Plus license temporarily${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would add drive labels to all files${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would remove Education Plus license${NC}"
+        return 0
+    fi
+    
+    # Add Education Plus license temporarily for drive labels
+    execute_command "$GAM user $user_email_full add license \"Google Workspace for Education Plus\"" "Add temporary license"
+    echo "Waiting 30 seconds for license to take effect..."
+    sleep 30
+    
+    UNIQUE_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_unique_files.csv"
+    LOG_FILE="${SCRIPTPATH}/logs/${user_email}_drive-labels.txt"
+    
+    if [[ ! -f "$UNIQUE_FILE" ]]; then
+        echo "No unique files CSV found, skipping drive labels"
+        return
+    fi
+    
+    # Add labels to all files
+    counter=0
+    total=$(cat "$UNIQUE_FILE" | egrep -v "vnd.google-apps.folder" | egrep -v "mimeType" | wc -l)
+    echo "Adding drive labels to $total files"
+    
+    while IFS=, read -r owner file_id filename; do
+        if [[ "$file_id" != "id" && "$file_id" != *"mimeType"* ]]; then
+            ((counter++))
+            show_progress $counter $total "Adding drive labels"
+            execute_command "$GAM user $user_email_full process filedrivelabels $file_id addlabelfield $LABEL_ID $FIELD_ID selection $SELECTION_ID" "Add label to file"
+        fi
+    done < "$UNIQUE_FILE"
+    
+    # Remove the temporary license
+    execute_command "$GAM user $user_email_full delete license \"Google Workspace for Education Plus\"" "Remove temporary license"
+    
+    echo "Completed adding drive labels for $user_email"
+}
+
+# Function to remove pending deletion from user's last name
+remove_pending_lastname() {
+    local email="$1"
+    echo -e "${GREEN}Step 1: Removing pending deletion from last name for $email${NC}"
+    
+    # Get the current last name of the user using GAM
+    if [[ "$DRY_RUN" == "true" ]]; then
+        current_lastname="Sample User (PENDING DELETION - CONTACT OIT)"
+        echo -e "${CYAN}[DRY-RUN] Would query user info for: $email${NC}"
+    else
+        current_lastname=$($GAM info user "$email" | awk -F': ' '/Last Name:/ {print $2}')
+    fi
+    
+    # Check if the current last name ends with "(PENDING DELETION - CONTACT OIT)"
+    if [[ "$current_lastname" == *"(PENDING DELETION - CONTACT OIT)" ]]; then
+        # Remove the "(PENDING DELETION - CONTACT OIT)" suffix from the current last name
+        original_lastname="${current_lastname% (PENDING DELETION - CONTACT OIT)}"
+        
+        # Restore the original last name
+        echo "Restoring $email from '$current_lastname' to '$original_lastname'"
+        execute_command "$GAM update user \"$email\" lastname \"$original_lastname\"" "Update user lastname"
+    else
+        echo "No change needed for $email, current last name is '$current_lastname'"
+    fi
+}
+
+# Function to remove pending deletion from all files
+remove_pending_from_files() {
+    local user_email_full="$1"
+    local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
+    
+    echo -e "${GREEN}Step 2: Removing pending deletion from all files for $user_email_full${NC}"
+    
+    # Create tmp directory if it doesn't exist
+    execute_command "mkdir -p \"${SCRIPTPATH}/tmp\"" "Create tmp directory"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would query files for user: $user_email_full${NC}"
+        TOTAL=4  # Simulate some files for dry-run
+        echo "Found $TOTAL files to process (simulated)"
+        
+        # Simulate file processing
+        for ((counter=1; counter<=TOTAL; counter++)); do
+            show_progress $counter $TOTAL "Processing file $counter"
+            filename="Sample File $counter (PENDING DELETION - CONTACT OIT).pdf"
+            new_filename="Sample File $counter.pdf"
+            echo -e "${CYAN}[DRY-RUN] Would rename: $filename -> $new_filename${NC}"
+            echo -e "${CYAN}[DRY-RUN] Would remove drive label from file${NC}"
+            sleep 0.1
+        done
+        return 0
+    fi
+    
+    # Query the user's files and output only the files with (PENDING DELETION - CONTACT OIT) in the name
+    $GAM user "$user_email_full" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt" | wc -l)
+    counter=0
+    
+    if [[ $TOTAL -eq 0 ]]; then
+        echo "No files found with '(PENDING DELETION - CONTACT OIT)' in the name."
+        return
+    fi
+    
+    echo "Found $TOTAL files to process"
+    
+    # Read in the temporary file and extract the relevant information, skipping the header line
+    while IFS=, read -r owner fileid filename; do
+        ((counter++))
+        show_progress $counter $TOTAL "Processing files"
+        
+        # Remove the "(PENDING DELETION - CONTACT OIT)" string from filename
+        new_filename=${filename//" (PENDING DELETION - CONTACT OIT)"/}
+        if [[ "$new_filename" != "$filename" ]]; then
+            # Rename the file
+            execute_command "$GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $filename"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-removed.txt"
+        fi
+        
+        # Remove drive label from file
+        if [[ -n "$fileid" ]]; then
+            execute_command "$GAM user $owner process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
+        fi
+    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt") # Skip the first line (header)
+    
+    echo "Completed removing pending deletion from files for $user_email"
+    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-removed.txt for details"
+}
+
+# Function to remove user from all groups
+remove_from_groups() {
+    local user="$1"
+    echo -e "${GREEN}Step 4: Removing user from all groups for $user${NC}"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would query user groups for: $user${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would remove user from all groups${NC}"
+        echo "Simulated: User would be removed from 8 groups"
+        return 0
+    fi
+    
+    # Get list of groups user is a member of
+    groups=$($GAM print groups member $user 2>/dev/null | grep your-domain.edu)
+    
+    if [[ -z "$groups" ]]; then
+        echo "User $user is not a member of any groups"
+        return
+    fi
+    
+    echo "Removing user from groups..."
+    for group in $groups; do
+        echo "Removing user: $user from group: $group"
+        execute_command "$GAM update group \"$group\" remove member \"$user\"" "Remove from group: $group"
+        echo "Removed $user from $group" >> "${SCRIPTPATH}/users-removed-from-groups.txt"
+    done
+    
+    echo "Completed removing user from groups"
 }
 
 # Function to confirm action
@@ -970,6 +1403,130 @@ remove_temphold_users_from_file() {
     echo -e "${GREEN}Temporary hold removed from all users in file.${NC}"
 }
 
+# Function to process a single user for pending deletion
+process_pending_user() {
+    local user="$1"
+    
+    echo -e "${BLUE}=== Adding pending deletion for user: $user ===${NC}"
+    echo ""
+    
+    # Step 1: Add pending deletion to lastname
+    show_progress 1 5 "Adding pending deletion to lastname"
+    add_pending_lastname "$user"
+    echo ""
+    
+    # Step 2: Add pending deletion to all files
+    show_progress 2 5 "Adding pending deletion to all files"
+    add_pending_to_files "$user"
+    echo ""
+    
+    # Step 3: Add drive labels to files
+    show_progress 3 5 "Adding drive labels to files"
+    add_drive_labels "$user"
+    echo ""
+    
+    # Step 4: Remove user from all groups
+    show_progress 4 5 "Removing user from all groups"
+    remove_from_groups "$user"
+    echo ""
+    
+    # Step 5: Move user to Pending Deletion OU
+    show_progress 5 5 "Moving to Pending Deletion OU"
+    move_user_to_ou "$user" "$OU_PENDING_DELETION"
+    echo ""
+    
+    # Step 6: Log completion
+    if [[ "$DRY_RUN" != "true" ]]; then
+        echo "$user" >> "${SCRIPTPATH}/pending-deletion-done.log"
+    else
+        echo -e "${CYAN}[DRY-RUN] Would log user to pending-deletion-done.log${NC}"
+    fi
+    echo -e "${GREEN}User $user has been marked for pending deletion successfully.${NC}"
+    echo ""
+}
+
+# Function to remove pending deletion from a single user
+remove_pending_user() {
+    local user="$1"
+    
+    echo -e "${BLUE}=== Removing pending deletion from user: $user ===${NC}"
+    echo ""
+    
+    # Step 1: Remove pending deletion from lastname
+    show_progress 1 3 "Removing pending deletion from lastname"
+    remove_pending_lastname "$user"
+    echo ""
+    
+    # Step 2: Remove pending deletion from all files (includes label removal)
+    show_progress 2 3 "Removing pending deletion from all files"
+    remove_pending_from_files "$user"
+    echo ""
+    
+    # Step 3: Move user to appropriate OU
+    show_progress 3 3 "Moving user to destination OU"
+    if [[ "$DRY_RUN" != "true" ]]; then
+        destination_ou=$(get_destination_ou)
+        move_user_to_ou "$user" "$destination_ou"
+    else
+        echo -e "${CYAN}[DRY-RUN] Would prompt for destination OU selection${NC}"
+    fi
+    echo ""
+    
+    # Step 4: Log completion
+    if [[ "$DRY_RUN" != "true" ]]; then
+        echo "$user" >> "${SCRIPTPATH}/pending-deletion-removed.log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),$user" >> "${SCRIPTPATH}/pending-removal-done.txt"
+    else
+        echo -e "${CYAN}[DRY-RUN] Would log user removal${NC}"
+    fi
+    echo -e "${GREEN}Pending deletion removed from user $user successfully.${NC}"
+    echo ""
+}
+
+# Function to process multiple users from file for pending deletion
+process_pending_users_from_file() {
+    local file_path="$1"
+    local user_count=$(wc -l < "$file_path")
+    local current=0
+    
+    echo -e "${BLUE}Adding pending deletion for $user_count users from file: $file_path${NC}"
+    echo ""
+    
+    while IFS= read -r user; do
+        # Skip empty lines and comments
+        if [[ -n "$user" && ! "$user" =~ ^[[:space:]]*# ]]; then
+            ((current++))
+            echo -e "${YELLOW}Progress: $current/$user_count${NC}"
+            process_pending_user "$user"
+            echo "----------------------------------------"
+        fi
+    done < "$file_path"
+    
+    echo -e "${GREEN}Pending deletion added for all users in file.${NC}"
+}
+
+# Function to remove pending deletion from multiple users from file
+remove_pending_users_from_file() {
+    local file_path="$1"
+    local user_count=$(wc -l < "$file_path")
+    local current=0
+    
+    echo -e "${BLUE}Removing pending deletion from $user_count users from file: $file_path${NC}"
+    echo ""
+    
+    while IFS= read -r user; do
+        # Skip empty lines and comments
+        if [[ -n "$user" && ! "$user" =~ ^[[:space:]]*# ]]; then
+            ((current++))
+            echo -e "${YELLOW}Progress: $current/$user_count${NC}"
+            remove_pending_user "$user"
+            echo "----------------------------------------"
+        fi
+    done < "$file_path"
+    
+    echo -e "${GREEN}Pending deletion removed from all users in file.${NC}"
+}
+
 # Function to process a single user
 process_user() {
     local user="$1"
@@ -1046,23 +1603,44 @@ main() {
                 user=$(get_user_input)
                 operation=$(get_operation_choice)
                 
-                if [[ "$operation" == "add" ]]; then
-                    show_summary "$user"
-                    if enhanced_confirm "add temporary hold" 1 "normal"; then
-                        create_backup "$user" "add_temphold"
-                        process_user "$user"
-                    else
-                        echo -e "${YELLOW}Operation cancelled.${NC}"
-                    fi
-                else
-                    show_removal_summary "$user"
-                    if enhanced_confirm "remove temporary hold" 1 "normal"; then
-                        create_backup "$user" "remove_temphold"
-                        remove_temphold_user "$user"
-                    else
-                        echo -e "${YELLOW}Operation cancelled.${NC}"
-                    fi
-                fi
+                case $operation in
+                    "add_temphold")
+                        show_summary "$user"
+                        if enhanced_confirm "add temporary hold" 1 "normal"; then
+                            create_backup "$user" "add_temphold"
+                            process_user "$user"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "remove_temphold")
+                        show_removal_summary "$user"
+                        if enhanced_confirm "remove temporary hold" 1 "normal"; then
+                            create_backup "$user" "remove_temphold"
+                            remove_temphold_user "$user"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "add_pending")
+                        show_pending_summary "$user"
+                        if enhanced_confirm "mark for pending deletion" 1 "high"; then
+                            create_backup "$user" "add_pending"
+                            process_pending_user "$user"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "remove_pending")
+                        show_pending_removal_summary "$user"
+                        if enhanced_confirm "remove pending deletion" 1 "normal"; then
+                            create_backup "$user" "remove_pending"
+                            remove_pending_user "$user"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                esac
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
@@ -1083,21 +1661,40 @@ main() {
                 fi
                 echo ""
                 
-                if [[ "$operation" == "add" ]]; then
-                    echo "Each user will go through the process to add temporary hold."
-                    if enhanced_confirm "batch add temporary hold" "$user_count" "batch"; then
-                        process_users_from_file "$file_path"
-                    else
-                        echo -e "${YELLOW}Operation cancelled.${NC}"
-                    fi
-                else
-                    echo "Each user will go through the process to remove temporary hold."
-                    if enhanced_confirm "batch remove temporary hold" "$user_count" "batch"; then
-                        remove_temphold_users_from_file "$file_path"
-                    else
-                        echo -e "${YELLOW}Operation cancelled.${NC}"
-                    fi
-                fi
+                case $operation in
+                    "add_temphold")
+                        echo "Each user will go through the process to add temporary hold."
+                        if enhanced_confirm "batch add temporary hold" "$user_count" "batch"; then
+                            process_users_from_file "$file_path"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "remove_temphold")
+                        echo "Each user will go through the process to remove temporary hold."
+                        if enhanced_confirm "batch remove temporary hold" "$user_count" "batch"; then
+                            remove_temphold_users_from_file "$file_path"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "add_pending")
+                        echo "Each user will be marked for pending deletion."
+                        if enhanced_confirm "batch mark for pending deletion" "$user_count" "high"; then
+                            process_pending_users_from_file "$file_path"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                    "remove_pending")
+                        echo "Each user will have pending deletion removed."
+                        if enhanced_confirm "batch remove pending deletion" "$user_count" "batch"; then
+                            remove_pending_users_from_file "$file_path"
+                        else
+                            echo -e "${YELLOW}Operation cancelled.${NC}"
+                        fi
+                        ;;
+                esac
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
