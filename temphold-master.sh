@@ -6,12 +6,19 @@
 #
 # ## Overview
 #
-# This script automates the process of moving user accounts from "pending deletion" status to "temporary hold" status. It performs four main operations:
+# This script automates the process of moving user accounts between different suspension states:
+# - Moving from "pending deletion" status to "temporary hold" status
+# - Removing "temporary hold" status to restore normal account state
 #
+# **Add Temporary Hold Operations:**
 # 1. **Restore Last Name** - Removes "(PENDING DELETION - CONTACT OIT)" from user's last name
 # 2. **Fix Filenames** - Renames files with pending deletion markers
 # 3. **Rename All Files** - Adds "(Suspended Account - Temporary Hold)" to all user files
 # 4. **Update User Last Name** - Adds suspension marker to user's last name
+#
+# **Remove Temporary Hold Operations:**
+# 1. **Remove Temporary Hold from Last Name** - Removes "(Suspended Account - Temporary Hold)" from user's last name
+# 2. **Remove Temporary Hold from All Files** - Removes suspension markers from all file names
 #
 # ## Features
 #
@@ -58,17 +65,27 @@
 #
 # ### Menu Options
 #
-# 1. **Process user by username/email**
+# 1. **Process user by username/email (Add temporary hold)**
 #    - Enter a single username or email address
-#    - View summary of actions
+#    - View summary of actions to add temporary hold
 #    - Confirm before execution
 #
-# 2. **Load users from file**
+# 2. **Load users from file (Add temporary hold)**
 #    - Specify path to file containing usernames (one per line)
 #    - Preview sample users from file
-#    - Batch process all users
+#    - Batch process all users to add temporary hold
 #
-# 3. **Exit**
+# 3. **Remove temporary hold from user**
+#    - Enter a single username or email address
+#    - View summary of removal actions
+#    - Confirm before execution
+#
+# 4. **Remove temporary hold from users in file**
+#    - Specify path to file containing usernames (one per line)
+#    - Preview sample users from file
+#    - Batch process all users to remove temporary hold
+#
+# 5. **Exit**
 #    - Safely exit the script
 #
 # ### File Format for Batch Processing
@@ -108,9 +125,12 @@
 # ## Output and Logging
 #
 # ### Log Files Created:
-# - `temphold-done.log` - Users successfully processed
-# - `file-rename-done.txt` - Timestamp log of file rename operations
-# - `tmp/{username}-fixed.txt` - Detailed log of specific file changes
+# - `temphold-done.log` - Users successfully processed (temporary hold added)
+# - `temphold-removed.log` - Users successfully processed (temporary hold removed)
+# - `file-rename-done.txt` - Timestamp log of file rename operations (adding hold)
+# - `file-removal-done.txt` - Timestamp log of file removal operations (removing hold)
+# - `tmp/{username}-fixed.txt` - Detailed log of specific file changes (adding hold)
+# - `tmp/{username}-removal.txt` - Detailed log of specific file changes (removing hold)
 #
 # ### Temporary Files:
 # - `tmp/gam_output_{username}.txt` - GAM query results
@@ -197,11 +217,13 @@ show_main_menu() {
     clear
     echo -e "${BLUE}=== Temporary Hold Master Script ===${NC}"
     echo ""
-    echo "1. Process user by username/email"
-    echo "2. Load users from file"
-    echo "3. Exit"
+    echo "1. Process user by username/email (Add temporary hold)"
+    echo "2. Load users from file (Add temporary hold)"
+    echo "3. Remove temporary hold from user"
+    echo "4. Remove temporary hold from users in file"
+    echo "5. Exit"
     echo ""
-    read -p "Select an option (1-3): " choice
+    read -p "Select an option (1-5): " choice
     echo ""
     return $choice
 }
@@ -232,7 +254,7 @@ load_users_from_file() {
     done
 }
 
-# Function to show what actions will be performed
+# Function to show what actions will be performed for adding temporary hold
 show_summary() {
     local user=$1
     echo -e "${YELLOW}=== SUMMARY OF ACTIONS FOR: $user ===${NC}"
@@ -260,6 +282,30 @@ show_summary() {
     echo -e "${GREEN}5. Logging:${NC}"
     echo "   - Add user to temphold-done.log"
     echo "   - Add timestamp to file-rename-done.txt"
+    echo ""
+    echo -e "${YELLOW}Note: This process may take several minutes depending on the number of files.${NC}"
+    echo ""
+}
+
+# Function to show what actions will be performed for removing temporary hold
+show_removal_summary() {
+    local user=$1
+    echo -e "${YELLOW}=== SUMMARY OF REMOVAL ACTIONS FOR: $user ===${NC}"
+    echo ""
+    echo "The following operations will be performed:"
+    echo ""
+    echo -e "${GREEN}1. Remove Temporary Hold from Last Name:${NC}"
+    echo "   - Remove '(Suspended Account - Temporary Hold)' from user's last name"
+    echo "   - Restore original last name"
+    echo ""
+    echo -e "${GREEN}2. Remove Temporary Hold from All Files:${NC}"
+    echo "   - Find all files with '(Suspended Account - Temporary Hold)' in name"
+    echo "   - Remove the suffix from file names"
+    echo "   - Log changes to tmp/${user}-removal.txt"
+    echo ""
+    echo -e "${GREEN}3. Logging:${NC}"
+    echo "   - Add user to temphold-removed.log"
+    echo "   - Add timestamp to file-removal-done.txt"
     echo ""
     echo -e "${YELLOW}Note: This process may take several minutes depending on the number of files.${NC}"
     echo ""
@@ -401,6 +447,110 @@ update_user_lastname() {
     fi
 }
 
+# Function to remove temporary hold from user's last name
+remove_temphold_lastname() {
+    local email="$1"
+    echo -e "${GREEN}Step 1: Removing temporary hold from last name for $email${NC}"
+    
+    # Get the current last name of the user using GAM
+    current_lastname=$($GAM info user "$email" | awk -F': ' '/Last Name:/ {print $2}')
+    
+    # Check if the current last name ends with "(Suspended Account - Temporary Hold)"
+    if [[ "$current_lastname" == *"(Suspended Account - Temporary Hold)" ]]; then
+        # Remove the "(Suspended Account - Temporary Hold)" suffix from the current last name
+        original_lastname="${current_lastname% (Suspended Account - Temporary Hold)}"
+        
+        # Restore the original last name
+        echo "Restoring $email from '$current_lastname' to '$original_lastname'"
+        $GAM update user "$email" lastname "$original_lastname"
+    else
+        echo "No change needed for $email, current last name is '$current_lastname'"
+    fi
+}
+
+# Function to remove temporary hold from all files
+remove_temphold_from_files() {
+    local user_email_full="$1"
+    local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
+    
+    echo -e "${GREEN}Step 2: Removing temporary hold from all files for $user_email_full${NC}"
+    
+    # Create tmp directory if it doesn't exist
+    mkdir -p "${SCRIPTPATH}/tmp"
+    
+    # Query the user's files and output only the files with (Suspended Account - Temporary Hold) in the name
+    $GAM user "$user_email_full" show filelist id name | grep "(Suspended Account - Temporary Hold)" > "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt" | wc -l)
+    counter=0
+    
+    if [[ $TOTAL -eq 0 ]]; then
+        echo "No files found with '(Suspended Account - Temporary Hold)' in the name."
+        return
+    fi
+    
+    echo "Found $TOTAL files to rename"
+    
+    # Read in the temporary file and extract the relevant information, skipping the header line
+    while IFS=, read -r owner fileid filename; do
+        ((counter++))
+        # Remove the "(Suspended Account - Temporary Hold)" string from filename
+        new_filename=${filename//" (Suspended Account - Temporary Hold)"/}
+        if [[ "$new_filename" != "$filename" ]]; then
+            # If the filename has been changed, rename the file and print a message
+            $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"
+            echo "$counter of $TOTAL - Renamed file: $filename -> $new_filename"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-removal.txt"
+        fi
+    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt") # Skip the first line (header)
+    
+    echo "Completed removing temporary hold from files for $user_email"
+    echo "See ${SCRIPTPATH}/tmp/$user_email-removal.txt for details"
+}
+
+# Function to remove temporary hold from a single user
+remove_temphold_user() {
+    local user="$1"
+    
+    echo -e "${BLUE}=== Removing temporary hold from user: $user ===${NC}"
+    echo ""
+    
+    # Step 1: Remove temporary hold from lastname
+    remove_temphold_lastname "$user"
+    echo ""
+    
+    # Step 2: Remove temporary hold from all files
+    remove_temphold_from_files "$user"
+    echo ""
+    
+    # Step 3: Log completion
+    echo "$user" >> "${SCRIPTPATH}/temphold-removed.log"
+    echo "$(date '+%Y-%m-%d %H:%M:%S'),$user" >> "${SCRIPTPATH}/file-removal-done.txt"
+    echo -e "${GREEN}Temporary hold removed from user $user successfully.${NC}"
+    echo ""
+}
+
+# Function to remove temporary hold from multiple users from file
+remove_temphold_users_from_file() {
+    local file_path="$1"
+    local user_count=$(wc -l < "$file_path")
+    local current=0
+    
+    echo -e "${BLUE}Removing temporary hold from $user_count users from file: $file_path${NC}"
+    echo ""
+    
+    while IFS= read -r user; do
+        # Skip empty lines and comments
+        if [[ -n "$user" && ! "$user" =~ ^[[:space:]]*# ]]; then
+            ((current++))
+            echo -e "${YELLOW}Progress: $current/$user_count${NC}"
+            remove_temphold_user "$user"
+            echo "----------------------------------------"
+        fi
+    done < "$file_path"
+    
+    echo -e "${GREEN}Temporary hold removed from all users in file.${NC}"
+}
+
 # Function to process a single user
 process_user() {
     local user="$1"
@@ -460,7 +610,7 @@ main() {
         
         case $choice in
             1)
-                # Single user processing
+                # Single user processing - Add temporary hold
                 user=$(get_user_input)
                 show_summary "$user"
                 if confirm_action; then
@@ -472,7 +622,7 @@ main() {
                 read -p "Press Enter to continue..."
                 ;;
             2)
-                # Multiple users from file
+                # Multiple users from file - Add temporary hold
                 file_path=$(load_users_from_file)
                 user_count=$(wc -l < "$file_path")
                 echo ""
@@ -485,7 +635,7 @@ main() {
                     echo "  ... and $((user_count - 5)) more"
                 fi
                 echo ""
-                echo "Each user will go through the same 4-step process."
+                echo "Each user will go through the same 4-step process to add temporary hold."
                 if confirm_action; then
                     process_users_from_file "$file_path"
                 else
@@ -495,11 +645,46 @@ main() {
                 read -p "Press Enter to continue..."
                 ;;
             3)
+                # Single user processing - Remove temporary hold
+                user=$(get_user_input)
+                show_removal_summary "$user"
+                if confirm_action; then
+                    remove_temphold_user "$user"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                # Multiple users from file - Remove temporary hold
+                file_path=$(load_users_from_file)
+                user_count=$(wc -l < "$file_path")
+                echo ""
+                echo -e "${YELLOW}Found $user_count users in file.${NC}"
+                echo "Sample users from file:"
+                head -5 "$file_path" | while IFS= read -r line; do
+                    echo "  - $line"
+                done
+                if [[ $user_count -gt 5 ]]; then
+                    echo "  ... and $((user_count - 5)) more"
+                fi
+                echo ""
+                echo "Each user will go through the removal process to remove temporary hold."
+                if confirm_action; then
+                    remove_temphold_users_from_file "$file_path"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
                 echo -e "${BLUE}Goodbye!${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1, 2, or 3.${NC}"
+                echo -e "${RED}Invalid option. Please select 1, 2, 3, 4, or 5.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
