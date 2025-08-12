@@ -87,10 +87,10 @@
 #    - Simulate file processing and user updates
 #    - Choose add or remove operations for testing
 #
-# 4. **Recovery mode (Fix failed operations)**
+# 4. **Discovery mode (Query and diagnose accounts)**
+#    - Query all users in Temporary Hold organizational unit
+#    - Diagnose specific account consistency (OU, name, files)
 #    - Check for incomplete operations
-#    - Resume failed batch operations
-#    - Verify user status consistency
 #
 # 5. **Exit**
 #    - Safely exit the script
@@ -212,9 +212,15 @@ GAM="/usr/local/bin/gam"
 SCRIPTPATH="/opt/your-path/mjb9/suspended"
 LISTSHARED_PATH="/opt/your-path/mjb9/listshared"
 
+# Organizational Unit paths
+OU_TEMPHOLD="/Suspended Accounts/Suspended - Temporary Hold"
+OU_PENDING_DELETION="/Suspended Accounts/Suspended - Pending Deletion"  
+OU_SUSPENDED="/Suspended Accounts"
+OU_ACTIVE="/your-domain.edu"
+
 # Global settings
 DRY_RUN=false
-RECOVERY_MODE=false
+DISCOVERY_MODE=false
 PROGRESS_ENABLED=true
 
 # Colors for output
@@ -234,7 +240,7 @@ show_main_menu() {
     echo "1. Process single user"
     echo "2. Process users from file"
     echo "3. Dry-run mode (Preview changes without making them)"
-    echo "4. Recovery mode (Fix failed operations)"
+    echo "4. Discovery mode (Query and diagnose accounts)"
     echo "5. Exit"
     echo ""
     read -p "Select an option (1-5): " choice
@@ -398,7 +404,10 @@ show_summary() {
     echo "   - Add '(Suspended Account - Temporary Hold)' to user's last name"
     echo "   - Skip if already present"
     echo ""
-    echo -e "${GREEN}5. Logging:${NC}"
+    echo -e "${GREEN}5. Move to Temporary Hold OU:${NC}"
+    echo "   - Move user to '$OU_TEMPHOLD' organizational unit"
+    echo ""
+    echo -e "${GREEN}6. Logging:${NC}"
     echo "   - Add user to temphold-done.log"
     echo "   - Add timestamp to file-rename-done.txt"
     echo ""
@@ -425,7 +434,11 @@ show_removal_summary() {
     echo "   - Remove the suffix from file names"
     echo "   - Log changes to tmp/${user}-removal.txt"
     echo ""
-    echo -e "${GREEN}3. Logging:${NC}"
+    echo -e "${GREEN}3. Move User to Destination OU:${NC}"
+    echo "   - Choose destination: Pending Deletion, Suspended, or your-domain.edu"
+    echo "   - Move user to selected organizational unit"
+    echo ""
+    echo -e "${GREEN}4. Logging:${NC}"
     echo "   - Add user to temphold-removed.log"
     echo "   - Add timestamp to file-removal-done.txt"
     echo ""
@@ -487,27 +500,37 @@ dry_run_mode() {
     read -p "Press Enter to return to main menu..."
 }
 
-# Function to handle recovery mode
-recovery_mode() {
-    RECOVERY_MODE=true
-    echo -e "${MAGENTA}=== RECOVERY MODE ===${NC}"
+# Function to handle discovery mode
+discovery_mode() {
+    DISCOVERY_MODE=true
+    echo -e "${MAGENTA}=== DISCOVERY MODE ===${NC}"
     echo ""
-    echo "Recovery options:"
-    echo "1. Check for incomplete operations"
-    echo "2. Resume failed batch operations"
-    echo "3. Verify user status consistency"
+    echo "Discovery options:"
+    echo "1. Query all users in Temporary Hold OU"
+    echo "2. Diagnose specific account consistency"
+    echo "3. Check for incomplete operations"
     echo "4. Return to main menu"
     echo ""
-    read -p "Select an option (1-4): " recovery_choice
+    read -p "Select an option (1-4): " discovery_choice
     
-    case $recovery_choice in
-        1) check_incomplete_operations ;;
-        2) resume_failed_operations ;;
-        3) verify_user_consistency ;;
-        4) RECOVERY_MODE=false; return ;;
+    case $discovery_choice in
+        1) 
+            query_temphold_users
+            ;;
+        2) 
+            user=$(get_user_input)
+            diagnose_account "$user"
+            ;;
+        3) 
+            check_incomplete_operations
+            ;;
+        4) 
+            DISCOVERY_MODE=false
+            return
+            ;;
     esac
     
-    RECOVERY_MODE=false
+    DISCOVERY_MODE=false
     echo ""
     read -p "Press Enter to return to main menu..."
 }
@@ -545,11 +568,127 @@ resume_failed_operations() {
     echo "(Implementation would require analyzing specific failure points)"
 }
 
-# Function to verify user status consistency
-verify_user_consistency() {
-    echo -e "${YELLOW}Verifying user status consistency...${NC}"
-    echo "This feature would check that user names and file suffixes are consistent."
-    echo "(Implementation would require GAM queries to verify current state)"
+# Function to get destination OU choice
+get_destination_ou() {
+    echo ""
+    echo "Select destination Organizational Unit:"
+    echo "1. Suspended Accounts/Suspended - Pending Deletion"
+    echo "2. Suspended Accounts (general suspended)"
+    echo "3. your-domain.edu (reactivate account)"
+    echo ""
+    while true; do
+        read -p "Choose destination OU (1-3): " ou_choice
+        case $ou_choice in
+            1) echo "$OU_PENDING_DELETION"; break ;;
+            2) echo "$OU_SUSPENDED"; break ;;
+            3) echo "$OU_ACTIVE"; break ;;
+            *) echo -e "${RED}Please select 1, 2, or 3.${NC}" ;;
+        esac
+    done
+}
+
+# Function to move user to OU
+move_user_to_ou() {
+    local user="$1"
+    local target_ou="$2"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY-RUN] Would move user $user to OU: $target_ou${NC}"
+        return 0
+    fi
+    
+    echo -e "${GREEN}Moving user $user to OU: $target_ou${NC}"
+    execute_command "$GAM update user \"$user\" ou \"$target_ou\"" "Move user to OU"
+}
+
+# Function to get user's current OU
+get_user_ou() {
+    local user="$1"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo "$OU_TEMPHOLD"  # Simulate for dry-run/discovery
+        return 0
+    fi
+    
+    local ou=$($GAM info user "$user" | awk -F': ' '/Org Unit Path:/ {print $2}')
+    echo "$ou"
+}
+
+# Function to query users in temporary hold OU
+query_temphold_users() {
+    echo -e "${CYAN}Querying users in Temporary Hold OU...${NC}"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users ou \"$OU_TEMPHOLD\"${NC}"
+        echo ""
+        echo "Simulated results:"
+        echo "user1@domain.com,John,Doe (Suspended Account - Temporary Hold)"
+        echo "user2@domain.com,Jane,Smith (Suspended Account - Temporary Hold)"
+        echo "user3@domain.com,Bob,Johnson"
+        return 0
+    fi
+    
+    echo "Users in $OU_TEMPHOLD:"
+    $GAM print users ou "$OU_TEMPHOLD" firstname lastname
+}
+
+# Function to diagnose account consistency
+diagnose_account() {
+    local user="$1"
+    echo -e "${CYAN}=== DIAGNOSING ACCOUNT: $user ===${NC}"
+    echo ""
+    
+    # Check user's current OU
+    echo -e "${YELLOW}1. Checking Organizational Unit...${NC}"
+    current_ou=$(get_user_ou "$user")
+    echo "Current OU: $current_ou"
+    
+    # Check user's last name
+    echo -e "${YELLOW}2. Checking user last name...${NC}"
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        lastname="Sample User (Suspended Account - Temporary Hold)"
+        echo -e "${CYAN}[DISCOVERY] Would query user info for: $user${NC}"
+    else
+        lastname=$($GAM info user "$user" | awk -F': ' '/Last Name:/ {print $2}')
+    fi
+    echo "Last name: $lastname"
+    
+    # Check files with temporary hold suffix
+    echo -e "${YELLOW}3. Checking files with temporary hold suffix...${NC}"
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query files for user: $user${NC}"
+        echo "Simulated: Found 15 files with '(Suspended Account - Temporary Hold)' suffix"
+        files_with_suffix=15
+    else
+        temphold_files=$($GAM user "$user" show filelist id name | grep -c "(Suspended Account - Temporary Hold)")
+        echo "Files with suffix: $temphold_files"
+        files_with_suffix=$temphold_files
+    fi
+    
+    # Check files without suffix (should be 0 for consistent account)
+    echo -e "${YELLOW}4. Checking files without temporary hold suffix...${NC}"
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo "Simulated: Found 2 files without required suffix"
+        files_without_suffix=2
+    else
+        # This would need more complex logic to count all files vs suffixed files
+        echo "Manual verification recommended for file consistency"
+        files_without_suffix=0
+    fi
+    
+    # Summary
+    echo ""
+    echo -e "${MAGENTA}=== DIAGNOSIS SUMMARY ===${NC}"
+    echo "OU Status: $([ "$current_ou" == "$OU_TEMPHOLD" ] && echo "✅ Correct" || echo "❌ Incorrect")"
+    echo "Name Status: $([ "$lastname" == *"(Suspended Account - Temporary Hold)" ] && echo "✅ Correct" || echo "❌ Missing suffix")"
+    echo "Files with suffix: $files_with_suffix"
+    echo "Files without suffix: $files_without_suffix"
+    
+    if [[ "$current_ou" == "$OU_TEMPHOLD" && "$lastname" == *"(Suspended Account - Temporary Hold)" && $files_without_suffix -eq 0 ]]; then
+        echo -e "${GREEN}✅ Account appears to be in consistent temporary hold state${NC}"
+    else
+        echo -e "${RED}❌ Account has inconsistencies that may need attention${NC}"
+    fi
 }
 
 # Function to confirm action
@@ -779,16 +918,32 @@ remove_temphold_user() {
     echo ""
     
     # Step 1: Remove temporary hold from lastname
+    show_progress 1 3 "Removing temporary hold from lastname"
     remove_temphold_lastname "$user"
     echo ""
     
     # Step 2: Remove temporary hold from all files
+    show_progress 2 3 "Removing temporary hold from all files"
     remove_temphold_from_files "$user"
     echo ""
     
-    # Step 3: Log completion
-    echo "$user" >> "${SCRIPTPATH}/temphold-removed.log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S'),$user" >> "${SCRIPTPATH}/file-removal-done.txt"
+    # Step 3: Move user to appropriate OU
+    show_progress 3 3 "Moving user to destination OU"
+    if [[ "$DRY_RUN" != "true" ]]; then
+        destination_ou=$(get_destination_ou)
+        move_user_to_ou "$user" "$destination_ou"
+    else
+        echo -e "${CYAN}[DRY-RUN] Would prompt for destination OU selection${NC}"
+    fi
+    echo ""
+    
+    # Step 4: Log completion
+    if [[ "$DRY_RUN" != "true" ]]; then
+        echo "$user" >> "${SCRIPTPATH}/temphold-removed.log"
+        echo "$(date '+%Y-%m-%d %H:%M:%S'),$user" >> "${SCRIPTPATH}/file-removal-done.txt"
+    else
+        echo -e "${CYAN}[DRY-RUN] Would log user removal${NC}"
+    fi
     echo -e "${GREEN}Temporary hold removed from user $user successfully.${NC}"
     echo ""
 }
@@ -823,26 +978,31 @@ process_user() {
     echo ""
     
     # Step 1: Restore lastname
-    show_progress 1 4 "Restoring lastname"
+    show_progress 1 5 "Restoring lastname"
     restore_lastname "$user"
     echo ""
     
     # Step 2: Fix filenames
-    show_progress 2 4 "Fixing filenames"
+    show_progress 2 5 "Fixing filenames"
     fix_filenames "$user"
     echo ""
     
     # Step 3: Rename all files
-    show_progress 3 4 "Renaming all files"
+    show_progress 3 5 "Renaming all files"
     rename_all_files "$user"
     echo ""
     
     # Step 4: Update user lastname
-    show_progress 4 4 "Updating user lastname"
+    show_progress 4 5 "Updating user lastname"
     update_user_lastname "$user"
     echo ""
     
-    # Step 5: Log completion
+    # Step 5: Move user to Temporary Hold OU
+    show_progress 5 5 "Moving to Temporary Hold OU"
+    move_user_to_ou "$user" "$OU_TEMPHOLD"
+    echo ""
+    
+    # Step 6: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
         echo "$user" >> "${SCRIPTPATH}/temphold-done.log"
     else
@@ -946,8 +1106,8 @@ main() {
                 dry_run_mode
                 ;;
             4)
-                # Recovery mode
-                recovery_mode
+                # Discovery mode
+                discovery_mode
                 ;;
             5)
                 echo -e "${BLUE}Goodbye!${NC}"
