@@ -69,37 +69,30 @@
 #
 # ### Menu Options
 #
-# 1. **Process user by username/email (Add temporary hold)**
+# 1. **Process single user**
 #    - Enter a single username or email address
-#    - View summary of actions to add temporary hold
-#    - Confirm before execution
+#    - Choose to add or remove temporary hold
+#    - View summary of actions before execution
+#    - Confirm before making changes
 #
-# 2. **Load users from file (Add temporary hold)**
+# 2. **Process users from file**
 #    - Specify path to file containing usernames (one per line)
+#    - Choose to add or remove temporary hold for all users
 #    - Preview sample users from file
-#    - Batch process all users to add temporary hold
+#    - Batch process all users with selected operation
 #
-# 3. **Remove temporary hold from user**
-#    - Enter a single username or email address
-#    - View summary of removal actions
-#    - Confirm before execution
-#
-# 4. **Remove temporary hold from users in file**
-#    - Specify path to file containing usernames (one per line)
-#    - Preview sample users from file
-#    - Batch process all users to remove temporary hold
-#
-# 5. **Dry-run mode (Preview changes without making them)**
+# 3. **Dry-run mode (Preview changes without making them)**
 #    - Test operations without making actual changes
 #    - Preview single user or batch operations
 #    - Simulate file processing and user updates
+#    - Choose add or remove operations for testing
 #
-# 6. **Recovery mode (Fix failed operations)**
+# 4. **Recovery mode (Fix failed operations)**
 #    - Check for incomplete operations
 #    - Resume failed batch operations
 #    - Verify user status consistency
 #
-# 7. **Exit**
+# 5. **Exit**
 #    - Safely exit the script
 #
 # ### File Format for Batch Processing
@@ -238,15 +231,13 @@ show_main_menu() {
     clear
     echo -e "${BLUE}=== Temporary Hold Master Script ===${NC}"
     echo ""
-    echo "1. Process user by username/email (Add temporary hold)"
-    echo "2. Load users from file (Add temporary hold)"
-    echo "3. Remove temporary hold from user"
-    echo "4. Remove temporary hold from users in file"
-    echo "5. Dry-run mode (Preview changes without making them)"
-    echo "6. Recovery mode (Fix failed operations)"
-    echo "7. Exit"
+    echo "1. Process single user"
+    echo "2. Process users from file"
+    echo "3. Dry-run mode (Preview changes without making them)"
+    echo "4. Recovery mode (Fix failed operations)"
+    echo "5. Exit"
     echo ""
-    read -p "Select an option (1-7): " choice
+    read -p "Select an option (1-5): " choice
     echo ""
     return $choice
 }
@@ -337,6 +328,23 @@ enhanced_confirm() {
             return $(confirm_action)
             ;;
     esac
+}
+
+# Function to get operation choice
+get_operation_choice() {
+    echo ""
+    echo "Select operation:"
+    echo "1. Add temporary hold"
+    echo "2. Remove temporary hold"
+    echo ""
+    while true; do
+        read -p "Choose operation (1-2): " op_choice
+        case $op_choice in
+            1) echo "add"; break ;;
+            2) echo "remove"; break ;;
+            *) echo -e "${RED}Please select 1 or 2.${NC}" ;;
+        esac
+    done
 }
 
 # Function to get user input
@@ -443,40 +451,30 @@ dry_run_mode() {
     case $dry_choice in
         1)
             user=$(get_user_input)
+            operation=$(get_operation_choice)
             echo ""
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR: $user${NC}"
-            echo ""
-            echo "Choose operation to preview:"
-            echo "1. Add temporary hold"
-            echo "2. Remove temporary hold"
-            read -p "Select operation (1-2): " op_choice
             
-            case $op_choice in
-                1) 
-                    show_summary "$user"
-                    process_user "$user"
-                    ;;
-                2) 
-                    show_removal_summary "$user"
-                    remove_temphold_user "$user"
-                    ;;
-            esac
+            if [[ "$operation" == "add" ]]; then
+                show_summary "$user"
+                process_user "$user"
+            else
+                show_removal_summary "$user"
+                remove_temphold_user "$user"
+            fi
             ;;
         2)
             file_path=$(load_users_from_file)
             user_count=$(wc -l < "$file_path")
+            operation=$(get_operation_choice)
             echo ""
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR $user_count USERS${NC}"
-            echo ""
-            echo "Choose operation to preview:"
-            echo "1. Add temporary hold"
-            echo "2. Remove temporary hold"
-            read -p "Select operation (1-2): " op_choice
             
-            case $op_choice in
-                1) process_users_from_file "$file_path" ;;
-                2) remove_temphold_users_from_file "$file_path" ;;
-            esac
+            if [[ "$operation" == "add" ]]; then
+                process_users_from_file "$file_path"
+            else
+                remove_temphold_users_from_file "$file_path"
+            fi
             ;;
         3)
             DRY_RUN=false
@@ -884,22 +882,36 @@ main() {
         
         case $choice in
             1)
-                # Single user processing - Add temporary hold
+                # Single user processing
                 user=$(get_user_input)
-                show_summary "$user"
-                if enhanced_confirm "add temporary hold" 1 "normal"; then
-                    create_backup "$user" "add_temphold"
-                    process_user "$user"
+                operation=$(get_operation_choice)
+                
+                if [[ "$operation" == "add" ]]; then
+                    show_summary "$user"
+                    if enhanced_confirm "add temporary hold" 1 "normal"; then
+                        create_backup "$user" "add_temphold"
+                        process_user "$user"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
                 else
-                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                    show_removal_summary "$user"
+                    if enhanced_confirm "remove temporary hold" 1 "normal"; then
+                        create_backup "$user" "remove_temphold"
+                        remove_temphold_user "$user"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
                 fi
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
             2)
-                # Multiple users from file - Add temporary hold
+                # Multiple users from file
                 file_path=$(load_users_from_file)
                 user_count=$(wc -l < "$file_path")
+                operation=$(get_operation_choice)
+                
                 echo ""
                 echo -e "${YELLOW}Found $user_count users in file.${NC}"
                 echo "Sample users from file:"
@@ -910,65 +922,39 @@ main() {
                     echo "  ... and $((user_count - 5)) more"
                 fi
                 echo ""
-                echo "Each user will go through the same 4-step process to add temporary hold."
-                if enhanced_confirm "batch add temporary hold" "$user_count" "batch"; then
-                    process_users_from_file "$file_path"
+                
+                if [[ "$operation" == "add" ]]; then
+                    echo "Each user will go through the process to add temporary hold."
+                    if enhanced_confirm "batch add temporary hold" "$user_count" "batch"; then
+                        process_users_from_file "$file_path"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
                 else
-                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                    echo "Each user will go through the process to remove temporary hold."
+                    if enhanced_confirm "batch remove temporary hold" "$user_count" "batch"; then
+                        remove_temphold_users_from_file "$file_path"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
                 fi
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
             3)
-                # Single user processing - Remove temporary hold
-                user=$(get_user_input)
-                show_removal_summary "$user"
-                if enhanced_confirm "remove temporary hold" 1 "normal"; then
-                    create_backup "$user" "remove_temphold"
-                    remove_temphold_user "$user"
-                else
-                    echo -e "${YELLOW}Operation cancelled.${NC}"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                # Multiple users from file - Remove temporary hold
-                file_path=$(load_users_from_file)
-                user_count=$(wc -l < "$file_path")
-                echo ""
-                echo -e "${YELLOW}Found $user_count users in file.${NC}"
-                echo "Sample users from file:"
-                head -5 "$file_path" | while IFS= read -r line; do
-                    echo "  - $line"
-                done
-                if [[ $user_count -gt 5 ]]; then
-                    echo "  ... and $((user_count - 5)) more"
-                fi
-                echo ""
-                echo "Each user will go through the removal process to remove temporary hold."
-                if enhanced_confirm "batch remove temporary hold" "$user_count" "batch"; then
-                    remove_temphold_users_from_file "$file_path"
-                else
-                    echo -e "${YELLOW}Operation cancelled.${NC}"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            5)
                 # Dry-run mode
                 dry_run_mode
                 ;;
-            6)
+            4)
                 # Recovery mode
                 recovery_mode
                 ;;
-            7)
+            5)
                 echo -e "${BLUE}Goodbye!${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-5.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
