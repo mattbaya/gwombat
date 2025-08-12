@@ -88,8 +88,15 @@
 #    - Choose add or remove operations for testing
 #
 # 4. **Discovery mode (Query and diagnose accounts)**
-#    - Query all users in Temporary Hold organizational unit
-#    - Diagnose specific account consistency (OU, name, files)
+#    - Query users in Temporary Hold OU
+#    - Query users in Pending Deletion OU  
+#    - Query all suspended users across all OUs
+#    - Scan active accounts for orphaned pending deletion files
+#    - Query users by department/type (Student, Faculty, Staff)
+#    - Custom GAM queries with examples
+#    - Diagnose specific account consistency
+#    - Bulk operations on query results
+#    - Bulk cleanup of orphaned files
 #    - Check for incomplete operations
 #
 # 5. **Exit**
@@ -610,11 +617,13 @@ discovery_mode() {
     echo "1. Query users in Temporary Hold OU"
     echo "2. Query users in Pending Deletion OU"
     echo "3. Query all suspended users (all OUs)"
-    echo "4. Diagnose specific account consistency"
-    echo "5. Check for incomplete operations"
-    echo "6. Return to main menu"
+    echo "4. Scan active accounts for orphaned pending deletion files"
+    echo "5. Query users by department/type"
+    echo "6. Diagnose specific account consistency"
+    echo "7. Check for incomplete operations"
+    echo "8. Return to main menu"
     echo ""
-    read -p "Select an option (1-6): " discovery_choice
+    read -p "Select an option (1-8): " discovery_choice
     
     case $discovery_choice in
         1) 
@@ -627,13 +636,19 @@ discovery_mode() {
             query_all_suspended_users
             ;;
         4) 
+            scan_active_accounts
+            ;;
+        5) 
+            query_users_by_filter
+            ;;
+        6) 
             user=$(get_user_input)
             diagnose_account "$user"
             ;;
-        5) 
+        7) 
             check_incomplete_operations
             ;;
-        6) 
+        8) 
             DISCOVERY_MODE=false
             return
             ;;
@@ -789,6 +804,346 @@ query_all_suspended_users() {
     echo ""
     echo "=== Users in Pending Deletion OU ==="
     $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+}
+
+# Function to scan active accounts for orphaned pending deletion files
+scan_active_accounts() {
+    echo -e "${CYAN}Scanning active accounts for orphaned pending deletion files...${NC}"
+    echo ""
+    
+    # Create scan directory
+    local scan_dir="${SCRIPTPATH}/active-account-scan"
+    execute_command "mkdir -p \"$scan_dir\"" "Create scan directory"
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would scan all active users for pending deletion files${NC}"
+        echo "Simulated scan results:"
+        echo "Found 3 active users with orphaned pending deletion files:"
+        echo "  active1@domain.com - 2 files with pending deletion markers"
+        echo "  active2@domain.com - 1 file with pending deletion markers"  
+        echo "  active3@domain.com - 5 files with pending deletion markers"
+        echo ""
+        echo "Results would be saved to: $scan_dir/"
+        return 0
+    fi
+    
+    echo "Retrieving list of all active (not suspended) users..."
+    # Get list of active users
+    local active_users=$($GAM print users query "isSuspended=False" | awk -F, 'NR>1 {print $1}')
+    local total_users=$(echo "$active_users" | wc -l)
+    local current=0
+    local users_with_files=0
+    
+    echo "Scanning $total_users active users for pending deletion files..."
+    echo ""
+    
+    # Iterate over each active user
+    for user in $active_users; do
+        ((current++))
+        show_progress $current $total_users "Scanning $user"
+        
+        # Define output file for this user's scan results
+        local output_file="${scan_dir}/gam_output_${user}.txt"
+        
+        # Scan for files with pending deletion markers
+        $GAM user "$user" show filelist id name | \
+        grep "(PENDING DELETION - CONTACT OIT)" > "$output_file"
+        
+        # If files found, count them and keep the file
+        if [[ -s "$output_file" ]]; then
+            local file_count=$(wc -l < "$output_file")
+            ((users_with_files++))
+            echo "Found $file_count pending deletion files for $user"
+        else
+            # Remove empty file
+            rm -f "$output_file"
+        fi
+    done
+    
+    echo ""
+    echo -e "${GREEN}Scan complete!${NC}"
+    echo "Users scanned: $total_users"
+    echo "Users with orphaned pending deletion files: $users_with_files"
+    echo "Detailed results saved to: $scan_dir/"
+    
+    if [[ $users_with_files -gt 0 ]]; then
+        echo ""
+        echo -e "${YELLOW}⚠️  Found $users_with_files active users with orphaned pending deletion files${NC}"
+        echo "These files should be cleaned up as they belong to active accounts."
+        echo ""
+        echo "Would you like to see a summary? (y/n)"
+        read -p "> " show_summary
+        if [[ "$show_summary" =~ ^[Yy] ]]; then
+            echo ""
+            echo "=== SUMMARY OF ORPHANED FILES ==="
+            for file in "$scan_dir"/gam_output_*.txt; do
+                if [[ -f "$file" ]]; then
+                    local username=$(basename "$file" .txt | sed 's/gam_output_//')
+                    local count=$(wc -l < "$file")
+                    echo "$username: $count files"
+                fi
+            done
+            
+            echo ""
+            echo "Would you like to perform bulk cleanup on these orphaned files? (y/n)"
+            read -p "> " perform_cleanup
+            if [[ "$perform_cleanup" =~ ^[Yy] ]]; then
+                bulk_cleanup_orphaned_files "$scan_dir"
+            fi
+        fi
+    fi
+}
+
+# Function to query users by department/type filter
+query_users_by_filter() {
+    echo -e "${CYAN}Query users by filter...${NC}"
+    echo ""
+    echo "Filter options:"
+    echo "1. Students (department: Student)"
+    echo "2. Faculty (department: Faculty)"
+    echo "3. Staff (department: Staff)"
+    echo "4. Custom query"
+    echo "5. Return to discovery menu"
+    echo ""
+    read -p "Select filter (1-5): " filter_choice
+    
+    case $filter_choice in
+        1) query_users_by_department "Student" ;;
+        2) query_users_by_department "Faculty" ;;
+        3) query_users_by_department "Staff" ;;
+        4) query_users_custom ;;
+        5) return ;;
+    esac
+}
+
+# Function to query users by department
+query_users_by_department() {
+    local department="$1"
+    echo -e "${CYAN}Querying $department users...${NC}"
+    echo ""
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users query \"department: $department\"${NC}"
+        echo ""
+        echo "Simulated results for $department:"
+        case $department in
+            "Student")
+                echo "student1@domain.com,John,Doe,Student"
+                echo "student2@domain.com,Jane,Smith,Student"
+                echo "student3@domain.com,Bob,Johnson,Student"
+                ;;
+            "Faculty")
+                echo "prof1@domain.com,Dr. Alice,Brown,Faculty"
+                echo "prof2@domain.com,Dr. David,Wilson,Faculty"
+                ;;
+            "Staff")
+                echo "staff1@domain.com,Carol,Davis,Staff"
+                echo "staff2@domain.com,Frank,Moore,Staff"
+                ;;
+        esac
+        return 0
+    fi
+    
+    echo "=== $department Users ==="
+    $GAM print users query "department: $department" fields primaryemail,firstname,lastname,department,suspended
+    
+    # Also show suspended users in this department
+    echo ""
+    echo "=== Suspended $department Users ==="
+    $GAM print users query "department: $department AND isSuspended=True" fields primaryemail,firstname,lastname,department,suspended
+}
+
+# Function for custom user queries
+query_users_custom() {
+    echo -e "${CYAN}Custom user query...${NC}"
+    echo ""
+    echo "Examples:"
+    echo "  - isSuspended=True"
+    echo "  - department: Student AND isSuspended=True"
+    echo "  - orgUnitPath: '/Suspended Accounts'"
+    echo "  - creationTime>2024-01-01"
+    echo ""
+    read -p "Enter GAM query: " custom_query
+    
+    if [[ -z "$custom_query" ]]; then
+        echo "No query entered."
+        return
+    fi
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users query \"$custom_query\"${NC}"
+        echo "Simulated results for custom query would be displayed here."
+        return 0
+    fi
+    
+    echo "=== Custom Query Results ==="
+    echo "Query: $custom_query"
+    echo ""
+    $GAM print users query "$custom_query" fields primaryemail,firstname,lastname,department,suspended,orgunitpath
+}
+
+# Function to bulk cleanup orphaned pending deletion files
+bulk_cleanup_orphaned_files() {
+    local scan_dir="$1"
+    echo -e "${CYAN}Performing bulk cleanup of orphaned pending deletion files...${NC}"
+    echo ""
+    
+    if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
+        echo -e "${CYAN}[DISCOVERY] Would clean up orphaned files for all users in scan results${NC}"
+        echo "This would remove pending deletion suffixes and labels from files belonging to active users."
+        return 0
+    fi
+    
+    local files_processed=0
+    local users_processed=0
+    
+    # Process each user's scan results
+    for scan_file in "$scan_dir"/gam_output_*.txt; do
+        if [[ -f "$scan_file" ]]; then
+            local username=$(basename "$scan_file" .txt | sed 's/gam_output_//')
+            local file_count=$(wc -l < "$scan_file")
+            
+            ((users_processed++))
+            echo "Processing $username ($file_count files)..."
+            
+            # Read each file ID and clean it up
+            while IFS=, read -r owner fileid filename; do
+                if [[ -n "$fileid" && "$fileid" != "id" ]]; then
+                    ((files_processed++))
+                    
+                    # Remove pending deletion suffix from filename
+                    local new_filename=${filename//" (PENDING DELETION - CONTACT OIT)"/}
+                    if [[ "$new_filename" != "$filename" ]]; then
+                        execute_command "$GAM user \"$username\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Clean filename: $filename"
+                    fi
+                    
+                    # Remove drive label
+                    execute_command "$GAM user $username process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
+                    
+                    echo "Cleaned: $fileid" >> "${SCRIPTPATH}/logs/orphaned-files-cleaned.txt"
+                fi
+            done < "$scan_file"
+        fi
+    done
+    
+    echo ""
+    echo -e "${GREEN}Bulk cleanup complete!${NC}"
+    echo "Users processed: $users_processed"
+    echo "Files cleaned: $files_processed"
+    echo "Log saved to: ${SCRIPTPATH}/logs/orphaned-files-cleaned.txt"
+}
+
+# Function to offer bulk operations on query results
+offer_bulk_operations() {
+    local result_file="$1"
+    local operation_context="$2"
+    
+    if [[ ! -f "$result_file" || ! -s "$result_file" ]]; then
+        return 0
+    fi
+    
+    local user_count=$(wc -l < "$result_file")
+    echo ""
+    echo "Found $user_count users. Would you like to perform bulk operations on these users? (y/n)"
+    read -p "> " perform_bulk
+    
+    if [[ "$perform_bulk" =~ ^[Yy] ]]; then
+        echo ""
+        echo "Select bulk operation:"
+        echo "1. Add temporary hold to all users"
+        echo "2. Remove temporary hold from all users"
+        echo "3. Mark all users for pending deletion"
+        echo "4. Remove pending deletion from all users"
+        echo "5. Diagnose all users"
+        echo "6. Cancel"
+        echo ""
+        read -p "Select operation (1-6): " bulk_op
+        
+        case $bulk_op in
+            1) bulk_process_users "$result_file" "add_temphold" ;;
+            2) bulk_process_users "$result_file" "remove_temphold" ;;
+            3) bulk_process_users "$result_file" "add_pending" ;;
+            4) bulk_process_users "$result_file" "remove_pending" ;;
+            5) bulk_diagnose_users "$result_file" ;;
+            6) echo "Bulk operation cancelled." ;;
+        esac
+    fi
+}
+
+# Function to process bulk operations on users
+bulk_process_users() {
+    local user_file="$1"
+    local operation="$2"
+    local user_count=$(wc -l < "$user_file")
+    
+    echo ""
+    echo -e "${YELLOW}⚠️  BULK OPERATION WARNING ⚠️${NC}"
+    echo "You are about to perform '$operation' on $user_count users."
+    echo ""
+    
+    if ! enhanced_confirm "bulk $operation" "$user_count" "high"; then
+        echo "Bulk operation cancelled."
+        return
+    fi
+    
+    echo ""
+    echo "Processing $user_count users..."
+    local current=0
+    
+    while IFS= read -r user; do
+        ((current++))
+        echo -e "${YELLOW}Progress: $current/$user_count${NC}"
+        
+        case $operation in
+            "add_temphold") process_user "$user" ;;
+            "remove_temphold") remove_temphold_user "$user" ;;
+            "add_pending") process_pending_user "$user" ;;
+            "remove_pending") remove_pending_user "$user" ;;
+        esac
+        
+        echo "----------------------------------------"
+    done < "$user_file"
+    
+    echo -e "${GREEN}Bulk operation completed for $user_count users.${NC}"
+}
+
+# Function to bulk diagnose users
+bulk_diagnose_users() {
+    local user_file="$1"
+    local user_count=$(wc -l < "$user_file")
+    
+    echo ""
+    echo "Diagnosing $user_count users..."
+    echo ""
+    
+    local current=0
+    local consistent_users=0
+    local inconsistent_users=0
+    
+    while IFS= read -r user; do
+        ((current++))
+        show_progress $current $user_count "Diagnosing users"
+        
+        # Quick diagnosis without full output
+        diagnose_account "$user" > /tmp/diagnosis_$user.txt 2>&1
+        if grep -q "✅ Account appears to be in consistent" /tmp/diagnosis_$user.txt; then
+            ((consistent_users++))
+        else
+            ((inconsistent_users++))
+            echo "$user" >> "${SCRIPTPATH}/logs/inconsistent-users.txt"
+        fi
+        rm -f /tmp/diagnosis_$user.txt
+    done < "$user_file"
+    
+    echo ""
+    echo -e "${GREEN}Bulk diagnosis complete!${NC}"
+    echo "Users diagnosed: $user_count"
+    echo "Consistent accounts: $consistent_users"
+    echo "Inconsistent accounts: $inconsistent_users"
+    
+    if [[ $inconsistent_users -gt 0 ]]; then
+        echo "Inconsistent users logged to: ${SCRIPTPATH}/logs/inconsistent-users.txt"
+    fi
 }
 
 # Function to diagnose account consistency
