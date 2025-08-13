@@ -1983,6 +1983,413 @@ shared_drive_cleanup_menu() {
     done
 }
 
+# License management functions
+manage_user_license() {
+    local username="$1"
+    local action="$2"
+    local license_type="${3:-Google Workspace for Education Plus}"
+    
+    if [[ -z "$username" || -z "$action" ]]; then
+        echo -e "${RED}Error: Username and action are required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== License Management: $username ===${NC}"
+    echo ""
+    
+    case "$action" in
+        "add")
+            echo -e "${CYAN}Adding license '$license_type' to $username...${NC}"
+            if $GAM user "$username" add license "$license_type" 2>/dev/null; then
+                echo -e "${GREEN}Successfully added license '$license_type' to $username${NC}"
+                log_info "Added license '$license_type' to user $username"
+            else
+                echo -e "${RED}Failed to add license '$license_type' to $username${NC}"
+                log_error "Failed to add license '$license_type' to user $username"
+                return 1
+            fi
+            ;;
+        "remove")
+            echo -e "${CYAN}Removing license '$license_type' from $username...${NC}"
+            if $GAM user "$username" delete license "$license_type" 2>/dev/null; then
+                echo -e "${GREEN}Successfully removed license '$license_type' from $username${NC}"
+                log_info "Removed license '$license_type' from user $username"
+            else
+                echo -e "${RED}Failed to remove license '$license_type' from $username${NC}"
+                log_error "Failed to remove license '$license_type' from user $username"
+                return 1
+            fi
+            ;;
+        "show")
+            echo -e "${CYAN}Current licenses for $username:${NC}"
+            $GAM user "$username" print licenses 2>/dev/null || echo -e "${RED}Failed to retrieve licenses for $username${NC}"
+            ;;
+        *)
+            echo -e "${RED}Invalid action: $action. Use 'add', 'remove', or 'show'${NC}"
+            return 1
+            ;;
+    esac
+}
+
+license_management_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== License Management ===${NC}"
+        echo ""
+        echo "Manage Google Workspace licenses for users."
+        echo ""
+        echo "1. Add license to user"
+        echo "2. Remove license from user"
+        echo "3. Show user licenses"
+        echo "4. Batch license operations"
+        echo "5. Return to discovery menu"
+        echo ""
+        read -p "Select an option (1-5): " license_choice
+        echo ""
+        
+        case $license_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo "Available license types:"
+                    echo "1. Google Workspace for Education Plus (default)"
+                    echo "2. Google Workspace for Education Standard"
+                    echo "3. Custom license name"
+                    read -p "Select license type (1-3): " license_type_choice
+                    
+                    case $license_type_choice in
+                        1) license_type="Google Workspace for Education Plus" ;;
+                        2) license_type="Google Workspace for Education Standard" ;;
+                        3) 
+                            read -p "Enter custom license name: " license_type
+                            [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                            ;;
+                        *) license_type="Google Workspace for Education Plus" ;;
+                    esac
+                    
+                    manage_user_license "$username" "add" "$license_type"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo "Available license types:"
+                    echo "1. Google Workspace for Education Plus (default)"
+                    echo "2. Google Workspace for Education Standard"
+                    echo "3. Custom license name"
+                    read -p "Select license type (1-3): " license_type_choice
+                    
+                    case $license_type_choice in
+                        1) license_type="Google Workspace for Education Plus" ;;
+                        2) license_type="Google Workspace for Education Standard" ;;
+                        3) 
+                            read -p "Enter custom license name: " license_type
+                            [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                            ;;
+                        *) license_type="Google Workspace for Education Plus" ;;
+                    esac
+                    
+                    manage_user_license "$username" "remove" "$license_type"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    manage_user_license "$username" "show"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                echo -e "${CYAN}Batch License Operations${NC}"
+                echo ""
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    echo "1. Add license to all users"
+                    echo "2. Remove license from all users"
+                    echo "3. Show licenses for all users"
+                    read -p "Select operation (1-3): " batch_operation
+                    
+                    case $batch_operation in
+                        1) batch_action="add" ;;
+                        2) batch_action="remove" ;;
+                        3) batch_action="show" ;;
+                        *) 
+                            echo -e "${RED}Invalid operation${NC}"
+                            read -p "Press Enter to continue..."
+                            continue
+                            ;;
+                    esac
+                    
+                    if [[ "$batch_action" != "show" ]]; then
+                        echo "Available license types:"
+                        echo "1. Google Workspace for Education Plus (default)"
+                        echo "2. Google Workspace for Education Standard"
+                        echo "3. Custom license name"
+                        read -p "Select license type (1-3): " license_type_choice
+                        
+                        case $license_type_choice in
+                            1) license_type="Google Workspace for Education Plus" ;;
+                            2) license_type="Google Workspace for Education Standard" ;;
+                            3) 
+                                read -p "Enter custom license name: " license_type
+                                [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                                ;;
+                            *) license_type="Google Workspace for Education Plus" ;;
+                        esac
+                    fi
+                    
+                    echo -e "${CYAN}Processing users from file...${NC}"
+                    local total_users=$(wc -l < "$user_file")
+                    local current_user=0
+                    local success_count=0
+                    local error_count=0
+                    
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of $total_users: $username ===${NC}"
+                        
+                        if manage_user_license "$username" "$batch_action" "$license_type"; then
+                            ((success_count++))
+                        else
+                            ((error_count++))
+                        fi
+                    done < "$user_file"
+                    
+                    echo ""
+                    echo -e "${GREEN}Batch operation completed${NC}"
+                    echo -e "${CYAN}Total users processed: $current_user${NC}"
+                    echo -e "${GREEN}Successful operations: $success_count${NC}"
+                    echo -e "${RED}Failed operations: $error_count${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-5.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Orphaned file collection functions
+collect_orphaned_files() {
+    local username="$1"
+    local target_folder="${2:-Orphans - #user#}"
+    local use_shortcuts="${3:-true}"
+    
+    if [[ -z "$username" ]]; then
+        echo -e "${RED}Error: Username is required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== Collecting Orphaned Files for: $username ===${NC}"
+    echo ""
+    
+    # Validate user exists
+    if ! $GAM info user "$username" >/dev/null 2>&1; then
+        echo -e "${RED}Error: User $username not found${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Collecting orphaned files...${NC}"
+    echo "Target folder: $target_folder"
+    echo "Use shortcuts: $use_shortcuts"
+    echo ""
+    
+    local gam_command="$GAM user $username collect orphans targetuserfoldername \"$target_folder\""
+    if [[ "$use_shortcuts" == "true" ]]; then
+        gam_command="$gam_command useshortcuts"
+    fi
+    
+    echo -e "${YELLOW}Running: $gam_command${NC}"
+    echo ""
+    
+    if eval "$gam_command" 2>&1; then
+        echo ""
+        echo -e "${GREEN}Successfully collected orphaned files for $username${NC}"
+        log_info "Collected orphaned files for user $username into folder '$target_folder'"
+    else
+        echo ""
+        echo -e "${RED}Failed to collect orphaned files for $username${NC}"
+        log_error "Failed to collect orphaned files for user $username"
+        return 1
+    fi
+}
+
+orphaned_file_collection_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== Orphaned File Collection ===${NC}"
+        echo ""
+        echo "This tool collects files owned by a user that are located"
+        echo "in folders owned by other users into a designated folder."
+        echo ""
+        echo "1. Collect orphaned files for single user"
+        echo "2. Collect orphaned files for multiple users"
+        echo "3. Batch collection from file"
+        echo "4. Return to discovery menu"
+        echo ""
+        read -p "Select an option (1-4): " orphan_choice
+        echo ""
+        
+        case $orphan_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    read -p "Target folder name (default: Orphans - #user#): " target_folder
+                    [[ -z "$target_folder" ]] && target_folder="Orphans - #user#"
+                    
+                    echo "Use shortcuts instead of moving files?"
+                    echo "1. Yes (create shortcuts, faster)"
+                    echo "2. No (move actual files)"
+                    read -p "Select (1-2): " shortcut_choice
+                    
+                    case $shortcut_choice in
+                        1) use_shortcuts="true" ;;
+                        2) use_shortcuts="false" ;;
+                        *) use_shortcuts="true" ;;
+                    esac
+                    
+                    collect_orphaned_files "$username" "$target_folder" "$use_shortcuts"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                echo -e "${CYAN}Enter usernames (one per line, empty line to finish):${NC}"
+                local usernames=()
+                while true; do
+                    read -p "Username: " username
+                    [[ -z "$username" ]] && break
+                    usernames+=("$username")
+                done
+                
+                if [[ ${#usernames[@]} -gt 0 ]]; then
+                    read -p "Target folder name (default: Orphans - #user#): " target_folder
+                    [[ -z "$target_folder" ]] && target_folder="Orphans - #user#"
+                    
+                    echo "Use shortcuts instead of moving files?"
+                    echo "1. Yes (create shortcuts, faster)"
+                    echo "2. No (move actual files)"
+                    read -p "Select (1-2): " shortcut_choice
+                    
+                    case $shortcut_choice in
+                        1) use_shortcuts="true" ;;
+                        2) use_shortcuts="false" ;;
+                        *) use_shortcuts="true" ;;
+                    esac
+                    
+                    echo -e "${CYAN}Processing ${#usernames[@]} users...${NC}"
+                    local current_user=0
+                    local success_count=0
+                    local error_count=0
+                    
+                    for username in "${usernames[@]}"; do
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of ${#usernames[@]} ===${NC}"
+                        
+                        if collect_orphaned_files "$username" "$target_folder" "$use_shortcuts"; then
+                            ((success_count++))
+                        else
+                            ((error_count++))
+                        fi
+                    done
+                    
+                    echo ""
+                    echo -e "${GREEN}Batch collection completed${NC}"
+                    echo -e "${CYAN}Total users processed: $current_user${NC}"
+                    echo -e "${GREEN}Successful collections: $success_count${NC}"
+                    echo -e "${RED}Failed collections: $error_count${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}No usernames provided${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    read -p "Target folder name (default: Orphans - #user#): " target_folder
+                    [[ -z "$target_folder" ]] && target_folder="Orphans - #user#"
+                    
+                    echo "Use shortcuts instead of moving files?"
+                    echo "1. Yes (create shortcuts, faster)"
+                    echo "2. No (move actual files)"
+                    read -p "Select (1-2): " shortcut_choice
+                    
+                    case $shortcut_choice in
+                        1) use_shortcuts="true" ;;
+                        2) use_shortcuts="false" ;;
+                        *) use_shortcuts="true" ;;
+                    esac
+                    
+                    echo -e "${CYAN}Processing users from file...${NC}"
+                    local total_users=$(wc -l < "$user_file")
+                    local current_user=0
+                    local success_count=0
+                    local error_count=0
+                    
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of $total_users ===${NC}"
+                        
+                        if collect_orphaned_files "$username" "$target_folder" "$use_shortcuts"; then
+                            ((success_count++))
+                        else
+                            ((error_count++))
+                        fi
+                    done < "$user_file"
+                    
+                    echo ""
+                    echo -e "${GREEN}Batch collection completed${NC}"
+                    echo -e "${CYAN}Total users processed: $current_user${NC}"
+                    echo -e "${GREEN}Successful collections: $success_count${NC}"
+                    echo -e "${RED}Failed collections: $error_count${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 discovery_mode() {
     DISCOVERY_MODE=true
     echo -e "${MAGENTA}=== DISCOVERY MODE ===${NC}"
@@ -1996,9 +2403,11 @@ discovery_mode() {
     echo "6. Diagnose specific account consistency"
     echo "7. Check for incomplete operations"
     echo "8. Shared Drive cleanup operations"
-    echo "9. Return to main menu"
+    echo "9. License management operations"
+    echo "10. Orphaned file collection"
+    echo "11. Return to main menu"
     echo ""
-    read -p "Select an option (1-9): " discovery_choice
+    read -p "Select an option (1-11): " discovery_choice
     
     case $discovery_choice in
         1) 
@@ -2027,6 +2436,12 @@ discovery_mode() {
             shared_drive_cleanup_menu
             ;;
         9) 
+            license_management_menu
+            ;;
+        10) 
+            orphaned_file_collection_menu
+            ;;
+        11) 
             DISCOVERY_MODE=false
             return
             ;;
