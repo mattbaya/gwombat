@@ -598,9 +598,12 @@ reports_and_cleanup_menu() {
         echo "8. View backup files"
         echo "9. Configuration management"
         echo "10. Audit file ownership locations"
-        echo "11. Return to main menu"
         echo ""
-        read -p "Select an option (1-11): " report_choice
+        echo "11. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-11, m, x): " report_choice
         echo ""
         
         case $report_choice in
@@ -703,8 +706,14 @@ reports_and_cleanup_menu() {
             11)
                 break
                 ;;
+            m|M)
+                break
+                ;;
+            x|X)
+                exit 0
+                ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-11, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -1110,16 +1119,16 @@ show_main_menu() {
     echo -e "${CYAN}1. Recently Suspended ${NC}→ 2. Pending Deletion → 3. Share Analysis → 4. Final Decisions → 5. Deletion${NC}"
     echo ""
     echo -e "${GREEN}=== LIFECYCLE OPERATIONS ===${NC}"
-    echo "1. 📋 Stage 1: Manage Recently Suspended Accounts"
-    echo "2. 🔄 Stage 2: Process Pending Deletion (Rename & Label)"
-    echo "3. 📊 Stage 3: File Sharing Analysis & Reports"
-    echo "4. 🎯 Stage 4: Final Decisions (Exit Row / Temporary Hold)"
-    echo "5. 🗑️  Stage 5: Account Deletion Operations"
+    echo "1. 📋 Stage 1: Manage Recently Suspended Accounts (5 options)"
+    echo "2. 🔄 Stage 2: Process Pending Deletion (Rename & Label) (6 options)"
+    echo "3. 📊 Stage 3: File Sharing Analysis & Reports (7 options)"
+    echo "4. 🎯 Stage 4: Final Decisions (Exit Row / Temporary Hold) (6 options)"
+    echo "5. 🗑️  Stage 5: Account Deletion Operations (5 options)"
     echo ""
     echo -e "${BLUE}=== UTILITIES & TOOLS ===${NC}"
-    echo "6. 🔍 Discovery & Query Tools"
-    echo "7. 🛠️  Administrative Tools & Cleanup"
-    echo "8. 📈 Reports & Monitoring"
+    echo "6. 🔍 Discovery & Query Tools (11 options)"
+    echo "7. 🛠️  Administrative Tools & Cleanup (6 options)"
+    echo "8. 📈 Reports & Monitoring (10 options)"
     echo "9. ❌ Exit"
     echo ""
     read -p "Select an option (1-9): " choice
@@ -1933,12 +1942,14 @@ shared_drive_cleanup_menu() {
         echo ""
         echo -e "${GREEN}=== GROUP & DATE MANAGEMENT ===${NC}"
         echo "8. Backup/restore user group memberships"
-        echo "9. Restore file modification dates"
+        echo "9. Add members to group (bulk operations)"
+        echo "10. Remove user from all groups"
+        echo "11. Restore file modification dates"
         echo ""
-        echo "10. Dry-run: Preview cleanup operations"
-        echo "11. Return to administrative tools menu"
+        echo "12. Dry-run: Preview cleanup operations"
+        echo "13. Return to administrative tools menu"
         echo ""
-        read -p "Select an option (1-11): " cleanup_choice
+        read -p "Select an option (1-13): " cleanup_choice
         echo ""
         
         case $cleanup_choice in
@@ -2071,6 +2082,38 @@ shared_drive_cleanup_menu() {
                 fi
                 ;;
             9)
+                read -p "Enter group name: " group_name
+                read -p "Enter path to file containing member emails (one per line): " members_file
+                if [[ -n "$group_name" && -n "$members_file" ]]; then
+                    if [[ -f "$members_file" ]]; then
+                        bulk_add_to_group "$group_name" "$members_file"
+                        read -p "Press Enter to continue..."
+                    else
+                        echo -e "${RED}File not found: $members_file${NC}"
+                        read -p "Press Enter to continue..."
+                    fi
+                else
+                    echo -e "${RED}Group name and members file path cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            10)
+                read -p "Enter user email: " user_email
+                if [[ -n "$user_email" ]]; then
+                    echo -e "${YELLOW}This will remove $user_email from ALL groups${NC}"
+                    read -p "Are you sure? (yes/no): " confirm
+                    if [[ "$confirm" == "yes" ]]; then
+                        remove_user_from_all_groups "$user_email"
+                    else
+                        echo "Operation cancelled"
+                    fi
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            11)
                 read -p "Enter user email: " user_email
                 read -p "Enter target date (YYYY-MM-DD, default 2023-05-01): " target_date
                 target_date="${target_date:-2023-05-01}"
@@ -2082,7 +2125,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            10)
+            12)
                 read -p "Enter shared drive ID for preview: " drive_id
                 if [[ -n "$drive_id" ]]; then
                     echo ""
@@ -2108,11 +2151,11 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            11)
+            13)
                 return
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-13.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -3255,9 +3298,12 @@ discovery_mode() {
     echo "9. License management operations"
     echo "10. Orphaned file collection"
     echo "11. File sharing analysis and reports"
-    echo "12. Return to main menu"
     echo ""
-    read -p "Select an option (1-12): " discovery_choice
+    echo "12. Return to main menu"
+    echo "m. Main menu"
+    echo "x. Exit"
+    echo ""
+    read -p "Select an option (1-12, m, x): " discovery_choice
     
     case $discovery_choice in
         1) 
@@ -3296,6 +3342,19 @@ discovery_mode() {
             ;;
         12) 
             DISCOVERY_MODE=false
+            return
+            ;;
+        m|M)
+            DISCOVERY_MODE=false
+            return
+            ;;
+        x|X)
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Invalid option. Please select 1-12, m, or x.${NC}"
+            echo ""
+            read -p "Press Enter to continue..."
             return
             ;;
     esac
@@ -3710,6 +3769,77 @@ restore_file_dates() {
     done
     
     echo -e "${GREEN}Date restoration completed${NC}"
+}
+
+# Function to add members to group in bulk
+bulk_add_to_group() {
+    local group_name="$1"
+    local members_file="$2"
+    
+    if [[ ! -f "$members_file" ]]; then
+        echo -e "${RED}Members file not found: $members_file${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}Adding members from $members_file to group $group_name...${NC}"
+    
+    local counter=0
+    local total_members=$(cat "$members_file" | wc -l)
+    
+    while IFS= read -r username || [[ -n "$username" ]]; do
+        # Skip empty lines
+        [[ -z "$username" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $total_members "Adding: $username"
+        
+        if $GAM update group "$group_name" add member allmail user "$username" 2>/dev/null; then
+            echo "  ✓ Added $username to $group_name"
+        else
+            echo "  ✗ Failed to add $username to $group_name"
+        fi
+    done < "$members_file"
+    
+    echo -e "${GREEN}Bulk add operation completed${NC}"
+}
+
+# Function to remove user from all their groups
+remove_user_from_all_groups() {
+    local user_email="$1"
+    local log_file="${SCRIPTPATH}/tmp/${user_email}_groups_removed.log"
+    
+    echo -e "${GREEN}Removing $user_email from all groups...${NC}"
+    
+    # Get list of groups user belongs to
+    local groups=$($GAM print groups member "$user_email" | grep "your-domain.edu" | awk '{print $1}')
+    local group_count=$(echo "$groups" | wc -l)
+    
+    if [[ -z "$groups" ]]; then
+        echo "User $user_email is not a member of any groups"
+        return 0
+    fi
+    
+    echo "Found $group_count groups for removal"
+    echo "Groups to remove from: $groups"
+    echo ""
+    
+    local counter=0
+    echo "$groups" | while read group; do
+        [[ -z "$group" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $group_count "Removing from: $group"
+        
+        echo "Removing user: $user_email from group: $group"
+        if $GAM update group "$group" remove member "$user_email" 2>/dev/null; then
+            echo "$user_email removed from $group at $(date)" >> "$log_file"
+            echo "  ✓ Removed from $group"
+        else
+            echo "  ✗ Failed to remove from $group"
+        fi
+    done
+    
+    echo -e "${GREEN}User removed from all groups. Log: $log_file${NC}"
 }
 
 # Function to manage shared drives operations
@@ -5230,9 +5360,12 @@ stage1_recently_suspended_menu() {
         echo "3. Check account status and details"
         echo "4. View suspended account statistics"
         echo "5. Export suspended account list"
-        echo "6. Return to main menu"
         echo ""
-        read -p "Select an option (1-6): " stage1_choice
+        echo "6. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-6, m, x): " stage1_choice
         echo ""
         
         case $stage1_choice in
@@ -5264,8 +5397,10 @@ stage1_recently_suspended_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             6) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -5289,9 +5424,12 @@ stage2_pending_deletion_menu() {
         echo "4. Remove pending deletion (reverse operation)"
         echo "5. Query users in Pending Deletion OU"
         echo "6. Dry-run mode (preview changes)"
-        echo "7. Return to main menu"
         echo ""
-        read -p "Select an option (1-7): " stage2_choice
+        echo "7. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-7, m, x): " stage2_choice
         echo ""
         
         case $stage2_choice in
@@ -5373,8 +5511,10 @@ stage2_pending_deletion_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             7) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -5397,9 +5537,12 @@ stage3_sharing_analysis_menu() {
         echo "5. Bulk analysis of all pending deletion users"
         echo "6. View analysis statistics"
         echo "7. Clean up analysis files"
-        echo "8. Return to main menu"
         echo ""
-        read -p "Select an option (1-8): " stage3_choice
+        echo "8. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-8, m, x): " stage3_choice
         echo ""
         
         case $stage3_choice in
@@ -5582,8 +5725,10 @@ stage3_sharing_analysis_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             8) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-8.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-8, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -5606,9 +5751,12 @@ stage4_final_decisions_menu() {
         echo "4. Query users in Temporary Hold OU"
         echo "5. Query users in Exit Row OU"
         echo "6. Move user to Exit Row (prepare for deletion)"
-        echo "7. Return to main menu"
         echo ""
-        read -p "Select an option (1-7): " stage4_choice
+        echo "7. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-7, m, x): " stage4_choice
         echo ""
         
         case $stage4_choice in
@@ -5679,8 +5827,10 @@ stage4_final_decisions_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             7) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -5701,9 +5851,12 @@ stage5_deletion_operations_menu() {
         echo "3. License management for deletion candidates"
         echo "4. Generate pre-deletion audit report"
         echo "5. View deletion-related statistics"
-        echo "6. Return to main menu"
         echo ""
-        read -p "Select an option (1-6): " stage5_choice
+        echo "6. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-6, m, x): " stage5_choice
         echo ""
         
         case $stage5_choice in
@@ -5804,8 +5957,10 @@ stage5_deletion_operations_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             6) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -5848,9 +6003,12 @@ main() {
                     echo "3. File ownership audit"
                     echo "4. Check for incomplete operations"
                     echo "5. Dry-run mode (preview any operation)"
-                    echo "6. Return to main menu"
                     echo ""
-                    read -p "Select an option (1-6): " admin_choice
+                    echo "6. Return to main menu"
+                    echo "m. Main menu"
+                    echo "x. Exit"
+                    echo ""
+                    read -p "Select an option (1-6, m, x): " admin_choice
                     echo ""
                     
                     case $admin_choice in
@@ -5860,8 +6018,10 @@ main() {
                         4) check_incomplete_operations ;;
                         5) dry_run_mode ;;
                         6) break ;;
+                        m|M) break ;;
+                        x|X) exit 0 ;;
                         *)
-                            echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                            echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
                             read -p "Press Enter to continue..."
                             ;;
                     esac
