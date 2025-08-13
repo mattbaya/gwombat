@@ -1103,17 +1103,25 @@ audit_file_ownership_menu() {
 # Function to display the main menu
 show_main_menu() {
     clear
-    echo -e "${BLUE}=== Temporary Hold Master Script ===${NC}"
+    echo -e "${BLUE}=== Suspended Account Lifecycle Management ===${NC}"
     echo ""
-    echo "1. Process single user"
-    echo "2. Process users from file"
-    echo "3. Process multiple users (manual entry)"
-    echo "4. Dry-run mode (Preview changes without making them)"
-    echo "5. Discovery mode (Query and diagnose accounts)"
-    echo "6. Generate reports and cleanup logs"
-    echo "7. Exit"
+    echo -e "${YELLOW}Account Lifecycle Stages:${NC}"
+    echo -e "${CYAN}1. Recently Suspended ${NC}→ 2. Pending Deletion → 3. Share Analysis → 4. Final Decisions → 5. Deletion${NC}"
     echo ""
-    read -p "Select an option (1-7): " choice
+    echo -e "${GREEN}=== LIFECYCLE OPERATIONS ===${NC}"
+    echo "1. 📋 Stage 1: Manage Recently Suspended Accounts"
+    echo "2. 🔄 Stage 2: Process Pending Deletion (Rename & Label)"
+    echo "3. 📊 Stage 3: File Sharing Analysis & Reports"
+    echo "4. 🎯 Stage 4: Final Decisions (Exit Row / Temporary Hold)"
+    echo "5. 🗑️  Stage 5: Account Deletion Operations"
+    echo ""
+    echo -e "${BLUE}=== UTILITIES & TOOLS ===${NC}"
+    echo "6. 🔍 Discovery & Query Tools"
+    echo "7. 🛠️  Administrative Tools & Cleanup"
+    echo "8. 📈 Reports & Monitoring"
+    echo "9. ❌ Exit"
+    echo ""
+    read -p "Select an option (1-9): " choice
     echo ""
     return $choice
 }
@@ -4664,6 +4672,604 @@ process_users_from_file() {
     echo -e "${GREEN}All users from file have been processed.${NC}"
 }
 
+# Lifecycle Stage Menus
+
+# Stage 1: Recently Suspended Accounts
+stage1_recently_suspended_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Stage 1: Recently Suspended Accounts ===${NC}"
+        echo ""
+        echo -e "${CYAN}These accounts have been suspended but no further processing has occurred.${NC}"
+        echo -e "${CYAN}Use this stage to review and query recently suspended accounts.${NC}"
+        echo ""
+        echo "1. Query all suspended accounts (all OUs)"
+        echo "2. Query suspended accounts by department/type"
+        echo "3. Check account status and details"
+        echo "4. View suspended account statistics"
+        echo "5. Export suspended account list"
+        echo "6. Return to main menu"
+        echo ""
+        read -p "Select an option (1-6): " stage1_choice
+        echo ""
+        
+        case $stage1_choice in
+            1) query_all_suspended_users ;;
+            2) query_users_by_filter ;;
+            3) 
+                read -p "Enter username to check: " username
+                if [[ -n "$username" ]]; then
+                    diagnose_account "$username"
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                echo -e "${CYAN}Suspended Account Statistics:${NC}"
+                query_all_suspended_users | tail -n +2 | wc -l | xargs echo "Total suspended accounts:"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                echo -e "${CYAN}Exporting suspended account list...${NC}"
+                local export_file="reports/suspended_accounts_$(date +%Y%m%d_%H%M%S).csv"
+                mkdir -p reports
+                query_all_suspended_users > "$export_file"
+                echo -e "${GREEN}Exported to: $export_file${NC}"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6) return ;;
+            *) 
+                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Stage 2: Process Pending Deletion
+stage2_pending_deletion_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Stage 2: Process Pending Deletion (Rename & Label) ===${NC}"
+        echo ""
+        echo -e "${CYAN}Move accounts to 'Pending Deletion' OU and process their files:${NC}"
+        echo -e "${CYAN}• Rename user's last name with '(PENDING DELETION - CONTACT OIT)'${NC}"
+        echo -e "${CYAN}• Rename and label all their files${NC}"
+        echo -e "${CYAN}• Remove from all groups${NC}"
+        echo ""
+        echo "1. Process single user for pending deletion"
+        echo "2. Process multiple users from file"
+        echo "3. Process multiple users (manual entry)"
+        echo "4. Remove pending deletion (reverse operation)"
+        echo "5. Query users in Pending Deletion OU"
+        echo "6. Dry-run mode (preview changes)"
+        echo "7. Return to main menu"
+        echo ""
+        read -p "Select an option (1-7): " stage2_choice
+        echo ""
+        
+        case $stage2_choice in
+            1)
+                user=$(get_user_input)
+                show_pending_summary "$user"
+                if enhanced_confirm "mark for pending deletion" 1 "high"; then
+                    create_backup "$user" "add_pending"
+                    process_pending_user "$user"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                file_path=$(load_users_from_file)
+                user_count=$(wc -l < "$file_path")
+                echo ""
+                echo -e "${YELLOW}Found $user_count users in file.${NC}"
+                echo "Each user will be marked for pending deletion."
+                if enhanced_confirm "batch mark for pending deletion" "$user_count" "high"; then
+                    process_pending_users_from_file "$file_path"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
+                users_array=($(get_multiple_user_input))
+                if [[ ${#users_array[@]} -gt 0 ]]; then
+                    echo ""
+                    echo "Processing ${#users_array[@]} users for pending deletion"
+                    if enhanced_confirm "process ${#users_array[@]} manually entered users" "${#users_array[@]}" "high"; then
+                        for user in "${users_array[@]}"; do
+                            echo ""
+                            echo -e "${CYAN}Processing: $user${NC}"
+                            create_backup "$user" "add_pending"
+                            process_pending_user "$user"
+                            echo "----------------------------------------"
+                        done
+                        echo -e "${GREEN}Manual processing completed for ${#users_array[@]} users.${NC}"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}No users entered. Returning to menu.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                user=$(get_user_input)
+                show_pending_removal_summary "$user"
+                if enhanced_confirm "remove pending deletion" 1 "normal"; then
+                    create_backup "$user" "remove_pending"
+                    remove_pending_user "$user"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5) 
+                query_pending_users
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6) 
+                DRY_RUN=true
+                echo -e "${YELLOW}Dry-run mode enabled. No actual changes will be made.${NC}"
+                echo ""
+                user=$(get_user_input)
+                show_pending_summary "$user"
+                process_pending_user "$user"
+                DRY_RUN=false
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7) return ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Stage 3: File Sharing Analysis & Reports  
+stage3_sharing_analysis_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Stage 3: File Sharing Analysis & Reports ===${NC}"
+        echo ""
+        echo -e "${CYAN}Analyze files shared by pending deletion accounts with active your-domain.edu users.${NC}"
+        echo -e "${CYAN}Generate reports for active users about files they're receiving from suspended accounts.${NC}"
+        echo ""
+        echo "1. Analyze single user's file sharing"
+        echo "2. Analyze multiple users (batch processing)"
+        echo "3. Generate report for active user (what they're receiving)"
+        echo "4. Update shared filenames with pending deletion labels"
+        echo "5. Bulk analysis of all pending deletion users"
+        echo "6. View analysis statistics"
+        echo "7. Clean up analysis files"
+        echo "8. Return to main menu"
+        echo ""
+        read -p "Select an option (1-8): " stage3_choice
+        echo ""
+        
+        case $stage3_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo ""
+                    echo "Analysis options:"
+                    echo "1. Standard analysis"
+                    echo "2. Analysis with pending deletion filename updates"
+                    echo "3. Analysis without report generation"
+                    read -p "Select analysis type (1-3): " analysis_type
+                    
+                    case $analysis_type in
+                        1) analyze_user_file_sharing "$username" false false true ;;
+                        2) analyze_user_file_sharing "$username" false true true ;;
+                        3) analyze_user_file_sharing "$username" false false false ;;
+                        *) analyze_user_file_sharing "$username" false false true ;;
+                    esac
+                    
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                echo -e "${CYAN}Batch File Sharing Analysis${NC}"
+                echo ""
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    echo "Analysis options:"
+                    echo "1. Standard analysis for all users"
+                    echo "2. Analysis with pending deletion updates"
+                    read -p "Select analysis type (1-2): " batch_type
+                    
+                    local pending_mode=false
+                    [[ "$batch_type" == "2" ]] && pending_mode=true
+                    
+                    echo -e "${CYAN}Processing users from file...${NC}"
+                    local total_users=$(wc -l < "$user_file")
+                    local current_user=0
+                    local success_count=0
+                    local error_count=0
+                    
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of $total_users: $username ===${NC}"
+                        
+                        if analyze_user_file_sharing "$username" false "$pending_mode" true; then
+                            ((success_count++))
+                        else
+                            ((error_count++))
+                        fi
+                    done < "$user_file"
+                    
+                    echo ""
+                    echo -e "${GREEN}Batch analysis completed${NC}"
+                    echo -e "${CYAN}Total users processed: $current_user${NC}"
+                    echo -e "${GREEN}Successful analyses: $success_count${NC}"
+                    echo -e "${RED}Failed analyses: $error_count${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter active user email to generate report for: " recipient_email
+                if [[ -n "$recipient_email" ]]; then
+                    generate_recipient_report "$recipient_email"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                read -p "Enter username to update filenames for: " username
+                if [[ -n "$username" ]]; then
+                    local active_shares_csv="listshared/${username}_active-shares.csv"
+                    if [[ -f "$active_shares_csv" ]]; then
+                        update_pending_deletion_filenames "$username" "$active_shares_csv"
+                    else
+                        echo -e "${RED}No active shares analysis found for $username${NC}"
+                        echo -e "${CYAN}Please run file sharing analysis first${NC}"
+                    fi
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                echo -e "${CYAN}Bulk Analysis of All Pending Deletion Users${NC}"
+                echo ""
+                echo "This will analyze all users in pending deletion OU."
+                read -p "Continue? (y/n): " confirm_bulk
+                
+                if [[ "$confirm_bulk" == "y" || "$confirm_bulk" == "Y" ]]; then
+                    local pending_users=$(mktemp)
+                    $GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Pending Deletion'" fields primaryemail > "$pending_users" 2>/dev/null
+                    
+                    local total=$(tail -n +2 "$pending_users" | wc -l)
+                    echo -e "${CYAN}Found $total pending deletion users to analyze${NC}"
+                    
+                    local processed=0
+                    local success=0
+                    
+                    tail -n +2 "$pending_users" | while read -r email rest; do
+                        ((processed++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing $processed/$total: $email ===${NC}"
+                        
+                        if analyze_user_file_sharing "$email" false false true; then
+                            ((success++))
+                        fi
+                    done
+                    
+                    rm -f "$pending_users"
+                    echo -e "${GREEN}Bulk analysis completed${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}Bulk analysis cancelled${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            6)
+                echo -e "${CYAN}File Sharing Analysis Statistics${NC}"
+                echo ""
+                
+                local user_analyses=$(ls listshared/*_all_files.csv 2>/dev/null | wc -l)
+                local sharing_analyses=$(ls listshared/*_shared_files.csv 2>/dev/null | wc -l)
+                local active_analyses=$(ls listshared/*_active-shares.csv 2>/dev/null | wc -l)
+                local recipient_reports=$(ls reports/*_files_from_*.csv 2>/dev/null | wc -l)
+                
+                echo "Analysis Files:"
+                echo "- User file analyses: $user_analyses"
+                echo "- Sharing analyses: $sharing_analyses"  
+                echo "- Active share analyses: $active_analyses"
+                echo "- Recipient reports: $recipient_reports"
+                
+                if [[ $active_analyses -gt 0 ]]; then
+                    echo ""
+                    echo "Active Sharing Summary:"
+                    local total_active_files=0
+                    for file in listshared/*_active-shares.csv; do
+                        if [[ -f "$file" ]]; then
+                            local count=$(tail -n +2 "$file" | wc -l 2>/dev/null || echo "0")
+                            total_active_files=$((total_active_files + count))
+                        fi
+                    done
+                    echo "- Total files shared with active users: $total_active_files"
+                fi
+                
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7)
+                echo -e "${CYAN}Clean Up Analysis Files${NC}"
+                echo ""
+                echo "This will clean up temporary and cache files from analysis."
+                echo "Analysis results and reports will be preserved."
+                echo ""
+                read -p "Continue? (y/n): " confirm_cleanup
+                
+                if [[ "$confirm_cleanup" == "y" || "$confirm_cleanup" == "Y" ]]; then
+                    rm -rf listshared/temp/* listshared/cache/*
+                    find listshared/ -name "*.tmp" -delete 2>/dev/null
+                    find listshared/ -name "temp-*" -delete 2>/dev/null
+                    echo -e "${GREEN}Cleanup completed${NC}"
+                else
+                    echo -e "${YELLOW}Cleanup cancelled${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            8) return ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-8.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Stage 4: Final Decisions (Exit Row / Temporary Hold)
+stage4_final_decisions_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Stage 4: Final Decisions (Exit Row / Temporary Hold) ===${NC}"
+        echo ""
+        echo -e "${CYAN}Make final decisions about pending deletion accounts:${NC}"
+        echo -e "${YELLOW}• Move to 'Exit Row' → Account will be deleted soon${NC}"
+        echo -e "${YELLOW}• Move to 'Temporary Hold' → Account gets more time${NC}"
+        echo ""
+        echo "1. Move user to Temporary Hold"
+        echo "2. Move users from file to Temporary Hold"
+        echo "3. Remove user from Temporary Hold (reactivate or continue deletion)"
+        echo "4. Query users in Temporary Hold OU"
+        echo "5. Query users in Exit Row OU"
+        echo "6. Move user to Exit Row (prepare for deletion)"
+        echo "7. Return to main menu"
+        echo ""
+        read -p "Select an option (1-7): " stage4_choice
+        echo ""
+        
+        case $stage4_choice in
+            1)
+                user=$(get_user_input)
+                show_summary "$user"
+                if enhanced_confirm "move to temporary hold" 1 "normal"; then
+                    create_backup "$user" "add_temphold"
+                    process_user "$user"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                file_path=$(load_users_from_file)
+                user_count=$(wc -l < "$file_path")
+                echo ""
+                echo -e "${YELLOW}Found $user_count users in file.${NC}"
+                echo "Each user will be moved to temporary hold."
+                if enhanced_confirm "batch move to temporary hold" "$user_count" "batch"; then
+                    process_users_from_file "$file_path"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
+                user=$(get_user_input)
+                show_removal_summary "$user"
+                if enhanced_confirm "remove from temporary hold" 1 "normal"; then
+                    create_backup "$user" "remove_temphold"
+                    remove_temphold_user "$user"
+                else
+                    echo -e "${YELLOW}Operation cancelled.${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4) 
+                query_temphold_users
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                echo -e "${CYAN}Querying users in Exit Row OU...${NC}"
+                $GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail,givenname,familyname,suspended,lastlogintime
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6)
+                read -p "Enter username to move to Exit Row: " username
+                if [[ -n "$username" ]]; then
+                    echo -e "${RED}WARNING: Moving to Exit Row means this account will be deleted soon!${NC}"
+                    if enhanced_confirm "move $username to Exit Row" 1 "high"; then
+                        move_user_to_ou "$username" "/Suspended Accounts/Suspended - Exit Row"
+                        echo -e "${GREEN}$username moved to Exit Row${NC}"
+                        log_info "Moved $username to Exit Row OU"
+                    else
+                        echo -e "${YELLOW}Operation cancelled.${NC}"
+                    fi
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7) return ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Stage 5: Account Deletion Operations
+stage5_deletion_operations_menu() {
+    while true; do
+        clear
+        echo -e "${RED}=== Stage 5: Account Deletion Operations ===${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠️  DANGER ZONE: These operations are irreversible!${NC}"
+        echo -e "${CYAN}Manage accounts that are ready for final deletion.${NC}"
+        echo ""
+        echo "1. List accounts ready for deletion (Exit Row)"
+        echo "2. Collect orphaned files before deletion"
+        echo "3. License management for deletion candidates"
+        echo "4. Generate pre-deletion audit report"
+        echo "5. View deletion-related statistics"
+        echo "6. Return to main menu"
+        echo ""
+        read -p "Select an option (1-6): " stage5_choice
+        echo ""
+        
+        case $stage5_choice in
+            1)
+                echo -e "${CYAN}Accounts in Exit Row (ready for deletion):${NC}"
+                $GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail,givenname,familyname,suspended,lastlogintime,creationtime
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                orphaned_file_collection_menu
+                ;;
+            3)
+                license_management_menu
+                ;;
+            4)
+                read -p "Enter username for pre-deletion audit: " username
+                if [[ -n "$username" ]]; then
+                    echo -e "${CYAN}Generating pre-deletion audit for $username...${NC}"
+                    
+                    local audit_file="reports/${username}_pre_deletion_audit_$(date +%Y%m%d_%H%M%S).txt"
+                    mkdir -p reports
+                    
+                    {
+                        echo "=== PRE-DELETION AUDIT REPORT ==="
+                        echo "User: $username"
+                        echo "Generated: $(date)"
+                        echo ""
+                        
+                        echo "=== USER INFORMATION ==="
+                        $GAM info user "$username" 2>/dev/null || echo "User not found"
+                        echo ""
+                        
+                        echo "=== FILE SHARING STATUS ==="
+                        if [[ -f "listshared/${username}_active-shares.csv" ]]; then
+                            local shared_files=$(tail -n +2 "listshared/${username}_active-shares.csv" | wc -l)
+                            echo "Files still shared with active users: $shared_files"
+                            
+                            if [[ $shared_files -gt 0 ]]; then
+                                echo ""
+                                echo "WARNING: User still has files shared with active users!"
+                                echo "Recipients:"
+                                tail -n +2 "listshared/${username}_active-shares.csv" | cut -d, -f8 | sort -u
+                            fi
+                        else
+                            echo "No file sharing analysis found - run Stage 3 analysis first"
+                        fi
+                        
+                        echo ""
+                        echo "=== GROUP MEMBERSHIPS ==="
+                        $GAM info user "$username" | grep -A 10 "Groups:" 2>/dev/null || echo "No group information available"
+                        
+                    } > "$audit_file"
+                    
+                    echo -e "${GREEN}Pre-deletion audit saved to: $audit_file${NC}"
+                    
+                    # Show summary
+                    echo ""
+                    echo -e "${CYAN}Audit Summary:${NC}"
+                    grep -E "Files still shared|WARNING|User not found" "$audit_file" || echo "No warnings found"
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                echo -e "${CYAN}Deletion-Related Statistics:${NC}"
+                echo ""
+                
+                local exit_row_count=$($GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail 2>/dev/null | tail -n +2 | wc -l)
+                local temphold_count=$(query_temphold_users | tail -n +2 | wc -l)
+                local pending_count=$(query_pending_users | tail -n +2 | wc -l)
+                
+                echo "Accounts by stage:"
+                echo "- Exit Row (ready for deletion): $exit_row_count"
+                echo "- Temporary Hold: $temphold_count"
+                echo "- Pending Deletion: $pending_count"
+                echo ""
+                
+                # Check for potential issues
+                local shared_files_count=0
+                for file in listshared/*_active-shares.csv; do
+                    if [[ -f "$file" ]]; then
+                        local count=$(tail -n +2 "$file" | wc -l 2>/dev/null || echo "0")
+                        shared_files_count=$((shared_files_count + count))
+                    fi
+                done
+                
+                echo "Potential issues:"
+                echo "- Files still shared with active users: $shared_files_count"
+                
+                if [[ $shared_files_count -gt 0 ]]; then
+                    echo -e "${YELLOW}⚠️  Warning: Some accounts still have active file shares!${NC}"
+                fi
+                
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            6) return ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 # Main script execution
 main() {
     while true; do
@@ -4672,170 +5278,57 @@ main() {
         
         case $choice in
             1)
-                # Single user processing
-                user=$(get_user_input)
-                operation=$(get_operation_choice)
-                
-                case $operation in
-                    "add_temphold")
-                        show_summary "$user"
-                        if enhanced_confirm "add temporary hold" 1 "normal"; then
-                            create_backup "$user" "add_temphold"
-                            process_user "$user"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "remove_temphold")
-                        show_removal_summary "$user"
-                        if enhanced_confirm "remove temporary hold" 1 "normal"; then
-                            create_backup "$user" "remove_temphold"
-                            remove_temphold_user "$user"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "add_pending")
-                        show_pending_summary "$user"
-                        if enhanced_confirm "mark for pending deletion" 1 "high"; then
-                            create_backup "$user" "add_pending"
-                            process_pending_user "$user"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "remove_pending")
-                        show_pending_removal_summary "$user"
-                        if enhanced_confirm "remove pending deletion" 1 "normal"; then
-                            create_backup "$user" "remove_pending"
-                            remove_pending_user "$user"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                esac
-                echo ""
-                read -p "Press Enter to continue..."
+                stage1_recently_suspended_menu
                 ;;
             2)
-                # Multiple users from file
-                file_path=$(load_users_from_file)
-                user_count=$(wc -l < "$file_path")
-                operation=$(get_operation_choice)
-                
-                echo ""
-                echo -e "${YELLOW}Found $user_count users in file.${NC}"
-                echo "Sample users from file:"
-                head -5 "$file_path" | while IFS= read -r line; do
-                    echo "  - $line"
-                done
-                if [[ $user_count -gt 5 ]]; then
-                    echo "  ... and $((user_count - 5)) more"
-                fi
-                echo ""
-                
-                case $operation in
-                    "add_temphold")
-                        echo "Each user will go through the process to add temporary hold."
-                        if enhanced_confirm "batch add temporary hold" "$user_count" "batch"; then
-                            process_users_from_file "$file_path"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "remove_temphold")
-                        echo "Each user will go through the process to remove temporary hold."
-                        if enhanced_confirm "batch remove temporary hold" "$user_count" "batch"; then
-                            remove_temphold_users_from_file "$file_path"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "add_pending")
-                        echo "Each user will be marked for pending deletion."
-                        if enhanced_confirm "batch mark for pending deletion" "$user_count" "high"; then
-                            process_pending_users_from_file "$file_path"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                    "remove_pending")
-                        echo "Each user will have pending deletion removed."
-                        if enhanced_confirm "batch remove pending deletion" "$user_count" "batch"; then
-                            remove_pending_users_from_file "$file_path"
-                        else
-                            echo -e "${YELLOW}Operation cancelled.${NC}"
-                        fi
-                        ;;
-                esac
-                echo ""
-                read -p "Press Enter to continue..."
+                stage2_pending_deletion_menu
                 ;;
             3)
-                # Manual user entry processing
-                users_array=($(get_multiple_user_input))
-                if [[ ${#users_array[@]} -gt 0 ]]; then
-                    operation=$(get_operation_choice)
-                    echo ""
-                    echo "Processing ${#users_array[@]} users with operation: $operation"
-                    
-                    # Check prerequisites for all users
-                    for user in "${users_array[@]}"; do
-                        check_operation_prerequisites "$user" "$operation"
-                        exit_code=$?
-                        if [[ $exit_code -eq 1 ]]; then
-                            echo -e "${RED}Prerequisites failed for $user. Skipping all operations.${NC}"
-                            break
-                        fi
-                    done
-                    
-                    if enhanced_confirm "process ${#users_array[@]} manually entered users" "${#users_array[@]}" "batch"; then
-                        for user in "${users_array[@]}"; do
-                            echo ""
-                            echo -e "${CYAN}Processing: $user${NC}"
-                            case $operation in
-                                "add_temphold")
-                                    create_backup "$user" "add_temphold"
-                                    process_user "$user"
-                                    ;;
-                                "remove_temphold")
-                                    create_backup "$user" "remove_temphold"
-                                    remove_temphold_user "$user"
-                                    ;;
-                                "add_pending")
-                                    create_backup "$user" "add_pending"
-                                    process_pending_user "$user"
-                                    ;;
-                                "remove_pending")
-                                    create_backup "$user" "remove_pending"
-                                    remove_pending_user "$user"
-                                    ;;
-                            esac
-                            echo "----------------------------------------"
-                        done
-                        echo -e "${GREEN}Manual processing completed for ${#users_array[@]} users.${NC}"
-                    else
-                        echo -e "${YELLOW}Operation cancelled.${NC}"
-                    fi
-                else
-                    echo -e "${YELLOW}No users entered. Returning to main menu.${NC}"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
+                stage3_sharing_analysis_menu
                 ;;
             4)
-                # Dry-run mode
-                dry_run_mode
+                stage4_final_decisions_menu
                 ;;
             5)
-                # Discovery mode
-                discovery_mode
+                stage5_deletion_operations_menu
                 ;;
             6)
-                # Generate reports and cleanup
-                reports_and_cleanup_menu
+                discovery_mode
                 ;;
             7)
+                # Administrative tools
+                while true; do
+                    clear
+                    echo -e "${BLUE}=== Administrative Tools & Cleanup ===${NC}"
+                    echo ""
+                    echo "1. Shared Drive cleanup operations"
+                    echo "2. License management operations"
+                    echo "3. File ownership audit"
+                    echo "4. Check for incomplete operations"
+                    echo "5. Dry-run mode (preview any operation)"
+                    echo "6. Return to main menu"
+                    echo ""
+                    read -p "Select an option (1-6): " admin_choice
+                    echo ""
+                    
+                    case $admin_choice in
+                        1) shared_drive_cleanup_menu ;;
+                        2) license_management_menu ;;
+                        3) audit_file_ownership_menu ;;
+                        4) check_incomplete_operations ;;
+                        5) dry_run_mode ;;
+                        6) break ;;
+                        *)
+                            echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                            read -p "Press Enter to continue..."
+                            ;;
+                    esac
+                done
+                ;;
+            8)
+                reports_and_cleanup_menu
+                ;;
+            9)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -4843,7 +5336,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-9.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
