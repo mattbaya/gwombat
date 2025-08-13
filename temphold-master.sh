@@ -596,9 +596,10 @@ reports_and_cleanup_menu() {
         echo "7. Clean up old logs (custom days)"
         echo "8. View backup files"
         echo "9. Configuration management"
-        echo "10. Return to main menu"
+        echo "10. Audit file ownership locations"
+        echo "11. Return to main menu"
         echo ""
-        read -p "Select an option (1-10): " report_choice
+        read -p "Select an option (1-11): " report_choice
         echo ""
         
         case $report_choice in
@@ -696,10 +697,13 @@ reports_and_cleanup_menu() {
                 configuration_menu
                 ;;
             10)
+                audit_file_ownership_menu
+                ;;
+            11)
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-10.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -911,6 +915,185 @@ configuration_menu() {
                 ;;
             *)
                 echo -e "${RED}Invalid option. Please select 1-11.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Audit file ownership locations
+audit_file_ownership() {
+    local username="$1"
+    
+    echo -e "${BLUE}=== Auditing file ownership locations for: $username ===${NC}"
+    echo ""
+    
+    # Validate user exists
+    if ! $GAM info user "$username" >/dev/null 2>&1; then
+        echo -e "${RED}Error: User $username not found${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Analyzing file ownership locations...${NC}"
+    echo "This may take a moment for users with many files."
+    echo ""
+    
+    # Create a temporary file to hold user files data
+    local tempfile=$(mktemp)
+    local count=0
+    local mismatch_count=0
+    
+    # Get the list of files owned by the user
+    echo -e "${CYAN}Getting file list for $username...${NC}"
+    if ! $GAM user "$username" print filelist id title mimeType owners.emailAddress > "$tempfile" 2>/dev/null; then
+        echo -e "${RED}Error: Failed to retrieve file list for $username${NC}"
+        rm -f "$tempfile"
+        return 1
+    fi
+    
+    # Check if we have any files
+    local total_files=$(tail -n +2 "$tempfile" | wc -l)
+    if [[ $total_files -eq 0 ]]; then
+        echo -e "${YELLOW}No files found for user $username${NC}"
+        rm -f "$tempfile"
+        return 0
+    fi
+    
+    echo -e "${GREEN}Found $total_files files to analyze${NC}"
+    echo ""
+    echo -e "${CYAN}Checking file locations...${NC}"
+    
+    # Check each file and the owner of its parent folder
+    tail -n +2 "$tempfile" | while IFS=, read -r user fileID fileName mimeType owner; do
+        ((count++))
+        
+        # Show progress every 10 files
+        if [[ $((count % 10)) -eq 0 ]]; then
+            echo -e "${CYAN}Processed $count of $total_files files...${NC}"
+        fi
+        
+        # Get the folder ID where the file is located
+        local folderID=$($GAM user "$username" show fileinfo "$fileID" 2>/dev/null | grep 'Parent ID' | cut -d' ' -f3)
+        
+        # If folderID is empty, skip to the next iteration
+        if [[ -z "$folderID" ]]; then
+            continue
+        fi
+        
+        # Get the owner of the folder
+        local folderOwner=$($GAM info fileid "$folderID" 2>/dev/null | grep 'Owner Email' | cut -d' ' -f3)
+        
+        # Check if the folder owner is different from the file owner
+        if [[ "$folderOwner" != "$owner" && -n "$folderOwner" ]]; then
+            echo -e "${YELLOW}MISMATCH: File '$fileName' ($fileID) is owned by $owner but located in folder owned by $folderOwner${NC}"
+            ((mismatch_count++))
+        fi
+    done
+    
+    # Clean up the temporary file
+    rm -f "$tempfile"
+    
+    echo ""
+    echo -e "${GREEN}Analysis complete for $username${NC}"
+    echo -e "${CYAN}Files analyzed: $total_files${NC}"
+    echo -e "${YELLOW}Location mismatches found: $mismatch_count${NC}"
+    
+    if [[ $mismatch_count -gt 0 ]]; then
+        echo ""
+        echo -e "${YELLOW}Note: Location mismatches may indicate:${NC}"
+        echo "- Files moved to folders owned by other users"
+        echo "- Shared folders where ownership differs"
+        echo "- Files that may need attention during account suspension"
+    fi
+    
+    log_info "File ownership audit completed for $username: $total_files files analyzed, $mismatch_count mismatches"
+}
+
+audit_file_ownership_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== File Ownership Audit ===${NC}"
+        echo ""
+        echo "This tool helps identify files owned by a user that are located"
+        echo "in folders owned by different users, which may need attention"
+        echo "during account suspension or transfer operations."
+        echo ""
+        echo "1. Audit single user"
+        echo "2. Audit multiple users from file"
+        echo "3. Audit multiple users (manual entry)"
+        echo "4. Return to main menu"
+        echo ""
+        read -p "Select an option (1-4): " audit_choice
+        echo ""
+        
+        case $audit_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    audit_file_ownership "$username"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    echo -e "${CYAN}Processing users from file...${NC}"
+                    local total_users=$(wc -l < "$user_file")
+                    local current_user=0
+                    
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of $total_users ===${NC}"
+                        audit_file_ownership "$username"
+                        echo ""
+                    done < "$user_file"
+                    
+                    echo -e "${GREEN}Batch audit completed${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                echo -e "${CYAN}Enter usernames (one per line, empty line to finish):${NC}"
+                local usernames=()
+                while true; do
+                    read -p "Username: " username
+                    [[ -z "$username" ]] && break
+                    usernames+=("$username")
+                done
+                
+                if [[ ${#usernames[@]} -gt 0 ]]; then
+                    echo -e "${CYAN}Processing ${#usernames[@]} users...${NC}"
+                    local current_user=0
+                    
+                    for username in "${usernames[@]}"; do
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of ${#usernames[@]} ===${NC}"
+                        audit_file_ownership "$username"
+                        echo ""
+                    done
+                    
+                    echo -e "${GREEN}Batch audit completed${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}No usernames provided${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -1524,6 +1707,282 @@ dry_run_mode() {
 }
 
 # Function to handle discovery mode
+# Shared drive cleanup functions
+cleanup_shared_drive() {
+    local drive_id="$1"
+    local dry_run="${2:-false}"
+    
+    if [[ -z "$drive_id" ]]; then
+        echo -e "${RED}Error: Drive ID is required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== Shared Drive Cleanup: $drive_id ===${NC}"
+    echo ""
+    
+    # Grant admin user editor access to the shared drive
+    local admin_user="gamadmin@your-domain.edu"
+    echo -e "${CYAN}Adding admin access to shared drive...${NC}"
+    if ! $GAM user "$admin_user" add drivefileacl "$drive_id" user "$admin_user" role editor asadmin 2>/dev/null; then
+        echo -e "${RED}Error: Failed to add admin access to shared drive${NC}"
+        return 1
+    fi
+    
+    # Create temporary file for file list
+    local tempfile=$(mktemp)
+    local logfile="logs/${drive_id}-cleanup.txt"
+    
+    echo -e "${CYAN}Scanning shared drive for files with pending deletion markers...${NC}"
+    
+    # Get all files in the shared drive with pending deletion markers
+    if ! $GAM user "$admin_user" show filelist select teamdriveid "$drive_id" fields "id,name" > "$tempfile" 2>/dev/null; then
+        echo -e "${RED}Error: Failed to retrieve file list from shared drive${NC}"
+        rm -f "$tempfile"
+        $GAM user "$admin_user" delete drivefileacl "$drive_id" "$admin_user" asadmin 2>/dev/null
+        return 1
+    fi
+    
+    # Filter files with pending deletion markers
+    local files_with_markers=$(grep -v "Owner,id" "$tempfile" | grep "(PENDING DELETION - CONTACT OIT)" || true)
+    local total_files=$(echo "$files_with_markers" | wc -l)
+    
+    if [[ -z "$files_with_markers" || $total_files -eq 0 ]]; then
+        echo -e "${GREEN}No files with pending deletion markers found in this shared drive${NC}"
+        rm -f "$tempfile"
+        $GAM user "$admin_user" delete drivefileacl "$drive_id" "$admin_user" asadmin 2>/dev/null
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Found $total_files files with pending deletion markers${NC}"
+    echo ""
+    
+    if [[ "$dry_run" == "true" ]]; then
+        echo -e "${CYAN}=== DRY RUN - Files that would be renamed: ===${NC}"
+        local count=0
+        echo "$files_with_markers" | while IFS=, read -r owner fileid filename; do
+            ((count++))
+            local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
+            if [[ "$new_filename" != "$filename" ]]; then
+                echo "$count. $filename -> $new_filename"
+            fi
+        done
+    else
+        echo -e "${CYAN}Renaming files (removing pending deletion markers)...${NC}"
+        
+        # Create logs directory if it doesn't exist
+        mkdir -p logs
+        
+        local count=0
+        local success_count=0
+        local skip_count=0
+        
+        echo "$files_with_markers" | while IFS=, read -r owner fileid filename; do
+            ((count++))
+            local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
+            
+            if [[ "$new_filename" != "$filename" ]]; then
+                echo -e "${CYAN}[$count/$total_files] Processing: $filename${NC}"
+                
+                if $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename" 2>/dev/null; then
+                    echo -e "${GREEN}Renamed: $filename -> $new_filename${NC}"
+                    echo "SUCCESS: $fileid,$filename,$new_filename" >> "$logfile"
+                    ((success_count++))
+                    
+                    # Remove pending deletion label if it exists
+                    if [[ -n "$fileid" ]]; then
+                        $GAM user gamadmin process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null | grep -q "Deleted" && echo "Label removed" || true
+                    fi
+                else
+                    echo -e "${RED}Failed to rename: $filename${NC}"
+                    echo "ERROR: $fileid,$filename,Failed to rename" >> "$logfile"
+                fi
+            else
+                ((skip_count++))
+            fi
+        done
+        
+        echo ""
+        echo -e "${GREEN}Cleanup completed${NC}"
+        echo -e "${CYAN}Files processed: $count${NC}"
+        echo -e "${GREEN}Successfully renamed: $success_count${NC}"
+        echo -e "${YELLOW}Skipped: $skip_count${NC}"
+        echo -e "${CYAN}Log file: $logfile${NC}"
+    fi
+    
+    # Clean up
+    rm -f "$tempfile"
+    echo -e "${CYAN}Removing admin access from shared drive...${NC}"
+    $GAM user "$admin_user" delete drivefileacl "$drive_id" "$admin_user" asadmin 2>/dev/null
+    
+    log_info "Shared drive cleanup completed for $drive_id: $total_files files processed"
+}
+
+remove_pending_from_shared_drive() {
+    local drive_id="$1"
+    local dry_run="${2:-false}"
+    
+    if [[ -z "$drive_id" ]]; then
+        echo -e "${RED}Error: Drive ID is required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== Remove Pending Deletion from Shared Drive: $drive_id ===${NC}"
+    echo ""
+    
+    # Use a service account for access
+    local service_account="mjb9-ga"
+    
+    echo -e "${CYAN}Adding service account access to shared drive...${NC}"
+    if ! $GAM add drivefileacl "$drive_id" user "$service_account" role organizer asadmin 2>/dev/null; then
+        echo -e "${RED}Error: Failed to add service account access${NC}"
+        return 1
+    fi
+    
+    # Create temporary file for processing
+    local tempfile=$(mktemp)
+    
+    echo -e "${CYAN}Scanning for files with pending deletion markers...${NC}"
+    
+    # Get files with pending deletion markers
+    if ! $GAM user "$service_account" print filelist select "$drive_id" fields id,title | grep "(PENDING DELETION - CONTACT OIT)" > "$tempfile" 2>/dev/null; then
+        echo -e "${YELLOW}No files found with pending deletion markers${NC}"
+        rm -f "$tempfile"
+        $GAM user "$service_account" delete drivefileacl "$drive_id" "$service_account" 2>/dev/null
+        return 0
+    fi
+    
+    local total_files=$(wc -l < "$tempfile")
+    echo -e "${YELLOW}Found $total_files files with pending deletion markers${NC}"
+    echo ""
+    
+    if [[ "$dry_run" == "true" ]]; then
+        echo -e "${CYAN}=== DRY RUN - Files that would be renamed: ===${NC}"
+        awk -F, 'NR>1{print $2 "," substr($0, index($0,$3))}' "$tempfile" | while IFS=, read -r fileid filename; do
+            local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
+            if [[ "$new_filename" != "$filename" ]]; then
+                echo "Will rename: $filename -> $new_filename"
+            fi
+        done
+    else
+        echo -e "${YELLOW}The following files will be renamed:${NC}"
+        awk -F, 'NR>1{print $2 "," substr($0, index($0,$3))}' "$tempfile" | while IFS=, read -r fileid filename; do
+            local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
+            if [[ "$new_filename" != "$filename" ]]; then
+                echo "Will rename: $filename -> $new_filename"
+            fi
+        done
+        
+        echo ""
+        read -p "Do you wish to proceed with renaming these files? (y/n): " confirm
+        
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            echo -e "${CYAN}Renaming files...${NC}"
+            
+            awk -F, 'NR>1{print $2 "," substr($0, index($0,$3))}' "$tempfile" | while IFS=, read -r fileid filename; do
+                local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
+                if [[ "$new_filename" != "$filename" ]]; then
+                    echo "Debug: File ID: $fileid, Filename: $filename"
+                    if $GAM user "$service_account" update drivefile "$fileid" newfilename "$new_filename" 2>/dev/null; then
+                        echo -e "${GREEN}Renamed file: $filename -> $new_filename${NC}"
+                    else
+                        echo -e "${RED}Failed to rename: $filename${NC}"
+                    fi
+                fi
+            done
+            
+            echo -e "${GREEN}Renaming operation completed${NC}"
+        else
+            echo -e "${YELLOW}Renaming operation cancelled${NC}"
+        fi
+    fi
+    
+    # Clean up
+    rm -f "$tempfile"
+    echo -e "${CYAN}Revoking service account permissions...${NC}"
+    $GAM user "$service_account" delete drivefileacl "$drive_id" "$service_account" 2>/dev/null
+    
+    echo -e "${GREEN}Operation finished${NC}"
+    
+    log_info "Remove pending deletion completed for shared drive $drive_id"
+}
+
+shared_drive_cleanup_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== Shared Drive Cleanup Operations ===${NC}"
+        echo ""
+        echo "These operations help manage shared drives by removing"
+        echo "pending deletion markers from files within shared drives."
+        echo ""
+        echo "1. Clean shared drive (remove all pending deletion markers)"
+        echo "2. Remove pending deletion markers (interactive)"
+        echo "3. Dry-run: Preview cleanup operations"
+        echo "4. Return to discovery menu"
+        echo ""
+        read -p "Select an option (1-4): " cleanup_choice
+        echo ""
+        
+        case $cleanup_choice in
+            1)
+                read -p "Enter shared drive ID: " drive_id
+                if [[ -n "$drive_id" ]]; then
+                    cleanup_shared_drive "$drive_id" false
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Drive ID cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                read -p "Enter shared drive ID: " drive_id
+                if [[ -n "$drive_id" ]]; then
+                    remove_pending_from_shared_drive "$drive_id" false
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Drive ID cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter shared drive ID for preview: " drive_id
+                if [[ -n "$drive_id" ]]; then
+                    echo ""
+                    echo -e "${CYAN}Choose preview type:${NC}"
+                    echo "1. Full cleanup preview"
+                    echo "2. Interactive cleanup preview"
+                    read -p "Select (1-2): " preview_type
+                    
+                    case $preview_type in
+                        1)
+                            cleanup_shared_drive "$drive_id" true
+                            ;;
+                        2)
+                            remove_pending_from_shared_drive "$drive_id" true
+                            ;;
+                        *)
+                            echo -e "${RED}Invalid option${NC}"
+                            ;;
+                    esac
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Drive ID cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 discovery_mode() {
     DISCOVERY_MODE=true
     echo -e "${MAGENTA}=== DISCOVERY MODE ===${NC}"
@@ -1536,9 +1995,10 @@ discovery_mode() {
     echo "5. Query users by department/type"
     echo "6. Diagnose specific account consistency"
     echo "7. Check for incomplete operations"
-    echo "8. Return to main menu"
+    echo "8. Shared Drive cleanup operations"
+    echo "9. Return to main menu"
     echo ""
-    read -p "Select an option (1-8): " discovery_choice
+    read -p "Select an option (1-9): " discovery_choice
     
     case $discovery_choice in
         1) 
@@ -1564,6 +2024,9 @@ discovery_mode() {
             check_incomplete_operations
             ;;
         8) 
+            shared_drive_cleanup_menu
+            ;;
+        9) 
             DISCOVERY_MODE=false
             return
             ;;
