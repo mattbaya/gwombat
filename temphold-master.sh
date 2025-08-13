@@ -150,7 +150,7 @@
 #
 # ### Temporary Files:
 # - `tmp/gam_output_{username}.txt` - GAM query results
-# - CSV files in `${LISTSHARED_PATH}/csv-files/` directory
+# - CSV files in `${SCRIPTPATH}/csv-files/` directory
 #
 # ## Error Handling
 #
@@ -257,7 +257,7 @@ load_configuration() {
     # Set default values
     DEFAULT_GAM_PATH="/usr/local/bin/gam"
     DEFAULT_SCRIPT_PATH="/opt/your-path/mjb9/suspended"
-    DEFAULT_LISTSHARED_PATH="/opt/your-path/mjb9/listshared"
+    DEFAULT_SHARED_UTILITIES_PATH="/Users/mjb9/mjb9-gamera/suspended/temphold-master/shared-utilities"
     DEFAULT_PROGRESS_ENABLED="true"
     DEFAULT_CONFIRMATION_LEVEL="normal"
     DEFAULT_LOG_RETENTION_DAYS="30"
@@ -267,7 +267,7 @@ load_configuration() {
     # Override with environment variables if set
     GAM="${GAM_PATH:-$DEFAULT_GAM_PATH}"
     SCRIPTPATH="${SCRIPT_PATH:-$DEFAULT_SCRIPT_PATH}"
-    LISTSHARED_PATH="${LISTSHARED_PATH:-$DEFAULT_LISTSHARED_PATH}"
+    SHARED_UTILITIES_PATH="${SHARED_UTILITIES_PATH:-$DEFAULT_SHARED_UTILITIES_PATH}"
     PROGRESS_ENABLED="${PROGRESS_SETTING:-$DEFAULT_PROGRESS_ENABLED}"
     CONFIRMATION_LEVEL="${CONFIRMATION_SETTING:-$DEFAULT_CONFIRMATION_LEVEL}"
     LOG_RETENTION_DAYS="${LOG_RETENTION:-$DEFAULT_LOG_RETENTION_DAYS}"
@@ -289,7 +289,7 @@ load_configuration() {
         # Use config values if available
         [[ -n "$config_gam" ]] && GAM="$config_gam"
         [[ -n "$config_script_path" ]] && SCRIPTPATH="$config_script_path"
-        [[ -n "$config_listshared" ]] && LISTSHARED_PATH="$config_listshared"
+        [[ -n "$config_shared_utilities" ]] && SHARED_UTILITIES_PATH="$config_shared_utilities"
         [[ -n "$config_progress" ]] && PROGRESS_ENABLED="$config_progress"
         [[ -n "$config_confirmation" ]] && CONFIRMATION_LEVEL="$config_confirmation"
         [[ -n "$config_log_retention" ]] && LOG_RETENTION_DAYS="$config_log_retention"
@@ -719,7 +719,7 @@ configuration_menu() {
         echo -e "${CYAN}Current Configuration:${NC}"
         echo "GAM Path: $GAM"
         echo "Script Path: $SCRIPTPATH"
-        echo "Listshared Path: $LISTSHARED_PATH"
+        echo "Shared Utilities Path: $SHARED_UTILITIES_PATH"
         echo "Progress Enabled: $PROGRESS_ENABLED"
         echo "Confirmation Level: $CONFIRMATION_LEVEL"
         echo "Log Retention: $LOG_RETENTION_DAYS days"
@@ -880,10 +880,10 @@ configuration_menu() {
                 fi
                 
                 echo -n "Testing listshared directory: "
-                if [[ -d "$LISTSHARED_PATH" ]]; then
-                    echo -e "${GREEN}✓ Directory exists: $LISTSHARED_PATH${NC}"
+                if [[ -d "$SHARED_UTILITIES_PATH" ]]; then
+                    echo -e "${GREEN}✓ Directory exists: $SHARED_UTILITIES_PATH${NC}"
                 else
-                    echo -e "${RED}✗ Directory not found: $LISTSHARED_PATH${NC}"
+                    echo -e "${RED}✗ Directory not found: $SHARED_UTILITIES_PATH${NC}"
                 fi
                 
                 # Test log directories
@@ -3210,6 +3210,158 @@ resume_failed_operations() {
     echo "(Implementation would require analyzing specific failure points)"
 }
 
+# Function to generate comprehensive file list for a user
+generate_user_file_list() {
+    local user_email="$1"
+    local csv_dir="${SCRIPTPATH}/csv-files"
+    local output_file="${csv_dir}/${user_email}_shared-files-with-path.csv"
+    
+    # Create CSV directory if it doesn't exist
+    mkdir -p "$csv_dir"
+    
+    echo "Generating comprehensive file list for $user_email..."
+    
+    # Get all files owned by the user with sharing details
+    $GAM user "$user_email" print filelist \
+        fields id,name,owners,permissions,mimeType,size,webViewLink,modifiedTime \
+        showownedby me \
+        > "${csv_dir}/${user_email}_all_files.csv"
+    
+    # Create the shared files report with path information
+    echo "owner,filename,id,mimeType,size,webViewLink,modifiedTime,sharedwith,path" > "$output_file"
+    
+    # Process files and add path information
+    local counter=0
+    local total_files=$(tail -n +2 "${csv_dir}/${user_email}_all_files.csv" | wc -l)
+    
+    tail -n +2 "${csv_dir}/${user_email}_all_files.csv" | while IFS=',' read -r id name owners permissions mimeType size webViewLink modifiedTime; do
+        ((counter++))
+        show_progress $counter $total_files "Processing file $counter"
+        
+        # Check if file has external sharing
+        if [[ "$permissions" == *"@your-domain.edu"* ]] || [[ "$permissions" == *"anyone"* ]]; then
+            # Get path information using build_file_path function
+            local path=$(build_file_path "$id")
+            echo "$owners,$name,$id,$mimeType,$size,$webViewLink,$modifiedTime,$permissions,$path" >> "$output_file"
+        fi
+    done
+    
+    echo "Generated file list at: $output_file"
+}
+
+# Function to build file path from Google Drive API
+build_file_path() {
+    local file_id="$1"
+    local path_cache="${SCRIPTPATH}/cache/paths"
+    local cache_file="${path_cache}/${file_id}.path"
+    
+    # Create cache directory
+    mkdir -p "$path_cache"
+    
+    # Check if path is cached
+    if [[ -f "$cache_file" ]]; then
+        cat "$cache_file"
+        return
+    fi
+    
+    # Build path by traversing parent hierarchy
+    local current_id="$file_id"
+    local path_components=()
+    
+    while [[ -n "$current_id" && "$current_id" != "root" ]]; do
+        # Get file name and parent
+        local file_info=$($GAM user "gamadmin@your-domain.edu" show fileinfo "$current_id" fields name,parents 2>/dev/null)
+        local name=$(echo "$file_info" | grep "name:" | cut -d' ' -f2-)
+        local parent=$(echo "$file_info" | grep "parents:" | cut -d' ' -f2)
+        
+        if [[ -n "$name" ]]; then
+            path_components=("$name" "${path_components[@]}")
+        fi
+        
+        current_id="$parent"
+        
+        # Prevent infinite loops
+        [[ ${#path_components[@]} -gt 20 ]] && break
+    done
+    
+    # Join path components
+    local full_path=$(IFS='/'; echo "${path_components[*]}")
+    
+    # Cache the result
+    echo "$full_path" > "$cache_file"
+    echo "$full_path"
+}
+
+# Function to identify active recipients of shared files
+identify_active_recipients() {
+    local user_email="$1"
+    local csv_dir="${SCRIPTPATH}/csv-files"
+    local input_file="${csv_dir}/${user_email}_shared-files-with-path.csv"
+    local output_file="${csv_dir}/${user_email}_active-shares.csv"
+    
+    if [[ ! -f "$input_file" ]]; then
+        echo "Error: Input file $input_file not found"
+        return 1
+    fi
+    
+    echo "Filtering for files shared with active your-domain.edu accounts..."
+    
+    # Create header for output file
+    head -n 1 "$input_file" > "$output_file"
+    
+    # Process each line and check if shared with active users
+    tail -n +2 "$input_file" | while IFS=',' read -r line; do
+        local shared_with=$(echo "$line" | cut -d',' -f8)
+        local has_active_share=false
+        
+        # Extract email addresses from sharing permissions
+        local emails=$(echo "$shared_with" | grep -oE '[a-zA-Z0-9._%+-]+@williams\.edu')
+        
+        for email in $emails; do
+            if [[ "$email" != "$user_email" ]]; then
+                # Check if the recipient is active
+                local user_status=$($GAM info user "$email" 2>/dev/null | grep "Account Suspended:" | cut -d' ' -f3)
+                if [[ "$user_status" != "True" ]]; then
+                    has_active_share=true
+                    break
+                fi
+            fi
+        done
+        
+        # Include file if it has active shares
+        if [[ "$has_active_share" == true ]]; then
+            echo "$line" >> "$output_file"
+        fi
+    done
+    
+    local active_count=$(tail -n +2 "$output_file" | wc -l)
+    echo "Found $active_count files shared with active your-domain.edu accounts"
+}
+
+# Function to analyze user file sharing comprehensively
+analyze_user_file_sharing() {
+    local user_email="$1"
+    local csv_dir="${SCRIPTPATH}/csv-files"
+    
+    echo -e "${GREEN}Analyzing file sharing for $user_email...${NC}"
+    
+    # Step 1: Generate comprehensive file list
+    generate_user_file_list "$user_email"
+    
+    # Step 2: Identify files shared with active users only
+    identify_active_recipients "$user_email"
+    
+    # Step 3: Create summary report
+    local active_file="${csv_dir}/${user_email}_active-shares.csv"
+    local total_shared=$(tail -n +2 "${csv_dir}/${user_email}_shared-files-with-path.csv" 2>/dev/null | wc -l)
+    local active_shared=$(tail -n +2 "$active_file" 2>/dev/null | wc -l)
+    
+    echo -e "${GREEN}File sharing analysis complete:${NC}"
+    echo "- Total shared files: $total_shared"
+    echo "- Files shared with active users: $active_shared"
+    echo "- Report saved to: $active_file"
+}
+
 # Function to get destination OU choice
 get_destination_ou() {
     echo ""
@@ -3906,10 +4058,11 @@ add_pending_to_files() {
     echo -e "${GREEN}Step 2: Adding pending deletion to all files for $user_email_full${NC}"
     
     # Define files
-    INPUT_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_active-shares.csv"
-    UNIQUE_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_unique_files.csv"
-    TEMP_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_temp.csv"
-    ALL_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_all_files.csv"
+    CSV_DIR="${SCRIPTPATH}/csv-files"
+    INPUT_FILE="${CSV_DIR}/${user_email}_active-shares.csv"
+    UNIQUE_FILE="${CSV_DIR}/${user_email}_unique_files.csv"
+    TEMP_FILE="${CSV_DIR}/${user_email}_temp.csv"
+    ALL_FILE="${CSV_DIR}/${user_email}_all_files.csv"
     
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${CYAN}[DRY-RUN] Would run file listing and renaming for: $user_email_full${NC}"
@@ -3926,9 +4079,8 @@ add_pending_to_files() {
         return 0
     fi
     
-    # Run the list-users-files.sh to generate reports and CSV files
-    echo "Running ${LISTSHARED_PATH}/list-users-files.sh $user_email"
-    "${LISTSHARED_PATH}/list-users-files.sh" "$user_email"
+    # Generate file sharing analysis using integrated functions
+    analyze_user_file_sharing "$user_email_full"
     
     # Generate the master list of all files owned by this account
     $GAM user ${user_email_full} show filelist id title > "$ALL_FILE"
@@ -4001,7 +4153,8 @@ add_drive_labels() {
     echo "Waiting 30 seconds for license to take effect..."
     sleep 30
     
-    UNIQUE_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_unique_files.csv"
+    CSV_DIR="${SCRIPTPATH}/csv-files"
+    UNIQUE_FILE="${CSV_DIR}/${user_email}_unique_files.csv"
     LOG_FILE="${SCRIPTPATH}/logs/${user_email}_drive-labels.txt"
     
     if [[ ! -f "$UNIQUE_FILE" ]]; then
@@ -4247,14 +4400,14 @@ rename_all_files() {
     echo -e "${GREEN}Step 3: Renaming all files for $user_email_full${NC}"
     
     # Define files
-    INPUT_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_active-shares.csv"
-    UNIQUE_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_unique_files.csv"
-    TEMP_FILE="${LISTSHARED_PATH}/csv-files/${user_email}_temp.csv"
+    CSV_DIR="${SCRIPTPATH}/csv-files"
+    INPUT_FILE="${CSV_DIR}/${user_email}_active-shares.csv"
+    UNIQUE_FILE="${CSV_DIR}/${user_email}_unique_files.csv"
+    TEMP_FILE="${CSV_DIR}/${user_email}_temp.csv"
     
-    # Run the list-users-files.sh to generate reports and CSV files
-    echo "Running ${LISTSHARED_PATH}/list-users-files.sh $user_email"
+    # Generate file sharing analysis using integrated functions
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo -e "${CYAN}[DRY-RUN] Would generate shared file list using ${LISTSHARED_PATH}/list-users-files.sh${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would generate shared file list for $user_email${NC}"
         # Create simulated data for dry-run
         mkdir -p "$(dirname "$INPUT_FILE")"
         echo "owner,id,filename,shared_with,permission" > "$INPUT_FILE"
@@ -4262,7 +4415,7 @@ rename_all_files() {
         echo "$user_email,456def,Document2.pdf,activeuser2@your-domain.edu,writer" >> "$INPUT_FILE"
         echo "$user_email,789ghi,Document3.pdf,externaluser@gmail.com,reader" >> "$INPUT_FILE"
     else
-        "${LISTSHARED_PATH}/list-users-files.sh" "$user_email"
+        analyze_user_file_sharing "$user_email_full"
     fi
     
     if [[ ! -f "$INPUT_FILE" ]]; then
@@ -5349,8 +5502,8 @@ if [[ ! -d "$SCRIPTPATH" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$LISTSHARED_PATH" ]]; then
-    echo -e "${RED}Error: List shared path $LISTSHARED_PATH does not exist.${NC}"
+if [[ ! -d "$SHARED_UTILITIES_PATH" ]]; then
+    echo -e "${RED}Error: Shared utilities path $SHARED_UTILITIES_PATH does not exist.${NC}"
     exit 1
 fi
 
