@@ -2390,6 +2390,719 @@ orphaned_file_collection_menu() {
     done
 }
 
+# File sharing analysis functions
+analyze_user_file_sharing() {
+    local username="$1"
+    local force_mode="${2:-false}"
+    local pending_mode="${3:-false}"
+    local make_report="${4:-true}"
+    
+    if [[ -z "$username" ]]; then
+        echo -e "${RED}Error: Username is required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== File Sharing Analysis: $username ===${NC}"
+    echo ""
+    
+    # Validate user exists
+    if ! $GAM info user "$username" >/dev/null 2>&1; then
+        echo -e "${RED}Error: User $username not found${NC}"
+        return 1
+    fi
+    
+    # Check if user is suspended
+    local user_suspended=$($GAM info user "$username" | grep -c "Account Suspended: True" || echo "0")
+    if [[ $user_suspended -eq 0 ]] && [[ "$force_mode" != "true" ]]; then
+        echo -e "${YELLOW}Warning: User $username is not suspended. Use force mode to proceed anyway.${NC}"
+        read -p "Continue anyway? (y/n): " continue_anyway
+        [[ "$continue_anyway" != "y" ]] && [[ "$continue_anyway" != "Y" ]] && return 1
+    fi
+    
+    # Create analysis directory structure
+    local analysis_dir="listshared"
+    local cache_dir="$analysis_dir/cache"
+    local temp_dir="$analysis_dir/temp"
+    
+    mkdir -p "$cache_dir" "$temp_dir"
+    
+    echo -e "${CYAN}Step 1: Analyzing all files for $username...${NC}"
+    
+    # Get all files for the user
+    local all_files_csv="$analysis_dir/${username}_all_files.csv"
+    if [[ "$force_mode" == "true" ]] || [[ ! -f "$all_files_csv" ]]; then
+        echo -e "${CYAN}Retrieving complete file list...${NC}"
+        if ! $GAM user "$username" print filelist id title mimeType owners.emailAddress size shared webViewLink modifiedTime > "$all_files_csv" 2>/dev/null; then
+            echo -e "${RED}Failed to retrieve file list for $username${NC}"
+            return 1
+        fi
+        echo -e "${GREEN}Retrieved $(wc -l < "$all_files_csv") files${NC}"
+    else
+        echo -e "${YELLOW}Using existing file list ($(wc -l < "$all_files_csv") files)${NC}"
+    fi
+    
+    echo -e "${CYAN}Step 2: Filtering shared files...${NC}"
+    
+    # Filter to only shared files
+    local shared_files_csv="$analysis_dir/${username}_shared_files.csv"
+    head -n 1 "$all_files_csv" > "$shared_files_csv"
+    awk -F, 'NR>1 && $6=="True" {print}' "$all_files_csv" >> "$shared_files_csv"
+    
+    local shared_count=$(tail -n +2 "$shared_files_csv" | wc -l)
+    echo -e "${GREEN}Found $shared_count shared files${NC}"
+    
+    if [[ $shared_count -eq 0 ]]; then
+        echo -e "${YELLOW}No shared files found for $username${NC}"
+        return 0
+    fi
+    
+    echo -e "${CYAN}Step 3: Analyzing file sharing permissions...${NC}"
+    
+    # Get detailed sharing information
+    local shared_with_emails_csv="$analysis_dir/${username}_shared_files_with_emails.csv"
+    analyze_file_permissions "$username" "$shared_files_csv" "$shared_with_emails_csv"
+    
+    echo -e "${CYAN}Step 4: Identifying active recipient accounts...${NC}"
+    
+    # Check which shared recipients are active
+    local active_shares_csv="$analysis_dir/${username}_active-shares.csv"
+    identify_active_recipients "$username" "$shared_with_emails_csv" "$active_shares_csv"
+    
+    local active_count=$(tail -n +2 "$active_shares_csv" | wc -l 2>/dev/null || echo "0")
+    echo -e "${GREEN}Found $active_count files shared with active your-domain.edu accounts${NC}"
+    
+    if [[ $active_count -gt 0 ]]; then
+        echo -e "${CYAN}Step 5: Adding file path information...${NC}"
+        
+        # Add paths to the analysis
+        local with_paths_csv="$analysis_dir/${username}_shared-files-with-path.csv"
+        add_file_paths "$username" "$active_shares_csv" "$with_paths_csv"
+        
+        if [[ "$make_report" == "true" ]]; then
+            echo -e "${CYAN}Step 6: Generating sharing reports...${NC}"
+            generate_sharing_reports "$username" "$with_paths_csv"
+        fi
+        
+        if [[ "$pending_mode" == "true" ]]; then
+            echo -e "${CYAN}Step 7: Updating filenames with pending deletion labels...${NC}"
+            update_pending_deletion_filenames "$username" "$active_shares_csv"
+        fi
+    fi
+    
+    echo ""
+    echo -e "${GREEN}File sharing analysis completed for $username${NC}"
+    echo -e "${CYAN}Results saved in: $analysis_dir/${NC}"
+    echo -e "${CYAN}- All files: $all_files_csv${NC}"
+    echo -e "${CYAN}- Shared files: $shared_files_csv${NC}"
+    echo -e "${CYAN}- Active shares: $active_shares_csv${NC}"
+    if [[ -f "$with_paths_csv" ]]; then
+        echo -e "${CYAN}- With paths: $with_paths_csv${NC}"
+    fi
+    
+    log_info "File sharing analysis completed for $username: $shared_count shared files, $active_count active recipients"
+}
+
+analyze_file_permissions() {
+    local username="$1"
+    local shared_files_csv="$2" 
+    local output_csv="$3"
+    
+    # Create header for output file
+    echo "owner,id,filename,mimeType,size,webViewLink,modifiedTime,sharedWithEmail" > "$output_csv"
+    
+    local temp_permissions=$(mktemp)
+    local processed=0
+    local total=$(tail -n +2 "$shared_files_csv" | wc -l)
+    
+    # Process each shared file to extract permissions
+    tail -n +2 "$shared_files_csv" | while IFS=, read -r owner fileid filename mimetype size shared webviewlink modifiedtime; do
+        ((processed++))
+        
+        if [[ $((processed % 10)) -eq 0 ]]; then
+            echo -e "${CYAN}Processing permissions: $processed/$total files...${NC}"
+        fi
+        
+        # Get sharing permissions for this file
+        $GAM user "$username" print drivefileacl "$fileid" 2>/dev/null | tail -n +2 | while IFS=, read -r aclid aclrole acltype aclemail aclname acldomain; do
+            # Only include user permissions with email addresses
+            if [[ "$acltype" == "user" ]] && [[ -n "$aclemail" ]] && [[ "$aclemail" != "$username" ]]; then
+                # Clean up filename for CSV
+                clean_filename=$(echo "$filename" | tr ',' ';')
+                echo "$owner,$fileid,$clean_filename,$mimetype,$size,$webviewlink,$modifiedtime,$aclemail" >> "$output_csv"
+            fi
+        done
+    done
+    
+    echo -e "${GREEN}Extracted sharing permissions for $total files${NC}"
+}
+
+identify_active_recipients() {
+    local username="$1"
+    local shared_with_emails_csv="$2"
+    local output_csv="$3"
+    
+    if [[ ! -f "$shared_with_emails_csv" ]]; then
+        echo -e "${RED}Error: Shared files with emails CSV not found${NC}"
+        return 1
+    fi
+    
+    # Extract unique email addresses
+    local temp_emails=$(mktemp)
+    tail -n +2 "$shared_with_emails_csv" | cut -d, -f8 | grep "@your-domain.edu" | sort -u > "$temp_emails"
+    
+    local total_emails=$(wc -l < "$temp_emails")
+    echo -e "${CYAN}Checking suspension status for $total_emails unique email addresses...${NC}"
+    
+    # Check suspension status for each email
+    local active_emails=$(mktemp)
+    local processed=0
+    
+    while read -r email; do
+        ((processed++))
+        if [[ $((processed % 5)) -eq 0 ]]; then
+            echo -e "${CYAN}Checking: $processed/$total_emails emails...${NC}"
+        fi
+        
+        # Check if user exists and is not suspended
+        local user_info=$($GAM info user "$email" 2>/dev/null)
+        if [[ $? -eq 0 ]] && echo "$user_info" | grep -q "Account Suspended: False"; then
+            echo "$email" >> "$active_emails"
+        fi
+    done < "$temp_emails"
+    
+    local active_count=$(wc -l < "$active_emails")
+    echo -e "${GREEN}Found $active_count active your-domain.edu recipients${NC}"
+    
+    # Filter shared files to only include those shared with active users
+    head -n 1 "$shared_with_emails_csv" > "$output_csv"
+    
+    while read -r active_email; do
+        grep ",$active_email$" "$shared_with_emails_csv" >> "$output_csv"
+    done < "$active_emails"
+    
+    # Clean up temp files
+    rm -f "$temp_emails" "$active_emails"
+}
+
+add_file_paths() {
+    local username="$1"
+    local input_csv="$2"
+    local output_csv="$3"
+    
+    if [[ ! -f "$input_csv" ]]; then
+        echo -e "${RED}Error: Input CSV not found${NC}"
+        return 1
+    fi
+    
+    # Add path column to header
+    head -n 1 "$input_csv" | sed 's/$/,path/' > "$output_csv"
+    
+    local processed=0
+    local total=$(tail -n +2 "$input_csv" | wc -l)
+    
+    echo -e "${CYAN}Adding file paths for $total files...${NC}"
+    
+    # Process each file to get its path
+    tail -n +2 "$input_csv" | while IFS=, read -r owner fileid filename mimetype size webviewlink modifiedtime email; do
+        ((processed++))
+        
+        if [[ $((processed % 5)) -eq 0 ]]; then
+            echo -e "${CYAN}Processing paths: $processed/$total files...${NC}"
+        fi
+        
+        # Get file path using GAM
+        local file_path=""
+        local file_info=$($GAM user "$username" show fileinfo "$fileid" 2>/dev/null)
+        
+        if [[ $? -eq 0 ]]; then
+            # Extract parent folder information and build path
+            local parent_id=$(echo "$file_info" | grep "Parent ID" | head -n 1 | cut -d' ' -f3)
+            if [[ -n "$parent_id" && "$parent_id" != "None" ]]; then
+                file_path=$(build_file_path "$username" "$parent_id")
+            else
+                file_path="/ (Root)"
+            fi
+        else
+            file_path="Unknown"
+        fi
+        
+        # Clean path for CSV
+        clean_path=$(echo "$file_path" | tr ',' ';')
+        echo "$owner,$fileid,$filename,$mimetype,$size,$webviewlink,$modifiedtime,$email,$clean_path" >> "$output_csv"
+    done
+    
+    echo -e "${GREEN}Added path information for $total files${NC}"
+}
+
+build_file_path() {
+    local username="$1"
+    local folder_id="$2"
+    local cache_dir="listshared/cache"
+    local path_cache="$cache_dir/paths_cache.txt"
+    
+    mkdir -p "$cache_dir"
+    
+    # Check cache first
+    if [[ -f "$path_cache" ]]; then
+        local cached_path=$(grep "^$folder_id," "$path_cache" 2>/dev/null | cut -d, -f2-)
+        if [[ -n "$cached_path" ]]; then
+            echo "$cached_path"
+            return
+        fi
+    fi
+    
+    # Build path by traversing parents
+    local path_components=()
+    local current_id="$folder_id"
+    local max_depth=20  # Prevent infinite loops
+    local depth=0
+    
+    while [[ -n "$current_id" && "$current_id" != "None" && $depth -lt $max_depth ]]; do
+        local folder_info=$($GAM user "$username" show fileinfo "$current_id" 2>/dev/null)
+        
+        if [[ $? -ne 0 ]]; then
+            break
+        fi
+        
+        local folder_name=$(echo "$folder_info" | grep "Title" | head -n 1 | cut -d' ' -f2-)
+        local parent_id=$(echo "$folder_info" | grep "Parent ID" | head -n 1 | cut -d' ' -f3)
+        
+        # Clean up folder name (remove pending deletion markers for path display)
+        clean_folder_name=$(echo "$folder_name" | sed 's/ (PENDING DELETION - CONTACT OIT)//g')
+        path_components=("$clean_folder_name" "${path_components[@]}")
+        
+        current_id="$parent_id"
+        ((depth++))
+    done
+    
+    # Build final path
+    local final_path="/"
+    if [[ ${#path_components[@]} -gt 0 ]]; then
+        final_path="/${path_components[*]}"
+        final_path=${final_path// /\/}  # Replace spaces with slashes
+    fi
+    
+    # Cache the result
+    echo "$folder_id,$final_path" >> "$path_cache"
+    
+    echo "$final_path"
+}
+
+generate_sharing_reports() {
+    local username="$1"
+    local input_csv="$2"
+    
+    if [[ ! -f "$input_csv" ]]; then
+        echo -e "${RED}Error: Input CSV not found for report generation${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Generating sharing reports...${NC}"
+    
+    # Get user's real name for reports
+    local user_info=$($GAM info user "$username" 2>/dev/null)
+    local first_name=$(echo "$user_info" | grep "First Name" | cut -d' ' -f3- | tr -d '"')
+    local last_name=$(echo "$user_info" | grep "Last Name" | cut -d' ' -f3- | tr -d '"')
+    
+    [[ -z "$first_name" ]] && first_name="Unknown"
+    [[ -z "$last_name" ]] && last_name="User"
+    
+    # Create report directory
+    local report_dir="reports"
+    mkdir -p "$report_dir"
+    
+    # Generate summary report
+    local summary_report="$report_dir/${username}_sharing_summary.txt"
+    {
+        echo "=== FILE SHARING ANALYSIS SUMMARY ==="
+        echo "User: $first_name $last_name ($username)"
+        echo "Generated: $(date)"
+        echo ""
+        
+        local total_shared=$(tail -n +2 "$input_csv" | wc -l)
+        local unique_recipients=$(tail -n +2 "$input_csv" | cut -d, -f8 | sort -u | wc -l)
+        
+        echo "Total files shared with active your-domain.edu accounts: $total_shared"
+        echo "Number of unique active recipients: $unique_recipients"
+        echo ""
+        
+        echo "=== RECIPIENTS ==="
+        tail -n +2 "$input_csv" | cut -d, -f8 | sort | uniq -c | sort -nr | while read count email; do
+            echo "$email: $count files"
+        done
+        
+        echo ""
+        echo "=== FILES BY TYPE ==="
+        tail -n +2 "$input_csv" | cut -d, -f4 | sort | uniq -c | sort -nr | while read count mimetype; do
+            echo "$mimetype: $count files"
+        done
+        
+    } > "$summary_report"
+    
+    echo -e "${GREEN}Generated summary report: $summary_report${NC}"
+    
+    # Generate individual recipient reports
+    tail -n +2 "$input_csv" | cut -d, -f8 | sort -u | while read recipient_email; do
+        local recipient_report="$report_dir/${recipient_email}_files_from_${username}.csv"
+        
+        # Create header
+        echo "sharerFirstName,sharerLastName,filename,mimeType,size,webViewLink,modifiedTime,sharedwith,path" > "$recipient_report"
+        
+        # Add files shared with this recipient
+        grep ",$recipient_email$" "$input_csv" | while IFS=, read -r owner fileid filename mimetype size webviewlink modifiedtime email path; do
+            echo "$first_name,$last_name,$filename,$mimetype,$size,$webviewlink,$modifiedtime,$email,$path" >> "$recipient_report"
+        done
+        
+        local file_count=$(tail -n +2 "$recipient_report" | wc -l)
+        echo -e "${CYAN}Generated report for $recipient_email: $file_count files${NC}"
+    done
+    
+    log_info "Generated sharing reports for $username"
+}
+
+update_pending_deletion_filenames() {
+    local username="$1"
+    local active_shares_csv="$2"
+    
+    if [[ ! -f "$active_shares_csv" ]]; then
+        echo -e "${RED}Error: Active shares CSV not found${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Updating filenames with PENDING DELETION labels...${NC}"
+    
+    local updated_count=0
+    local total=$(tail -n +2 "$active_shares_csv" | wc -l)
+    
+    tail -n +2 "$active_shares_csv" | while IFS=, read -r owner fileid filename mimetype size webviewlink modifiedtime email; do
+        # Check if filename already has pending deletion marker
+        if [[ "$filename" != *"(PENDING DELETION - CONTACT OIT)"* ]]; then
+            local new_filename="$filename (PENDING DELETION - CONTACT OIT)"
+            
+            if $GAM user "$username" update drivefile "$fileid" newfilename "$new_filename" 2>/dev/null; then
+                echo -e "${GREEN}Updated: $filename${NC}"
+                ((updated_count++))
+            else
+                echo -e "${RED}Failed to update: $filename${NC}"
+            fi
+        fi
+    done
+    
+    echo -e "${GREEN}Updated $updated_count of $total filenames${NC}"
+    log_info "Updated $updated_count filenames with pending deletion labels for $username"
+}
+
+generate_recipient_report() {
+    local recipient_email="$1"
+    
+    if [[ -z "$recipient_email" ]]; then
+        echo -e "${RED}Error: Recipient email is required${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}=== Generating Report for Recipient: $recipient_email ===${NC}"
+    echo ""
+    
+    # Check if recipient exists and is active
+    if ! $GAM info user "$recipient_email" >/dev/null 2>&1; then
+        echo -e "${RED}Error: Recipient $recipient_email not found${NC}"
+        return 1
+    fi
+    
+    local recipient_suspended=$($GAM info user "$recipient_email" | grep -c "Account Suspended: True" || echo "0")
+    if [[ $recipient_suspended -gt 0 ]]; then
+        echo -e "${YELLOW}Warning: Recipient $recipient_email is suspended${NC}"
+    fi
+    
+    # Search through existing analysis files
+    local report_files=()
+    for report in reports/*_files_from_*.csv; do
+        if [[ -f "$report" ]] && [[ "$report" == *"${recipient_email}_files_from_"* ]]; then
+            report_files+=("$report")
+        fi
+    done
+    
+    if [[ ${#report_files[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No sharing reports found for $recipient_email${NC}"
+        echo -e "${CYAN}You may need to run file sharing analysis for suspended users first${NC}"
+        return 0
+    fi
+    
+    # Combine all reports for this recipient
+    local combined_report="reports/${recipient_email}_combined_pending_files.csv"
+    local temp_combined=$(mktemp)
+    
+    echo "sharerFirstName,sharerLastName,filename,mimeType,size,webViewLink,modifiedTime,sharedwith,path" > "$combined_report"
+    
+    local total_files=0
+    local total_sharers=0
+    
+    for report_file in "${report_files[@]}"; do
+        if [[ -f "$report_file" ]]; then
+            tail -n +2 "$report_file" >> "$temp_combined"
+            ((total_sharers++))
+        fi
+    done
+    
+    # Sort by sharer name and add to final report
+    sort "$temp_combined" >> "$combined_report"
+    total_files=$(tail -n +2 "$combined_report" | wc -l)
+    
+    rm -f "$temp_combined"
+    
+    echo -e "${GREEN}Generated combined report: $combined_report${NC}"
+    echo -e "${CYAN}Total files shared with $recipient_email: $total_files${NC}"
+    echo -e "${CYAN}Number of different sharers: $total_sharers${NC}"
+    
+    # Generate summary
+    local summary_file="reports/${recipient_email}_summary.txt"
+    {
+        echo "=== PENDING DELETION FILES SHARED WITH $recipient_email ==="
+        echo "Generated: $(date)"
+        echo ""
+        echo "Total files: $total_files"
+        echo "Number of different sharers: $total_sharers"
+        echo ""
+        echo "=== FILES BY SHARER ==="
+        tail -n +2 "$combined_report" | cut -d, -f1,2 | sort | uniq -c | sort -nr | while read count first_last; do
+            echo "$first_last: $count files"
+        done
+        echo ""
+        echo "=== FILES BY TYPE ==="
+        tail -n +2 "$combined_report" | cut -d, -f4 | sort | uniq -c | sort -nr | while read count mimetype; do
+            echo "$mimetype: $count files"
+        done
+    } > "$summary_file"
+    
+    echo -e "${GREEN}Generated summary: $summary_file${NC}"
+    
+    log_info "Generated recipient report for $recipient_email: $total_files files from $total_sharers sharers"
+}
+
+file_sharing_analysis_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== File Sharing Analysis and Reports ===${NC}"
+        echo ""
+        echo "This tool analyzes file sharing between suspended accounts and"
+        echo "active your-domain.edu users, generating detailed reports."
+        echo ""
+        echo "1. Analyze single user's file sharing"
+        echo "2. Analyze multiple users (batch processing)"
+        echo "3. Generate report for active user (what they're receiving)"
+        echo "4. Update pending deletion filenames for shared files"
+        echo "5. Bulk analysis of all suspended users"
+        echo "6. Clean up analysis files"
+        echo "7. View analysis statistics"
+        echo "8. Return to discovery menu"
+        echo ""
+        read -p "Select an option (1-8): " sharing_choice
+        echo ""
+        
+        case $sharing_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo ""
+                    echo "Analysis options:"
+                    echo "1. Standard analysis"
+                    echo "2. Force analysis (skip suspension check)"
+                    echo "3. Analysis with pending deletion filename updates"
+                    echo "4. Analysis without report generation"
+                    read -p "Select analysis type (1-4): " analysis_type
+                    
+                    case $analysis_type in
+                        1) analyze_user_file_sharing "$username" false false true ;;
+                        2) analyze_user_file_sharing "$username" true false true ;;
+                        3) analyze_user_file_sharing "$username" false true true ;;
+                        4) analyze_user_file_sharing "$username" false false false ;;
+                        *) analyze_user_file_sharing "$username" false false true ;;
+                    esac
+                    
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                echo -e "${CYAN}Batch File Sharing Analysis${NC}"
+                echo ""
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    echo "Analysis options:"
+                    echo "1. Standard analysis for all users"
+                    echo "2. Force analysis for all users"
+                    echo "3. Analysis with pending deletion updates"
+                    read -p "Select analysis type (1-3): " batch_type
+                    
+                    local force_mode=false
+                    local pending_mode=false
+                    
+                    case $batch_type in
+                        2) force_mode=true ;;
+                        3) pending_mode=true ;;
+                    esac
+                    
+                    echo -e "${CYAN}Processing users from file...${NC}"
+                    local total_users=$(wc -l < "$user_file")
+                    local current_user=0
+                    local success_count=0
+                    local error_count=0
+                    
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        ((current_user++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing user $current_user of $total_users: $username ===${NC}"
+                        
+                        if analyze_user_file_sharing "$username" "$force_mode" "$pending_mode" true; then
+                            ((success_count++))
+                        else
+                            ((error_count++))
+                        fi
+                    done < "$user_file"
+                    
+                    echo ""
+                    echo -e "${GREEN}Batch analysis completed${NC}"
+                    echo -e "${CYAN}Total users processed: $current_user${NC}"
+                    echo -e "${GREEN}Successful analyses: $success_count${NC}"
+                    echo -e "${RED}Failed analyses: $error_count${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter active user email to generate report for: " recipient_email
+                if [[ -n "$recipient_email" ]]; then
+                    generate_recipient_report "$recipient_email"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                read -p "Enter username to update filenames for: " username
+                if [[ -n "$username" ]]; then
+                    local active_shares_csv="listshared/${username}_active-shares.csv"
+                    if [[ -f "$active_shares_csv" ]]; then
+                        update_pending_deletion_filenames "$username" "$active_shares_csv"
+                    else
+                        echo -e "${RED}No active shares analysis found for $username${NC}"
+                        echo -e "${CYAN}Please run file sharing analysis first${NC}"
+                    fi
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                echo -e "${CYAN}Bulk Analysis of All Suspended Users${NC}"
+                echo ""
+                echo "This will analyze all users in suspended OUs."
+                read -p "Continue? (y/n): " confirm_bulk
+                
+                if [[ "$confirm_bulk" == "y" || "$confirm_bulk" == "Y" ]]; then
+                    # Get all suspended users
+                    local suspended_users=$(mktemp)
+                    $GAM print users query "orgUnitPath:'/Suspended Accounts'" fields primaryemail > "$suspended_users" 2>/dev/null
+                    
+                    local total=$(tail -n +2 "$suspended_users" | wc -l)
+                    echo -e "${CYAN}Found $total suspended users to analyze${NC}"
+                    
+                    local processed=0
+                    local success=0
+                    
+                    tail -n +2 "$suspended_users" | while read -r email rest; do
+                        ((processed++))
+                        echo ""
+                        echo -e "${BLUE}=== Processing $processed/$total: $email ===${NC}"
+                        
+                        if analyze_user_file_sharing "$email" false false true; then
+                            ((success++))
+                        fi
+                    done
+                    
+                    rm -f "$suspended_users"
+                    echo -e "${GREEN}Bulk analysis completed${NC}"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}Bulk analysis cancelled${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            6)
+                echo -e "${CYAN}Clean Up Analysis Files${NC}"
+                echo ""
+                echo "This will clean up temporary and cache files from analysis."
+                echo "Analysis results and reports will be preserved."
+                echo ""
+                read -p "Continue? (y/n): " confirm_cleanup
+                
+                if [[ "$confirm_cleanup" == "y" || "$confirm_cleanup" == "Y" ]]; then
+                    # Clean up temp and cache files
+                    rm -rf listshared/temp/* listshared/cache/*
+                    
+                    # Clean up old temporary files
+                    find listshared/ -name "*.tmp" -delete 2>/dev/null
+                    find listshared/ -name "temp-*" -delete 2>/dev/null
+                    
+                    echo -e "${GREEN}Cleanup completed${NC}"
+                else
+                    echo -e "${YELLOW}Cleanup cancelled${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            7)
+                echo -e "${CYAN}File Sharing Analysis Statistics${NC}"
+                echo ""
+                
+                # Count analysis files
+                local user_analyses=$(ls listshared/*_all_files.csv 2>/dev/null | wc -l)
+                local sharing_analyses=$(ls listshared/*_shared_files.csv 2>/dev/null | wc -l)
+                local active_analyses=$(ls listshared/*_active-shares.csv 2>/dev/null | wc -l)
+                local recipient_reports=$(ls reports/*_files_from_*.csv 2>/dev/null | wc -l)
+                
+                echo "Analysis Files:"
+                echo "- User file analyses: $user_analyses"
+                echo "- Sharing analyses: $sharing_analyses"  
+                echo "- Active share analyses: $active_analyses"
+                echo "- Recipient reports: $recipient_reports"
+                echo ""
+                
+                if [[ $active_analyses -gt 0 ]]; then
+                    echo "Active Sharing Summary:"
+                    local total_active_files=0
+                    for file in listshared/*_active-shares.csv; do
+                        if [[ -f "$file" ]]; then
+                            local count=$(tail -n +2 "$file" | wc -l 2>/dev/null || echo "0")
+                            total_active_files=$((total_active_files + count))
+                        fi
+                    done
+                    echo "- Total files shared with active users: $total_active_files"
+                fi
+                
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            8)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-8.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 discovery_mode() {
     DISCOVERY_MODE=true
     echo -e "${MAGENTA}=== DISCOVERY MODE ===${NC}"
@@ -2405,9 +3118,10 @@ discovery_mode() {
     echo "8. Shared Drive cleanup operations"
     echo "9. License management operations"
     echo "10. Orphaned file collection"
-    echo "11. Return to main menu"
+    echo "11. File sharing analysis and reports"
+    echo "12. Return to main menu"
     echo ""
-    read -p "Select an option (1-11): " discovery_choice
+    read -p "Select an option (1-12): " discovery_choice
     
     case $discovery_choice in
         1) 
@@ -2442,6 +3156,9 @@ discovery_mode() {
             orphaned_file_collection_menu
             ;;
         11) 
+            file_sharing_analysis_menu
+            ;;
+        12) 
             DISCOVERY_MODE=false
             return
             ;;
