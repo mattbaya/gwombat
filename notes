@@ -1,0 +1,124 @@
+GAM scripts - https://github.com/taers232c/GAM-Scripts3
+
+
+ /root/bin/gamadv-x/gam user milo@your-domain.edu show filelist id| gamadv csv - gamadv user milo@your-domain.edu show drivefileacl ~id
+
+[root@gamera scripts]# gamadv user kr17 add licenses 1010310009 product 101031
+License: Google Workspace for Education Plus (Staff), Add 1 User
+  User: kr17@your-domain.edu, License: 1010310009 (Google Workspace for Education Plus (Staff)), Added
+
+[root@gamera mjb9]# gam user milo@your-domain.edu print filelist query "'1MqiE3mXlZpssD8CIOk03IwNgiYslt9' in parents"
+
+Show all files in a folder with id & title:
+/root/bin/gamadv-x/gam user milo@your-domain.edu print filelist id title query "'1gFvVA01x6905WMrvFnT_Urj2ZzY4qy3p' in parents"
+
+gam user milo@your-domain.edu print filelist id title parents mimeType fullpath
+
+/root/bin/gamadv-x/gam user milo@your-domain.edu print filelist id title parents mime_type webViewLink query "'1gFvVA01x6905WMrvFnT_Urj2ZzY4qy3p' in parents" >> filelist.txt
+------------------------
+Add a user as a write to a file;
+ /root/bin/gamadv-x/gam user milo@your-domain.edu add drivefileacl 1h6Hv_nHRRyeQdTrWSc98IUky5yR0Ih13 user mjb9@your-domain.edu role writer
+then make them an owner;
+ /root/bin/gamadv-x/gam user milo@your-domain.edu add drivefileacl 1h6Hv_nHRRyeQdTrWSc98IUky5yR0Ih13 user mjb9@your-domain.edu role owner
+
+this avoids them getting sent an email
+
+get a users drive id:
+
+/root/bin/gamadv-x/gam user milo@your-domain.edu show fileinfo root fields parents | grep "Drive Folder:" | sed 's/.*(//' | sed 's/)//' | tr -d '\n'
+
+
+
+ gam ous "'Suspended Accounts'" print users lastname>suspended.txt
+
+
+gam user user@your-domain.edu show filelist id title permissions
+
+gam3 user milo@your-domain.edu show filelist id title mimetype webViewLink permissions
+
+gam user milo@your-domain.edu show filelist id title mimeType size shared webViewLink permissions.emailAddress --query "shared=true" >milo_shared_files.csv
+(this didn't work)
+
+gam user milo@your-domain.edu show filelist id title mimeType size shared webViewLink permissions.emailAddress todrive tdtitle "Test Sheet from GAM"	
+
+gam csv milo@your-domain.edu_shared_files_with_emails.csv gam user milo@your-domain.edu print allfields
+
+gam user gamadmin@your-domain.edu create drivefile drivefilename "Test #3" localfile ./milo@your-domain.edu_shared_files_with_emails.csv
+
+gam user gamadmin@your-domain.edu create drivefile drivefilename "Test #3" localfile ./milo@your-domain.edu_shared_files_with_emails.csv | awk -F"(" '{print $2}'|awk -F")" '{print $1}'
+(this returns the file id so you can reference it to change ownership etc)
+or even better;
+gam user milo@your-domain.edu create drivefile drivefilename "Test #3" localfile ./milo@your-domain.edu_shared_files_with_emails.csv returnidonly
+
+
+gam user mjb9@your-domain.edu create drivefile drivefilename "Test #3" localfile ./milo@your-domain.edu_shared_files_with_emails.csv mimetype "application/vnd.google-apps.spreadsheet"
+(sets it as a google sheet)
+
+gam user mjb9@your-domain.edu create drivefile drivefilename "Test #3" localfile ./milo@your-domain.edu_shared_files_with_emails.csv parentid 1bWL5G_bqjr4n1C8rx_KxuG99AqsgyGcN
+(puts it in a specific folder)
+
+gam user milo@your-domain.edu create drivefile drivefilename "milo@your-domain.edu Shared Files" localfile ./milo@your-domain.edu_shared_files_with_emails.csv parentid 1bWL5G_bqjr4n1C8rx_KxuG99AqsgyGcN returnidonly
+
+Get info (including ID) from a shared drive
+gam user gamadmin@your-domain.edu show teamdrives query "name='Deputy Director General'" asadmin
+gam user mjb9-ga print filelist select teamdriveid 0AO2tvB0DHfuNUk9PVA
+/root/bin/gamadv-x/gam add drivefileacl 0AO2tvB0DHfuNUk9PVA user mjb9-ga role organizer
+
+Add user to shared drive:
+gam add drivefileacl 0AKuTzedrfenjUk9PVA user mjb9@your-domain.edu role reader
+
+Remove user from shared drive:
+gam user aseverin@your-domain.edu delete drivefileacl 0AKuTzedrfenjUk9PVA mjb9@your-domain.edu
+
+gam print teamdriveacls oneitemperrow todrive > shareddrives.csv
+
+gam user gamadmin@your-domain.edu add drivefileacl 1A_hJ_taQ15KrZxfeoJH0QJchuWLAKq9DBE4WsIRrEew user mjb9@your-domain.edu role editor
+
+gam config csv_output_header_filter "id,name,permission.emailAddress,permission.role" redirect csv - todrive print teamdriveacls oneitemperrow
+
+https://github.com/taers232c/GAMADV-XTD3/wiki/Users-Drive-Files-Display#file-selection-starting-point-for-display-file-list
+
+gam user user@domain.com print filelist select <PutFolderIDHere> showownedby any fields id,name,mimetype,owners.emailaddress filepat
+gam user user@domain.com print filetree select <PutFolderIDHere> showownedby any fields mimetype,owners
+gam print ownership 19zcOvtA9XKM24n8wkWSVTLGmflXbEri8
+
+screen -dmS name commands
+ gam update user milo@your-domain.edu org Suspended Accounts
+
+gam calendar ntm1@your-domain.edu delete event id "obqfavj4rgics9qanptjd8ui78_20230518T180000Z" doit
+
+vacation:
+
+To see someones vacation:
+gam user jdoe@your-domain.edu show vacation
+
+gam user user@domain.com vacation on subject "Away Message Subject" message "Away message body"
+gam user xxxxx_departed_20151123@domain.org vacation on subject " first last is no longer with the Company:" message "first last is no longer with the Company, please contact first's manager Mr Manager by email at Mr.Manager@domain.org . \n Thank You \n Support." startdate $(date +%Y-%m-%d) enddate 2099-12-30
+
+to set vacation:
+gam user <username>|group <groupname>|ou <ouname>|all users vacation on|off subject <subject text> [message <message text>] [file <message file] startdate <YYYY-MM-DD> enddate <YYYY-MM-DD> [contactsonly] [domainonly]
+so for milo it would be:
+gam user milo@your-domain.edu vacation on subject "Alison Cho is no longer at Williams College" message "Thank you for your email. Alison Cho is no longer at Williams College.\n\nPlease direct all questions for the International Student Services program to iss@your-domain.edu." startdate $(date +%Y-%m-%d) enddate 2099-12-30:
+
+[root@gamera mjb9]# gam user milo@your-domain.edu vacation off
+User: milo@your-domain.edu, Vacation Enabled: False
+[root@gamera mjb9]# gam user milo@your-domain.edu show vacation
+User: milo@your-domain.edu, Vacation:
+  Enabled: False
+  Contacts Only: False
+  Domain Only: False
+  Start Date: 2023-08-17
+  End Date: 2099-12-30
+  Subject: Alison Cho is no longer at Williams College
+  Message:
+    Thank you for your email. Alison Cho is no longer at Williams College.
+
+    Please direct all questions for the International Student Services program to iss@your-domain.edu.
+
+
+
+gam user us...@domain.com sendas us...@jokr.com "User @ Jokr.com"
+gam user mjb9@your-domain.edu sendas netsys-status@your-domain.edu 
+
+gam user gp9 add drivefileacl 1LNTac5c4Kuf04euIKQ0kfoqgg1uOrC3aJwmyDnEn5DI user mjb9 role writer
+gam user gp9 delete drivefileacl 1fYfOZkW2uw6P_KEe8Tls-XMdX9aO1LGOH6HkQosKGv8 mjb9@your-domain.edu

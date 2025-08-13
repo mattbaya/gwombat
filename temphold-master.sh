@@ -256,8 +256,9 @@ mkdir -p "$CONFIG_DIR"
 load_configuration() {
     # Set default values
     DEFAULT_GAM_PATH="/usr/local/bin/gam"
-    DEFAULT_SCRIPT_PATH="/opt/your-path/mjb9/suspended"
-    DEFAULT_SHARED_UTILITIES_PATH="/Users/mjb9/mjb9-gamera/suspended/temphold-master/shared-utilities"
+    DEFAULT_SCRIPT_PATH="/Users/mjb9/mjb9-gamera/suspended/temphold-master"
+    #DEFAULT_SCRIPT_PATH="/opt/your-path/mjb9/suspended/"
+    DEFAULT_SHARED_UTILITIES_PATH="shared-utilities"
     DEFAULT_PROGRESS_ENABLED="true"
     DEFAULT_CONFIRMATION_LEVEL="normal"
     DEFAULT_LOG_RETENTION_DAYS="30"
@@ -1917,17 +1918,27 @@ remove_pending_from_shared_drive() {
 shared_drive_cleanup_menu() {
     while true; do
         clear
-        echo -e "${BLUE}=== Shared Drive Cleanup Operations ===${NC}"
+        echo -e "${BLUE}=== Shared Drive & Account Management Operations ===${NC}"
         echo ""
-        echo "These operations help manage shared drives by removing"
-        echo "pending deletion markers from files within shared drives."
-        echo ""
+        echo -e "${GREEN}=== SHARED DRIVE OPERATIONS ===${NC}"
         echo "1. Clean shared drive (remove all pending deletion markers)"
         echo "2. Remove pending deletion markers (interactive)"
-        echo "3. Dry-run: Preview cleanup operations"
-        echo "4. Return to discovery menu"
+        echo "3. Grant gamadmin access to shared drive files"
+        echo "4. Create archived shared drive for user"
         echo ""
-        read -p "Select an option (1-4): " cleanup_choice
+        echo -e "${GREEN}=== ACCOUNT ANALYSIS ===${NC}"
+        echo "5. Analyze accounts with no file sharing"
+        echo "6. File activity analysis (recent vs old files)"
+        echo "7. Transfer file ownership to gamadmin"
+        echo ""
+        echo -e "${GREEN}=== GROUP & DATE MANAGEMENT ===${NC}"
+        echo "8. Backup/restore user group memberships"
+        echo "9. Restore file modification dates"
+        echo ""
+        echo "10. Dry-run: Preview cleanup operations"
+        echo "11. Return to administrative tools menu"
+        echo ""
+        read -p "Select an option (1-11): " cleanup_choice
         echo ""
         
         case $cleanup_choice in
@@ -1980,11 +1991,128 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
+            3)
+                read -p "Enter shared drive ID: " drive_id
+                if [[ -n "$drive_id" ]]; then
+                    shared_drive_operations "grant_admin_access" "$drive_id"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Drive ID cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
             4)
+                read -p "Enter user email: " user_email
+                if [[ -n "$user_email" ]]; then
+                    drive_id=$(shared_drive_operations "create_user_drive" "" "$user_email")
+                    echo "Shared drive created: $drive_id"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                echo -e "${CYAN}Select scope for analysis:${NC}"
+                echo "1. All suspended accounts"
+                echo "2. Suspended Accounts OU"
+                read -p "Select (1-2): " scope_choice
+                case $scope_choice in
+                    1) analyze_accounts_no_sharing "suspended" ;;
+                    2) analyze_accounts_no_sharing "ou" ;;
+                    *) echo -e "${RED}Invalid option${NC}" ;;
+                esac
+                read -p "Press Enter to continue..."
+                ;;
+            6)
+                read -p "Enter user email: " user_email
+                read -p "Enter days threshold (default 90): " days_threshold
+                days_threshold="${days_threshold:-90}"
+                if [[ -n "$user_email" ]]; then
+                    analyze_file_activity "$user_email" "$days_threshold"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            7)
+                read -p "Enter user email: " user_email
+                if [[ -n "$user_email" ]]; then
+                    echo -e "${YELLOW}This will transfer ALL files from $user_email to gamadmin${NC}"
+                    read -p "Are you sure? (yes/no): " confirm
+                    if [[ "$confirm" == "yes" ]]; then
+                        transfer_ownership_to_gamadmin "$user_email"
+                    else
+                        echo "Operation cancelled"
+                    fi
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            8)
+                read -p "Enter user email: " user_email
+                echo -e "${CYAN}Select operation:${NC}"
+                echo "1. Backup and remove group memberships"
+                echo "2. Restore group memberships"
+                read -p "Select (1-2): " group_op
+                if [[ -n "$user_email" ]]; then
+                    case $group_op in
+                        1) manage_suspension_groups "$user_email" "backup" ;;
+                        2) manage_suspension_groups "$user_email" "restore" ;;
+                        *) echo -e "${RED}Invalid option${NC}" ;;
+                    esac
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            9)
+                read -p "Enter user email: " user_email
+                read -p "Enter target date (YYYY-MM-DD, default 2023-05-01): " target_date
+                target_date="${target_date:-2023-05-01}"
+                if [[ -n "$user_email" ]]; then
+                    restore_file_dates "$user_email" "$target_date"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            10)
+                read -p "Enter shared drive ID for preview: " drive_id
+                if [[ -n "$drive_id" ]]; then
+                    echo ""
+                    echo -e "${CYAN}Choose preview type:${NC}"
+                    echo "1. Full cleanup preview"
+                    echo "2. Interactive cleanup preview"
+                    read -p "Select (1-2): " preview_type
+                    case $preview_type in
+                        1)
+                            cleanup_shared_drive "$drive_id" true
+                            ;;
+                        2)
+                            remove_pending_from_shared_drive "$drive_id" true
+                            ;;
+                        *)
+                            echo -e "${RED}Invalid option${NC}"
+                            ;;
+                    esac
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Drive ID cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            11)
                 return
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -3360,6 +3488,267 @@ analyze_user_file_sharing() {
     echo "- Total shared files: $total_shared"
     echo "- Files shared with active users: $active_shared"
     echo "- Report saved to: $active_file"
+}
+
+# =====================================
+# OWNERSHIP TRANSFER AND ACCOUNT MANAGEMENT FUNCTIONS
+# =====================================
+
+# Function to transfer ownership of files to gamadmin
+transfer_ownership_to_gamadmin() {
+    local user_email="$1"
+    local dry_run="${2:-false}"
+    
+    echo -e "${GREEN}Transferring file ownership from $user_email to gamadmin...${NC}"
+    
+    # Check if user account is suspended - temporarily unsuspend if needed
+    local was_suspended=false
+    local user_status=$($GAM info user "$user_email" 2>/dev/null | grep "Account Suspended:" | cut -d' ' -f3)
+    
+    if [[ "$user_status" == "True" ]]; then
+        was_suspended=true
+        if [[ "$dry_run" == "false" ]]; then
+            echo "User is suspended. Temporarily unsuspending for file transfer..."
+            $GAM update user "$user_email" suspended off
+            sleep 5
+        else
+            echo -e "${CYAN}[DRY-RUN] Would temporarily unsuspend $user_email for file transfer${NC}"
+        fi
+    fi
+    
+    # Get list of files owned by user
+    local temp_file="${SCRIPTPATH}/tmp/${user_email}_ownership_transfer.csv"
+    if [[ "$dry_run" == "false" ]]; then
+        $GAM user "$user_email" print filelist fields id,name,owners > "$temp_file"
+        local file_count=$(tail -n +2 "$temp_file" | wc -l)
+        echo "Found $file_count files to transfer ownership"
+        
+        local counter=0
+        tail -n +2 "$temp_file" | while IFS=',' read -r file_id file_name owner_email; do
+            ((counter++))
+            show_progress $counter $file_count "Transferring file: $file_name"
+            
+            # Check if file is owned by external account
+            if [[ "$owner_email" != *"@your-domain.edu" ]]; then
+                echo "  External file detected - copying instead of transferring: $file_name"
+                $GAM user gamadmin@your-domain.edu add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
+            else
+                $GAM user "$user_email" add drivefileacl "$file_id" user gamadmin@your-domain.edu role owner transferownership true
+            fi
+        done
+    else
+        echo -e "${CYAN}[DRY-RUN] Would transfer ownership of all files from $user_email to gamadmin${NC}"
+    fi
+    
+    # Re-suspend user if they were originally suspended
+    if [[ "$was_suspended" == true ]]; then
+        if [[ "$dry_run" == "false" ]]; then
+            echo "Re-suspending user account..."
+            $GAM update user "$user_email" suspended on
+        else
+            echo -e "${CYAN}[DRY-RUN] Would re-suspend $user_email${NC}"
+        fi
+    fi
+    
+    echo -e "${GREEN}Ownership transfer completed for $user_email${NC}"
+}
+
+# Function to analyze accounts with no sharing
+analyze_accounts_no_sharing() {
+    local scope="$1"  # "suspended" or "ou"
+    local csv_output="${SCRIPTPATH}/csv-files/accounts_no_sharing_$(date +%Y%m%d_%H%M).csv"
+    
+    echo -e "${GREEN}Analyzing accounts with no file sharing...${NC}"
+    echo "owner,hasSharingFiles,totalFiles,totalStorage" > "$csv_output"
+    
+    local user_list=""
+    case $scope in
+        "suspended")
+            user_list=$($GAM print users query "isSuspended=true" fields email | tail -n +2 | cut -d',' -f1)
+            ;;
+        "ou")
+            user_list=$($GAM print users query "orgUnitPath='/Suspended Accounts'" fields email | tail -n +2 | cut -d',' -f1)
+            ;;
+    esac
+    
+    local counter=0
+    local total_users=$(echo "$user_list" | wc -l)
+    
+    echo "$user_list" | while read user_email; do
+        ((counter++))
+        show_progress $counter $total_users "Analyzing: $user_email"
+        
+        # Check if user has any shared files
+        local shared_files=$($GAM user "$user_email" print filelist query "shared=true" fields id | tail -n +2 | wc -l)
+        local total_files=$($GAM user "$user_email" print filelist fields id | tail -n +2 | wc -l)
+        local storage_used=$($GAM info user "$user_email" 2>/dev/null | grep "Storage Used:" | cut -d' ' -f3 || echo "0")
+        
+        local has_sharing="No"
+        [[ $shared_files -gt 0 ]] && has_sharing="Yes"
+        
+        echo "$user_email,$has_sharing,$total_files,$storage_used" >> "$csv_output"
+        
+        if [[ $shared_files -eq 0 ]]; then
+            echo "$user_email" >> "${SCRIPTPATH}/csv-files/candidates_for_deletion.txt"
+        fi
+    done
+    
+    echo -e "${GREEN}Analysis complete. Results saved to:${NC}"
+    echo "- $csv_output"
+    echo "- ${SCRIPTPATH}/csv-files/candidates_for_deletion.txt"
+}
+
+# Function to perform file activity analysis
+analyze_file_activity() {
+    local user_email="$1"
+    local days_threshold="${2:-90}"
+    local csv_dir="${SCRIPTPATH}/csv-files"
+    
+    echo -e "${GREEN}Analyzing file activity for $user_email (threshold: $days_threshold days)...${NC}"
+    
+    local all_files_csv="${csv_dir}/${user_email}_files.csv"
+    local recent_files_csv="${csv_dir}/${user_email}_recent_files.csv" 
+    local old_files_csv="${csv_dir}/${user_email}_old_files.csv"
+    
+    # Get all files (excluding Google Apps formats)
+    $GAM user "$user_email" print filelist query "not mimeType contains 'application/vnd.google-apps'" \
+        fields size,id,name,mimeType,modifiedTime > "$all_files_csv"
+    
+    # Calculate threshold date
+    local threshold_date=$(date -d "$days_threshold days ago" +%Y-%m-%d)
+    
+    # Process files and categorize by date
+    echo "size,id,name,mimeType,modifiedTime" > "$recent_files_csv"
+    echo "size,id,name,mimeType,modifiedTime" > "$old_files_csv"
+    
+    local recent_count=0
+    local old_count=0
+    local recent_size=0
+    local old_size=0
+    
+    tail -n +2 "$all_files_csv" | while IFS=',' read -r size id name mimeType modifiedTime; do
+        local file_date=$(echo "$modifiedTime" | cut -d'T' -f1)
+        
+        if [[ "$file_date" > "$threshold_date" ]]; then
+            echo "$size,$id,$name,$mimeType,$modifiedTime" >> "$recent_files_csv"
+            ((recent_count++))
+            recent_size=$((recent_size + size))
+        else
+            echo "$size,$id,$name,$mimeType,$modifiedTime" >> "$old_files_csv"
+            ((old_count++))
+            old_size=$((old_size + size))
+        fi
+    done
+    
+    echo -e "${GREEN}File activity analysis complete:${NC}"
+    echo "- Recent files (< $days_threshold days): $recent_count files ($(($recent_size / 1024 / 1024)) MB)"
+    echo "- Old files (> $days_threshold days): $old_count files ($(($old_size / 1024 / 1024)) MB)"
+    echo "- Reports saved to: $csv_dir/"
+}
+
+# Function to manage group memberships during suspension
+manage_suspension_groups() {
+    local user_email="$1"
+    local operation="$2"  # "backup" or "restore"
+    local groups_file="${SCRIPTPATH}/tmp/${user_email}_groups_backup.txt"
+    
+    case $operation in
+        "backup")
+            echo -e "${GREEN}Backing up group memberships for $user_email...${NC}"
+            $GAM info user "$user_email" groups | grep "Member of" | cut -d' ' -f3 > "$groups_file"
+            local group_count=$(cat "$groups_file" | wc -l)
+            echo "Backed up $group_count group memberships"
+            
+            # Remove user from all groups
+            cat "$groups_file" | while read group; do
+                echo "  Removing from $group..."
+                $GAM update group "$group" remove member "$user_email"
+            done
+            ;;
+        "restore")
+            if [[ -f "$groups_file" ]]; then
+                echo -e "${GREEN}Restoring group memberships for $user_email...${NC}"
+                cat "$groups_file" | while read group; do
+                    echo "  Adding to $group..."
+                    $GAM update group "$group" add member "$user_email"
+                done
+            else
+                echo -e "${YELLOW}No backup file found for $user_email${NC}"
+            fi
+            ;;
+    esac
+}
+
+# Function to fix file modification dates
+restore_file_dates() {
+    local user_email="$1"
+    local target_date="${2:-2023-05-01}"  # Default to pre-May 2023
+    
+    echo -e "${GREEN}Restoring file modification dates for $user_email...${NC}"
+    
+    # Get files that were modified after the target date
+    local files_to_fix="${SCRIPTPATH}/tmp/${user_email}_date_fix.csv"
+    $GAM user "$user_email" print filelist \
+        query "modifiedTime>'$target_date'" \
+        fields id,name,modifiedTime > "$files_to_fix"
+    
+    local file_count=$(tail -n +2 "$files_to_fix" | wc -l)
+    echo "Found $file_count files to fix dates"
+    
+    local counter=0
+    tail -n +2 "$files_to_fix" | while IFS=',' read -r file_id file_name current_date; do
+        ((counter++))
+        show_progress $counter $file_count "Fixing date: $file_name"
+        
+        # Try to find appropriate date from file activity
+        local activity_date=$($GAM user gamadmin@your-domain.edu show driveactivity "$file_id" 2>/dev/null | \
+                              grep -E "time.*$(date -d "$target_date" +%Y)" | head -1 | \
+                              grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "$target_date")
+        
+        # Update the file with the restored date
+        $GAM user "$user_email" update drivefile "$file_id" modifiedtime "$activity_date"
+    done
+    
+    echo -e "${GREEN}Date restoration completed${NC}"
+}
+
+# Function to manage shared drives operations
+shared_drive_operations() {
+    local operation="$1"
+    local drive_id="$2"
+    local user_email="$3"
+    
+    case $operation in
+        "remove_pending_labels")
+            echo -e "${GREEN}Removing pending deletion labels from shared drive...${NC}"
+            $GAM user gamadmin@your-domain.edu print filelist query "parents in '$drive_id'" \
+                fields id,name | tail -n +2 | while IFS=',' read -r file_id file_name; do
+                if [[ "$file_name" == *"PENDING DELETION"* ]] || [[ "$file_name" == *"Suspended Account - Temporary Hold"* ]]; then
+                    local new_name=$(echo "$file_name" | sed -E 's/ \(PENDING DELETION - CONTACT OIT\)//g' | \
+                                    sed -E 's/ \(Suspended Account - Temporary Hold\)//g')
+                    echo "  Cleaning: $file_name -> $new_name"
+                    $GAM user gamadmin@your-domain.edu update drivefile "$file_id" name "$new_name"
+                fi
+            done
+            ;;
+        "grant_admin_access")
+            echo -e "${GREEN}Granting gamadmin access to all files in shared drive...${NC}"
+            $GAM user gamadmin@your-domain.edu print filelist query "parents in '$drive_id'" \
+                fields id | tail -n +2 | while read file_id; do
+                $GAM user gamadmin@your-domain.edu add drivefileacl "$file_id" user gamadmin@your-domain.edu role writer
+            done
+            ;;
+        "create_user_drive")
+            echo -e "${GREEN}Creating shared drive for user: $user_email${NC}"
+            local drive_name="${user_email} - Archived Files"
+            local new_drive_id=$($GAM create shareddrive "$drive_name" adminmanaged)
+            echo "Created shared drive: $new_drive_id"
+            
+            # Grant access to gamadmin
+            $GAM update shareddrive "$new_drive_id" add organizer gamadmin@your-domain.edu
+            echo "$new_drive_id"
+            ;;
+    esac
 }
 
 # Function to get destination OU choice
