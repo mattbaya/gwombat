@@ -1,0 +1,41 @@
+# Environment files with sensitive data
+.env
+
+# Database files (may contain sensitive account data)
+*.db
+*.sqlite
+*.sqlite3
+account_lifecycle.db
+
+# Log files
+logs/*.log
+*.log
+
+# Temporary files
+tmp/*
+temp/*
+*.tmp
+
+# Backup files
+backups/*
+*.backup
+
+# CSV files with account data
+*.csv
+csv-files/*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
