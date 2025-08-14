@@ -368,6 +368,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Advanced Logging Functions
@@ -1113,25 +1114,25 @@ audit_file_ownership_menu() {
 # Function to display the main menu
 show_main_menu() {
     clear
-    echo -e "${BLUE}=== Suspended Account Lifecycle Management ===${NC}"
+    echo -e "${BLUE}=== Suspended Account Management System ===${NC}"
     echo ""
-    echo -e "${YELLOW}Account Lifecycle Stages:${NC}"
-    echo -e "${CYAN}1. Recently Suspended ${NC}→ 2. Pending Deletion → 3. Share Analysis → 4. Final Decisions → 5. Deletion${NC}"
+    echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
-    echo -e "${GREEN}=== LIFECYCLE OPERATIONS ===${NC}"
-    echo "1. 📋 Stage 1: Manage Recently Suspended Accounts (5 options)"
-    echo "2. 🔄 Stage 2: Process Pending Deletion (Rename & Label) (6 options)"
-    echo "3. 📊 Stage 3: File Sharing Analysis & Reports (7 options)"
-    echo "4. 🎯 Stage 4: Final Decisions (Exit Row / Temporary Hold) (6 options)"
-    echo "5. 🗑️  Stage 5: Account Deletion Operations (5 options)"
+    echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
+    echo "1. 🔄 Suspended Account Lifecycle Management (6 options)"
+    echo "2. 👥 User & Group Management (2 options)"
     echo ""
-    echo -e "${BLUE}=== UTILITIES & TOOLS ===${NC}"
-    echo "6. 🔍 Discovery & Query Tools (11 options)"
-    echo "7. 🛠️  Administrative Tools & Cleanup (6 options)"
-    echo "8. 📈 Reports & Monitoring (10 options)"
-    echo "9. ❌ Exit"
+    echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
+    echo "3. 💾 File & Drive Operations (13 options)"
+    echo "4. 🔍 Analysis & Discovery (11 options)"
     echo ""
-    read -p "Select an option (1-9): " choice
+    echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
+    echo "5. 📈 Reports & Monitoring (11 options)"
+    echo "6. ⚙️  System Administration (6 options)"
+    echo ""
+    echo "7. ❌ Exit"
+    echo ""
+    read -p "Select an option (1-7): " choice
     echo ""
     return $choice
 }
@@ -5346,6 +5347,253 @@ process_users_from_file() {
 
 # Lifecycle Stage Menus
 
+# Suspended Account Lifecycle Management Menu
+lifecycle_management_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Suspended Account Lifecycle Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Complete account management from suspension through deletion${NC}"
+        echo -e "${YELLOW}Workflow: Recently Suspended → Pending Deletion → Final Decisions → Deletion${NC}"
+        echo ""
+        echo "1. 📋 Manage Recently Suspended Accounts"
+        echo "2. 🔄 Process Accounts for Pending Deletion"
+        echo "3. 📊 File Sharing Analysis & Reports"
+        echo "4. 🎯 Final Decisions (Temporary Hold / Exit Row)"
+        echo "5. 🗑️  Account Deletion Operations"
+        echo "6. 🔍 Quick Account Status Checker"
+        echo ""
+        echo "7. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-7, m, x): " lifecycle_choice
+        echo ""
+        
+        case $lifecycle_choice in
+            1) stage1_recently_suspended_menu ;;
+            2) stage2_pending_deletion_menu ;;
+            3) stage3_sharing_analysis_menu ;;
+            4) stage4_final_decisions_menu ;;
+            5) stage5_deletion_operations_menu ;;
+            6) 
+                read -p "Enter username to check: " username
+                if [[ -n "$username" ]]; then
+                    diagnose_account "$username"
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            7) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# User & Group Management Menu  
+user_group_management_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== User & Group Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Core user and group administration tools${NC}"
+        echo ""
+        echo "1. 👥 Group Operations (add/remove members, bulk operations)"
+        echo "2. 📄 License Management (assign/remove/audit licenses)"
+        echo ""
+        echo -e "${YELLOW}Additional user management features available in:${NC}"
+        echo -e "${CYAN}• User profile changes: Lifecycle Management menu${NC}"
+        echo -e "${CYAN}• Batch operations: Stage 2 (Pending Deletion) menu${NC}"
+        echo -e "${CYAN}• Account diagnostics: Lifecycle → Quick Status Checker${NC}"
+        echo -e "${CYAN}• Account reactivation: Stage 2 and Stage 4 menus${NC}"
+        echo ""
+        echo "3. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-3, m, x): " user_group_choice
+        echo ""
+        
+        case $user_group_choice in
+            1) group_operations_menu ;;
+            2) license_management_menu ;;
+            3) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-3, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Group Operations Menu (extracted from buried shared drive menu)
+group_operations_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Group Operations ===${NC}"
+        echo ""
+        echo -e "${CYAN}Comprehensive group membership management${NC}"
+        echo ""
+        echo "1. 📤 Add members to group (bulk operations)"
+        echo "2. 📥 Remove user from all groups"  
+        echo "3. 💾 Backup user group memberships"
+        echo "4. 🔄 Restore user group memberships"
+        echo "5. 👥 View user's group memberships"
+        echo "6. 📋 List all groups in domain"
+        echo ""
+        echo "7. Return to user & group management"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-7, m, x): " group_choice
+        echo ""
+        
+        case $group_choice in
+            1)
+                read -p "Enter group name: " group_name
+                read -p "Enter path to file containing member emails (one per line): " members_file
+                if [[ -n "$group_name" && -n "$members_file" ]]; then
+                    if [[ -f "$members_file" ]]; then
+                        bulk_add_to_group "$group_name" "$members_file"
+                        read -p "Press Enter to continue..."
+                    else
+                        echo -e "${RED}File not found: $members_file${NC}"
+                        read -p "Press Enter to continue..."
+                    fi
+                else
+                    echo -e "${RED}Group name and members file path cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                read -p "Enter user email: " user_email
+                if [[ -n "$user_email" ]]; then
+                    echo -e "${YELLOW}This will remove $user_email from ALL groups${NC}"
+                    read -p "Are you sure? (yes/no): " confirm
+                    if [[ "$confirm" == "yes" ]]; then
+                        remove_user_from_all_groups "$user_email"
+                    else
+                        echo "Operation cancelled"
+                    fi
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3|4)
+                read -p "Enter user email: " user_email
+                echo -e "${CYAN}Select operation:${NC}"
+                echo "1. Backup and remove group memberships"
+                echo "2. Restore group memberships"
+                read -p "Select (1-2): " group_op
+                if [[ -n "$user_email" ]]; then
+                    case $group_op in
+                        1) manage_suspension_groups "$user_email" "backup" ;;
+                        2) manage_suspension_groups "$user_email" "restore" ;;
+                        *) echo -e "${RED}Invalid option${NC}" ;;
+                    esac
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                read -p "Enter user email: " user_email
+                if [[ -n "$user_email" ]]; then
+                    echo -e "${CYAN}Group memberships for $user_email:${NC}"
+                    $GAM print groups member "$user_email" 2>/dev/null || echo "No groups found or user doesn't exist"
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}User email cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            6)
+                echo -e "${CYAN}All groups in domain:${NC}"
+                $GAM print groups 2>/dev/null | head -20
+                echo ""
+                echo -e "${YELLOW}(Showing first 20 groups)${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+            7) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Menu functions for consolidated operations
+
+file_drive_operations_menu() {
+    shared_drive_cleanup_menu
+}
+
+analysis_discovery_menu() {
+    discovery_mode
+}
+
+system_administration_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== System Administration ===${NC}"
+        echo ""
+        echo -e "${CYAN}System configuration and maintenance${NC}"
+        echo ""
+        echo "1. ⚙️  Configuration Management"
+        echo "2. 🔍 Dry-run & Preview Modes"
+        echo "3. 🛠️  System Health & Maintenance"
+        echo "4. 💾 Backup Management"
+        echo "5. 📋 File Ownership Audit"
+        echo ""
+        echo "6. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-6, m, x): " admin_choice
+        echo ""
+        
+        case $admin_choice in
+            1) configuration_menu ;;
+            2) dry_run_mode ;;
+            3) check_incomplete_operations ;;
+            4) 
+                echo -e "${CYAN}Backup files location: $BACKUP_DIR${NC}"
+                if [[ -d "$BACKUP_DIR" ]]; then
+                    ls -la "$BACKUP_DIR" | head -20
+                    echo ""
+                    echo -e "${YELLOW}(Showing recent backup files)${NC}"
+                else
+                    echo "No backup directory found"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            5) audit_file_ownership_menu ;;
+            6) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 # Stage 1: Recently Suspended Accounts
 stage1_recently_suspended_menu() {
     while true; do
@@ -5975,62 +6223,24 @@ main() {
         
         case $choice in
             1)
-                stage1_recently_suspended_menu
+                lifecycle_management_menu
                 ;;
             2)
-                stage2_pending_deletion_menu
+                user_group_management_menu
                 ;;
             3)
-                stage3_sharing_analysis_menu
+                file_drive_operations_menu
                 ;;
             4)
-                stage4_final_decisions_menu
+                analysis_discovery_menu
                 ;;
             5)
-                stage5_deletion_operations_menu
-                ;;
-            6)
-                discovery_mode
-                ;;
-            7)
-                # Administrative tools
-                while true; do
-                    clear
-                    echo -e "${BLUE}=== Administrative Tools & Cleanup ===${NC}"
-                    echo ""
-                    echo "1. Shared Drive cleanup operations"
-                    echo "2. License management operations"
-                    echo "3. File ownership audit"
-                    echo "4. Check for incomplete operations"
-                    echo "5. Dry-run mode (preview any operation)"
-                    echo ""
-                    echo "6. Return to main menu"
-                    echo "m. Main menu"
-                    echo "x. Exit"
-                    echo ""
-                    read -p "Select an option (1-6, m, x): " admin_choice
-                    echo ""
-                    
-                    case $admin_choice in
-                        1) shared_drive_cleanup_menu ;;
-                        2) license_management_menu ;;
-                        3) audit_file_ownership_menu ;;
-                        4) check_incomplete_operations ;;
-                        5) dry_run_mode ;;
-                        6) break ;;
-                        m|M) break ;;
-                        x|X) exit 0 ;;
-                        *)
-                            echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
-                            read -p "Press Enter to continue..."
-                            ;;
-                    esac
-                done
-                ;;
-            8)
                 reports_and_cleanup_menu
                 ;;
-            9)
+            6)
+                system_administration_menu
+                ;;
+            7)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -6038,7 +6248,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-9.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-7.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
