@@ -2,231 +2,37 @@
 
 # GAMadmin - Google Apps Manager Administration Tool
 #
-# A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows.
+# A comprehensive suspended account lifecycle management system with database tracking,
+# verification, and automated workflows. For complete documentation, installation
+# instructions, and usage examples, please refer to README.md.
 #
-# ## Overview
+# This system manages Google Workspace accounts through their complete lifecycle
+# from suspension to deletion with persistent state tracking and verification capabilities.
 #
-# This script automates the process of moving user accounts between different suspension states:
-# - Moving from "pending deletion" status to "temporary hold" status
-# - Removing "temporary hold" status to restore normal account state
+# Key Features:
+# - Database-driven account lifecycle tracking with SQLite
+# - Account scanning and automated stage discovery
+# - List-based batch operations with verification
+# - Secure deployment with git-based workflows
+# - Environment-configurable paths and settings
 #
-# **Add Temporary Hold Operations:**
-# 1. **Restore Last Name** - Removes "(PENDING DELETION - CONTACT OIT)" from user's last name
-# 2. **Fix Filenames** - Renames files with pending deletion markers
-# 3. **Rename All Files** - Adds "(Suspended Account - Temporary Hold)" to all user files
-# 4. **Update User Last Name** - Adds suspension marker to user's last name
+# For complete documentation including installation, usage, configuration,
+# and deployment instructions, see README.md and DEPLOYMENT.md
 #
-# **Remove Temporary Hold Operations:**
-# 1. **Remove Temporary Hold from Last Name** - Removes "(Suspended Account - Temporary Hold)" from user's last name
-# 2. **Remove Temporary Hold from All Files** - Removes suspension markers from all file names
-#
-# ## Features
-#
-# - **Interactive Menu System** - Choose between single user or batch processing
-# - **Bidirectional Operations** - Add or remove temporary hold status
-# - **Dry-Run Mode** - Preview changes without making actual modifications
-# - **Recovery Mode** - Check for incomplete operations and resume failed batches
-# - **Enhanced Confirmation** - Different confirmation levels based on operation risk
-# - **Progress Tracking** - Visual progress bars for all operations
-# - **Backup Creation** - Automatic backups before making changes
-# - **Preview Mode** - Shows detailed summary of all actions before execution
-# - **Error Handling** - Validates inputs and checks for required directories
-# - **Comprehensive Logging** - Records all operations and changes
-# - **Color-coded Output** - Easy-to-read status messages
-#
-# ## Prerequisites
-#
-# - GAM (Google Apps Manager) installed at `/usr/local/bin/gam`
-# - Access to the following directories:
-#   - `/opt/your-path/mjb9/suspended` (script path)
-#   - `/opt/your-path/mjb9/listshared` (shared files path)
-# - Required script dependencies:
-#   - `list-users-files.sh` in the listshared directory
-#
-# ## Installation
-#
-# 1. Ensure the script is executable:
-#    ```bash
-#    chmod +x master-temphold.sh
-#    ```
-#
-# 2. Verify GAM is installed and accessible:
-#    ```bash
-#    /usr/local/bin/gam version
-#    ```
-#
-# 3. Check that required directories exist and are accessible
-#
-# ## Usage
-#
-# ### Interactive Mode
-#
-# Run the script without arguments to enter interactive mode:
-#
-# ```bash
-# ./master-temphold.sh
-# ```
-#
-# ### Menu Options
-#
-# 1. **Process single user**
-#    - Enter a single username or email address
-#    - Choose to add or remove temporary hold
-#    - View summary of actions before execution
-#    - Confirm before making changes
-#
-# 2. **Process users from file**
-#    - Specify path to file containing usernames (one per line)
-#    - Choose to add or remove temporary hold for all users
-#    - Preview sample users from file
-#    - Batch process all users with selected operation
-#
-# 3. **Dry-run mode (Preview changes without making them)**
-#    - Test operations without making actual changes
-#    - Preview single user or batch operations
-#    - Simulate file processing and user updates
-#    - Choose add or remove operations for testing
-#
-# 4. **Discovery mode (Query and diagnose accounts)**
-#    - Query users in Temporary Hold OU
-#    - Query users in Pending Deletion OU  
-#    - Query all suspended users across all OUs
-#    - Scan active accounts for orphaned pending deletion files
-#    - Query users by department/type (Student, Faculty, Staff)
-#    - Custom GAM queries with examples
-#    - Diagnose specific account consistency
-#    - Bulk operations on query results
-#    - Bulk cleanup of orphaned files
-#    - Check for incomplete operations
-#
-# 5. **Exit**
-#    - Safely exit the script
-#
-# ### File Format for Batch Processing
-#
-# Create a text file with one username/email per line:
-#
-# ```
-# user1@domain.com
-# user2@domain.com
-# user3@domain.com
-# ```
-#
-# - Empty lines and lines starting with `#` are ignored
-# - Each user will go through the complete 4-step process
-#
-# ## Process Details
-#
-# ### Step 1: Restore Last Name
-# - Checks if user's last name contains "(PENDING DELETION - CONTACT OIT)"
-# - If found, removes the suffix and restores original last name
-# - If not found, skips this step
-#
-# ### Step 2: Fix Filenames
-# - Searches for files with "(PENDING DELETION - CONTACT OIT)" in filename
-# - Renames them to include "(Suspended Account - Temporary Hold)"
-# - Logs all changes to `tmp/{username}-fixed.txt`
-#
-# ### Step 3: Rename Shared Files (Security-Focused)
-# - Generates comprehensive file list using `list-users-files.sh`
-# - **ONLY processes files shared with active your-domain.edu accounts**
-# - Skips files shared externally or with already suspended accounts
-# - Adds "(Suspended Account - Temporary Hold)" suffix to qualified file names
-# - Skips files that already have the suffix
-#
-# ### Step 4: Update User Last Name
-# - Adds "(Suspended Account - Temporary Hold)" to user's last name
-# - Skips if suffix already present
-#
-# ## Output and Logging
-#
-# ### Log Files Created:
-# - `temphold-done.log` - Users successfully processed (temporary hold added)
-# - `temphold-removed.log` - Users successfully processed (temporary hold removed)
-# - `file-rename-done.txt` - Timestamp log of file rename operations (adding hold)
-# - `file-removal-done.txt` - Timestamp log of file removal operations (removing hold)
-# - `tmp/{username}-fixed.txt` - Detailed log of specific file changes (adding hold)
-# - `tmp/{username}-removal.txt` - Detailed log of specific file changes (removing hold)
-#
-# ### Temporary Files:
-# - `tmp/gam_output_{username}.txt` - GAM query results
-# - CSV files in `${SCRIPTPATH}/csv-files/` directory
-#
-# ## Error Handling
-#
-# The script includes comprehensive error checking:
-#
-# - Validates user input
-# - Checks file existence for batch processing
-# - Verifies required directories exist
-# - Handles GAM command failures gracefully
-# - Provides clear error messages
-#
-# ## Color Coding
-#
-# - 🔵 **Blue**: Headers and informational messages
-# - 🟢 **Green**: Success messages and step indicators
-# - 🟡 **Yellow**: Warnings and progress indicators
-# - 🔴 **Red**: Error messages
-#
-# ## Safety Features
-#
-# - **Preview Mode**: Shows exactly what will happen before execution
-# - **User Confirmation**: Requires explicit approval before making changes
-# - **Non-destructive**: Only adds suffixes, doesn't delete data
-# - **Logging**: Complete audit trail of all operations
-# - **Validation**: Checks for existing suffixes to prevent duplicates
-#
-# ## Troubleshooting
-#
-# ### Common Issues:
-#
-# 1. **GAM not found**
-#    - Verify GAM is installed at `/usr/local/bin/gam`
-#    - Check PATH environment variable
-#
-# 2. **Permission denied**
-#    - Ensure script has execute permissions
-#    - Check directory access permissions
-#
-# 3. **Required directories missing**
-#    - Verify `/opt/your-path/mjb9/suspended` exists
-#    - Verify `/opt/your-path/mjb9/listshared` exists
-#
-# 4. **list-users-files.sh not found**
-#    - Ensure the script exists in the listshared directory
-#    - Check execute permissions on the script
-#
-# ### Debug Mode:
-#
-# To enable verbose output, you can modify the script to add `set -x` at the top for debugging.
-#
-# ## Author
-#
-# Consolidated from multiple individual scripts:
-# - `temphold.sh`
-# - `restore-lastname.sh`
-# - `temphold-filesfix.sh`
-# - `temphold-file-rename.sh`
-# - `temphold-namechange.sh`
-#
-# ## Version History
-#
-# - v1.0 - Initial consolidated version with interactive menu and preview functionality
 
 # GAMadmin Configuration
-# Consolidates all temphold operations with menu system and preview functionality
+# Consolidates all suspended account operations with menu system and preview functionality
 
 # Variables now loaded via load_configuration() function
 
-# Organizational Unit paths
-OU_TEMPHOLD="/Suspended Accounts/Suspended - Temporary Hold"
-OU_PENDING_DELETION="/Suspended Accounts/Suspended - Pending Deletion"  
-OU_SUSPENDED="/Suspended Accounts"
-OU_ACTIVE="/your-domain.edu"
+# Organizational Unit paths (configurable via server.env)
+OU_TEMPHOLD="${TEMPORARY_HOLD_OU:-/Suspended Accounts/Suspended - Temporary Hold}"
+OU_PENDING_DELETION="${PENDING_DELETION_OU:-/Suspended Accounts/Suspended - Pending Deletion}"  
+OU_SUSPENDED="${SUSPENDED_OU:-/Suspended Accounts}"
+OU_ACTIVE="${DOMAIN:-yourdomain.edu}"
 
-# Google Drive Label IDs for pending deletion
-LABEL_ID="xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb"
+# Google Drive Label IDs (configurable via server.env)
+LABEL_ID="${DRIVE_LABEL_ID:-default-label-id}"
 
 # Load server-specific configuration
 if [[ -f "server.env" ]]; then
@@ -257,7 +63,7 @@ OPERATION_SUMMARY="${REPORT_DIR}/operation-summary-${SESSION_ID}.txt"
 USER_ACTIVITY_REPORT="${REPORT_DIR}/user-activity-$(date +%Y%m%d).txt"
 
 # Configuration Management
-CONFIG_FILE="./config/temphold-config.json"
+CONFIG_FILE="./config/gamadmin-config.json"
 CONFIG_DIR="./config"
 mkdir -p "$CONFIG_DIR"
 
@@ -265,8 +71,7 @@ mkdir -p "$CONFIG_DIR"
 load_configuration() {
     # Set default values
     DEFAULT_GAM_PATH="/usr/local/bin/gam"
-    DEFAULT_SCRIPT_PATH="/Users/mjb9/mjb9-gamera/suspended/temphold-master"
-    #DEFAULT_SCRIPT_PATH="/opt/your-path/mjb9/suspended/"
+    DEFAULT_SCRIPT_PATH="${GAMADMIN_PATH:-$(pwd)}"
     DEFAULT_SHARED_UTILITIES_PATH="shared-utilities"
     DEFAULT_PROGRESS_ENABLED="true"
     DEFAULT_CONFIRMATION_LEVEL="normal"
@@ -326,10 +131,10 @@ create_default_config() {
     "operation_timeout": "300"
   },
   "organizational_units": {
-    "temphold": "/Suspended Accounts/Suspended - Temporary Hold",
+    "temporary_hold": "/Suspended Accounts/Suspended - Temporary Hold",
     "pending_deletion": "/Suspended Accounts/Suspended - Pending Deletion",
     "suspended": "/Suspended Accounts",
-    "active": "/your-domain.edu"
+    "active": "/${DOMAIN:-yourdomain.edu}"
   },
   "google_drive": {
     "label_id": "xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb",
@@ -542,7 +347,7 @@ generate_daily_report() {
             echo "Total Operations: $(wc -l < "$OPERATION_LOG" 2>/dev/null || echo "0")"
             echo ""
             echo "Operations by Type:"
-            grep -o "add_temphold\|remove_temphold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
+            grep -o "add_gamadmin_hold\|remove_gamadmin_hold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
             echo ""
             echo "Operations by Status:"
             grep -o "SUCCESS\|ERROR\|SKIPPED" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No status data"
@@ -1247,8 +1052,8 @@ get_operation_choice() {
     while true; do
         read -p "Choose operation (1-4): " op_choice
         case $op_choice in
-            1) echo "add_temphold"; break ;;
-            2) echo "remove_temphold"; break ;;
+            1) echo "add_gamadmin_hold"; break ;;
+            2) echo "remove_gamadmin_hold"; break ;;
             3) echo "add_pending"; break ;;
             4) echo "remove_pending"; break ;;
             *) echo -e "${RED}Please select 1, 2, 3, or 4.${NC}" ;;
@@ -1285,7 +1090,7 @@ get_user_status() {
         echo -e "${CYAN}Name:${NC} Sample User"
         echo -e "${CYAN}Department:${NC} Student (simulated)"
         echo -e "${CYAN}Status:${NC} ${GREEN}Active (simulated)${NC}"
-        echo -e "${CYAN}Org Unit:${NC} /your-domain.edu (simulated)"
+        echo -e "${CYAN}Org Unit:${NC} /${DOMAIN:-yourdomain.edu} (simulated)"
         echo -e "${CYAN}Pending Deletion:${NC} ${GREEN}No (simulated)${NC}"
         echo ""
         echo -e "${CYAN}Group Memberships:${NC}"
@@ -1375,9 +1180,9 @@ get_user_input() {
             continue
         fi
         
-        # Add @your-domain.edu if just username provided
+        # Add @${DOMAIN:-yourdomain.edu} if just username provided
         if [[ "$user_input" != *"@"* ]]; then
-            user_input="${user_input}@your-domain.edu"
+            user_input="${user_input}@${DOMAIN:-yourdomain.edu}"
             echo "Assuming: $user_input"
         fi
         
@@ -1415,9 +1220,9 @@ get_multiple_user_input() {
             break
         fi
         
-        # Add @your-domain.edu if just username provided
+        # Add @${DOMAIN:-yourdomain.edu} if just username provided
         if [[ "$user_input" != *"@"* ]]; then
-            user_input="${user_input}@your-domain.edu"
+            user_input="${user_input}@${DOMAIN:-yourdomain.edu}"
         fi
         
         # Validate user exists
@@ -1485,14 +1290,14 @@ check_operation_prerequisites() {
                 [[ "$proceed" =~ ^[Yy] ]] || return 1
             fi
             ;;
-        "add_temphold")
+        "add_gamadmin_hold")
             if [[ "$lastname" == *"(Suspended Account - Temporary Hold)"* ]]; then
                 echo -e "${YELLOW}Warning: User $user already has temporary hold marker. Skip? (y/n)${NC}"
                 read -p "> " skip
                 [[ "$skip" =~ ^[Yy] ]] && return 2  # Return 2 for skip
             fi
             ;;
-        "remove_temphold")
+        "remove_gamadmin_hold")
             if [[ "$lastname" != *"(Suspended Account - Temporary Hold)"* ]]; then
                 echo -e "${YELLOW}Warning: User $user does not have temporary hold marker. Proceed anyway? (y/n)${NC}"
                 read -p "> " proceed
@@ -1535,7 +1340,7 @@ show_summary() {
     echo ""
     echo -e "${GREEN}3. Rename Shared Files:${NC}"
     echo "   - Generate file list using list-users-files.sh"
-    echo "   - Filter for files shared with active your-domain.edu accounts ONLY"
+    echo "   - Filter for files shared with active ${DOMAIN:-yourdomain.edu} accounts ONLY"
     echo "   - Add '(Suspended Account - Temporary Hold)' to shared file names"
     echo "   - Skip files already having this suffix or shared externally"
     echo ""
@@ -1548,7 +1353,7 @@ show_summary() {
     echo "   - Remove user from all groups (with backup)"
     echo ""
     echo -e "${GREEN}6. Logging:${NC}"
-    echo "   - Add user to temphold-done.log"
+    echo "   - Add user to gamadmin-done.log"
     echo "   - Add timestamp to file-rename-done.txt"
     echo "   - Create group membership backup"
     echo ""
@@ -1576,12 +1381,12 @@ show_removal_summary() {
     echo "   - Log changes to tmp/${user}-removal.txt"
     echo ""
     echo -e "${GREEN}3. Move User to Destination OU:${NC}"
-    echo "   - Choose destination: Pending Deletion, Suspended, or your-domain.edu"
+    echo "   - Choose destination: Pending Deletion, Suspended, or ${DOMAIN:-yourdomain.edu}"
     echo "   - Move user to selected organizational unit"
-    echo "   - If moving to your-domain.edu, offer to restore groups from backup"
+    echo "   - If moving to ${DOMAIN:-yourdomain.edu}, offer to restore groups from backup"
     echo ""
     echo -e "${GREEN}4. Logging:${NC}"
-    echo "   - Add user to temphold-removed.log"
+    echo "   - Add user to gamadmin-removed.log"
     echo "   - Add timestamp to file-removal-done.txt"
     echo "   - Log any group restoration activity"
     echo ""
@@ -1650,7 +1455,7 @@ show_pending_removal_summary() {
     echo "   - Log changes to tmp/${user}-pending-removed.txt"
     echo ""
     echo -e "${GREEN}3. Move User to Destination OU:${NC}"
-    echo "   - Choose destination: Pending Deletion, Suspended, or your-domain.edu"
+    echo "   - Choose destination: Pending Deletion, Suspended, or ${DOMAIN:-yourdomain.edu}"
     echo "   - Move user to selected organizational unit"
     echo ""
     echo -e "${GREEN}4. Logging:${NC}"
@@ -1684,13 +1489,13 @@ dry_run_mode() {
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR: $user${NC}"
             
             case $operation in
-                "add_temphold")
+                "add_gamadmin_hold")
                     show_summary "$user"
                     process_user "$user"
                     ;;
-                "remove_temphold")
+                "remove_gamadmin_hold")
                     show_removal_summary "$user"
-                    remove_temphold_user "$user"
+                    remove_gamadmin_hold_user "$user"
                     ;;
                 "add_pending")
                     show_pending_summary "$user"
@@ -1710,11 +1515,11 @@ dry_run_mode() {
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR $user_count USERS${NC}"
             
             case $operation in
-                "add_temphold")
+                "add_gamadmin_hold")
                     process_users_from_file "$file_path"
                     ;;
-                "remove_temphold")
-                    remove_temphold_users_from_file "$file_path"
+                "remove_gamadmin_hold")
+                    remove_gamadmin_hold_users_from_file "$file_path"
                     ;;
                 "add_pending")
                     process_pending_users_from_file "$file_path"
@@ -1750,7 +1555,7 @@ cleanup_shared_drive() {
     echo ""
     
     # Grant admin user editor access to the shared drive
-    local admin_user="gamadmin@your-domain.edu"
+    local admin_user="gamadmin@${DOMAIN:-yourdomain.edu}"
     echo -e "${CYAN}Adding admin access to shared drive...${NC}"
     if ! $GAM user "$admin_user" add drivefileacl "$drive_id" user "$admin_user" role editor asadmin 2>/dev/null; then
         echo -e "${RED}Error: Failed to add admin access to shared drive${NC}"
@@ -2659,7 +2464,7 @@ analyze_user_file_sharing() {
     identify_active_recipients "$username" "$shared_with_emails_csv" "$active_shares_csv"
     
     local active_count=$(tail -n +2 "$active_shares_csv" | wc -l 2>/dev/null || echo "0")
-    echo -e "${GREEN}Found $active_count files shared with active your-domain.edu accounts${NC}"
+    echo -e "${GREEN}Found $active_count files shared with active ${DOMAIN:-yourdomain.edu} accounts${NC}"
     
     if [[ $active_count -gt 0 ]]; then
         echo -e "${CYAN}Step 5: Adding file path information...${NC}"
@@ -2738,7 +2543,7 @@ identify_active_recipients() {
     
     # Extract unique email addresses
     local temp_emails=$(mktemp)
-    tail -n +2 "$shared_with_emails_csv" | cut -d, -f8 | grep "@your-domain.edu" | sort -u > "$temp_emails"
+    tail -n +2 "$shared_with_emails_csv" | cut -d, -f8 | grep "@${DOMAIN:-yourdomain.edu}" | sort -u > "$temp_emails"
     
     local total_emails=$(wc -l < "$temp_emails")
     echo -e "${CYAN}Checking suspension status for $total_emails unique email addresses...${NC}"
@@ -2761,7 +2566,7 @@ identify_active_recipients() {
     done < "$temp_emails"
     
     local active_count=$(wc -l < "$active_emails")
-    echo -e "${GREEN}Found $active_count active your-domain.edu recipients${NC}"
+    echo -e "${GREEN}Found $active_count active ${DOMAIN:-yourdomain.edu} recipients${NC}"
     
     # Filter shared files to only include those shared with active users
     head -n 1 "$shared_with_emails_csv" > "$output_csv"
@@ -2912,7 +2717,7 @@ generate_sharing_reports() {
         local total_shared=$(tail -n +2 "$input_csv" | wc -l)
         local unique_recipients=$(tail -n +2 "$input_csv" | cut -d, -f8 | sort -u | wc -l)
         
-        echo "Total files shared with active your-domain.edu accounts: $total_shared"
+        echo "Total files shared with active ${DOMAIN:-yourdomain.edu} accounts: $total_shared"
         echo "Number of unique active recipients: $unique_recipients"
         echo ""
         
@@ -3075,7 +2880,7 @@ file_sharing_analysis_menu() {
         echo -e "${BLUE}=== File Sharing Analysis and Reports ===${NC}"
         echo ""
         echo "This tool analyzes file sharing between suspended accounts and"
-        echo "active your-domain.edu users, generating detailed reports."
+        echo "active ${DOMAIN:-yourdomain.edu} users, generating detailed reports."
         echo ""
         echo "1. Analyze single user's file sharing"
         echo "2. Analyze multiple users (batch processing)"
@@ -3318,7 +3123,7 @@ discovery_mode() {
     
     case $discovery_choice in
         1) 
-            query_temphold_users
+            query_gamadmin_hold_users
             ;;
         2) 
             query_pending_users
@@ -3380,12 +3185,12 @@ check_incomplete_operations() {
     echo -e "${YELLOW}Checking for incomplete operations...${NC}"
     
     # Check for partial log entries
-    if [[ -f "${SCRIPTPATH}/temphold-done.log" ]]; then
-        echo "Users in temphold-done.log: $(wc -l < "${SCRIPTPATH}/temphold-done.log")"
+    if [[ -f "${SCRIPTPATH}/gamadmin-done.log" ]]; then
+        echo "Users in gamadmin-done.log: $(wc -l < "${SCRIPTPATH}/gamadmin-done.log")"
     fi
     
-    if [[ -f "${SCRIPTPATH}/temphold-removed.log" ]]; then
-        echo "Users in temphold-removed.log: $(wc -l < "${SCRIPTPATH}/temphold-removed.log")"
+    if [[ -f "${SCRIPTPATH}/gamadmin-removed.log" ]]; then
+        echo "Users in gamadmin-removed.log: $(wc -l < "${SCRIPTPATH}/gamadmin-removed.log")"
     fi
     
     # Check for orphaned tmp files
@@ -3437,7 +3242,7 @@ generate_user_file_list() {
         show_progress $counter $total_files "Processing file $counter"
         
         # Check if file has external sharing
-        if [[ "$permissions" == *"@your-domain.edu"* ]] || [[ "$permissions" == *"anyone"* ]]; then
+        if [[ "$permissions" == *"@${DOMAIN:-yourdomain.edu}"* ]] || [[ "$permissions" == *"anyone"* ]]; then
             # Get path information using build_file_path function
             local path=$(build_file_path "$id")
             echo "$owners,$name,$id,$mimeType,$size,$webViewLink,$modifiedTime,$permissions,$path" >> "$output_file"
@@ -3468,7 +3273,7 @@ build_file_path() {
     
     while [[ -n "$current_id" && "$current_id" != "root" ]]; do
         # Get file name and parent
-        local file_info=$($GAM user "gamadmin@your-domain.edu" show fileinfo "$current_id" fields name,parents 2>/dev/null)
+        local file_info=$($GAM user "gamadmin@${DOMAIN:-yourdomain.edu}" show fileinfo "$current_id" fields name,parents 2>/dev/null)
         local name=$(echo "$file_info" | grep "name:" | cut -d' ' -f2-)
         local parent=$(echo "$file_info" | grep "parents:" | cut -d' ' -f2)
         
@@ -3502,7 +3307,7 @@ identify_active_recipients() {
         return 1
     fi
     
-    echo "Filtering for files shared with active your-domain.edu accounts..."
+    echo "Filtering for files shared with active ${DOMAIN:-yourdomain.edu} accounts..."
     
     # Create header for output file
     head -n 1 "$input_file" > "$output_file"
@@ -3533,7 +3338,7 @@ identify_active_recipients() {
     done
     
     local active_count=$(tail -n +2 "$output_file" | wc -l)
-    echo "Found $active_count files shared with active your-domain.edu accounts"
+    echo "Found $active_count files shared with active ${DOMAIN:-yourdomain.edu} accounts"
 }
 
 # Function to analyze user file sharing comprehensively
@@ -3599,11 +3404,11 @@ transfer_ownership_to_gamadmin() {
             show_progress $counter $file_count "Transferring file: $file_name"
             
             # Check if file is owned by external account
-            if [[ "$owner_email" != *"@your-domain.edu" ]]; then
+            if [[ "$owner_email" != *"@${DOMAIN:-yourdomain.edu}" ]]; then
                 echo "  External file detected - copying instead of transferring: $file_name"
-                $GAM user gamadmin@your-domain.edu add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
+                $GAM user gamadmin@${DOMAIN:-yourdomain.edu} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
             else
-                $GAM user "$user_email" add drivefileacl "$file_id" user gamadmin@your-domain.edu role owner transferownership true
+                $GAM user "$user_email" add drivefileacl "$file_id" user gamadmin@${DOMAIN:-yourdomain.edu} role owner transferownership true
             fi
         done
     else
@@ -3771,7 +3576,7 @@ restore_file_dates() {
         show_progress $counter $file_count "Fixing date: $file_name"
         
         # Try to find appropriate date from file activity
-        local activity_date=$($GAM user gamadmin@your-domain.edu show driveactivity "$file_id" 2>/dev/null | \
+        local activity_date=$($GAM user gamadmin@${DOMAIN:-yourdomain.edu} show driveactivity "$file_id" 2>/dev/null | \
                               grep -E "time.*$(date -d "$target_date" +%Y)" | head -1 | \
                               grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "$target_date")
         
@@ -3822,7 +3627,7 @@ remove_user_from_all_groups() {
     echo -e "${GREEN}Removing $user_email from all groups...${NC}"
     
     # Get list of groups user belongs to
-    local groups=$($GAM print groups member "$user_email" | grep "your-domain.edu" | awk '{print $1}')
+    local groups=$($GAM print groups member "$user_email" | grep "${DOMAIN:-yourdomain.edu}" | awk '{print $1}')
     local group_count=$(echo "$groups" | wc -l)
     
     if [[ -z "$groups" ]]; then
@@ -3862,21 +3667,21 @@ shared_drive_operations() {
     case $operation in
         "remove_pending_labels")
             echo -e "${GREEN}Removing pending deletion labels from shared drive...${NC}"
-            $GAM user gamadmin@your-domain.edu print filelist query "parents in '$drive_id'" \
+            $GAM user gamadmin@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
                 fields id,name | tail -n +2 | while IFS=',' read -r file_id file_name; do
                 if [[ "$file_name" == *"PENDING DELETION"* ]] || [[ "$file_name" == *"Suspended Account - Temporary Hold"* ]]; then
                     local new_name=$(echo "$file_name" | sed -E 's/ \(PENDING DELETION - CONTACT OIT\)//g' | \
                                     sed -E 's/ \(Suspended Account - Temporary Hold\)//g')
                     echo "  Cleaning: $file_name -> $new_name"
-                    $GAM user gamadmin@your-domain.edu update drivefile "$file_id" name "$new_name"
+                    $GAM user gamadmin@${DOMAIN:-yourdomain.edu} update drivefile "$file_id" name "$new_name"
                 fi
             done
             ;;
         "grant_admin_access")
             echo -e "${GREEN}Granting gamadmin access to all files in shared drive...${NC}"
-            $GAM user gamadmin@your-domain.edu print filelist query "parents in '$drive_id'" \
+            $GAM user gamadmin@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
                 fields id | tail -n +2 | while read file_id; do
-                $GAM user gamadmin@your-domain.edu add drivefileacl "$file_id" user gamadmin@your-domain.edu role writer
+                $GAM user gamadmin@${DOMAIN:-yourdomain.edu} add drivefileacl "$file_id" user gamadmin@${DOMAIN:-yourdomain.edu} role writer
             done
             ;;
         "create_user_drive")
@@ -3886,7 +3691,7 @@ shared_drive_operations() {
             echo "Created shared drive: $new_drive_id"
             
             # Grant access to gamadmin
-            $GAM update shareddrive "$new_drive_id" add organizer gamadmin@your-domain.edu
+            $GAM update shareddrive "$new_drive_id" add organizer gamadmin@${DOMAIN:-yourdomain.edu}
             echo "$new_drive_id"
             ;;
     esac
@@ -3898,7 +3703,7 @@ get_destination_ou() {
     echo "Select destination Organizational Unit:"
     echo "1. Suspended Accounts/Suspended - Pending Deletion"
     echo "2. Suspended Accounts (general suspended)"
-    echo "3. your-domain.edu (reactivate account)"
+    echo "3. ${DOMAIN:-yourdomain.edu} (reactivate account)"
     echo ""
     while true; do
         read -p "Choose destination OU (1-3): " ou_choice
@@ -3971,7 +3776,7 @@ remove_user_from_all_groups() {
     echo -e "${CYAN}Fetching group memberships for $user...${NC}"
     
     # Get all groups the user is a member of
-    local groups=$($GAM print groups member "$user" 2>/dev/null | tail -n +2 | grep your-domain.edu || true)
+    local groups=$($GAM print groups member "$user" 2>/dev/null | tail -n +2 | grep ${DOMAIN:-yourdomain.edu} || true)
     
     if [[ -z "$groups" ]]; then
         echo -e "${GREEN}User $user is not a member of any groups${NC}"
@@ -4088,7 +3893,7 @@ get_user_ou() {
 }
 
 # Function to query users in temporary hold OU
-query_temphold_users() {
+query_gamadmin_hold_users() {
     echo -e "${CYAN}Querying users in Temporary Hold OU...${NC}"
     
     if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
@@ -4409,8 +4214,8 @@ offer_bulk_operations() {
         read -p "Select operation (1-6): " bulk_op
         
         case $bulk_op in
-            1) bulk_process_users "$result_file" "add_temphold" ;;
-            2) bulk_process_users "$result_file" "remove_temphold" ;;
+            1) bulk_process_users "$result_file" "add_gamadmin_hold" ;;
+            2) bulk_process_users "$result_file" "remove_gamadmin_hold" ;;
             3) bulk_process_users "$result_file" "add_pending" ;;
             4) bulk_process_users "$result_file" "remove_pending" ;;
             5) bulk_diagnose_users "$result_file" ;;
@@ -4444,8 +4249,8 @@ bulk_process_users() {
         echo -e "${YELLOW}Progress: $current/$user_count${NC}"
         
         case $operation in
-            "add_temphold") process_user "$user" ;;
-            "remove_temphold") remove_temphold_user "$user" ;;
+            "add_gamadmin_hold") process_user "$user" ;;
+            "remove_gamadmin_hold") remove_gamadmin_hold_user "$user" ;;
             "add_pending") process_pending_user "$user" ;;
             "remove_pending") remove_pending_user "$user" ;;
         esac
@@ -4523,9 +4328,9 @@ diagnose_account() {
         echo "Simulated: Found 15 files with '(Suspended Account - Temporary Hold)' suffix"
         files_with_suffix=15
     else
-        temphold_files=$($GAM user "$user" show filelist id name | grep -c "(Suspended Account - Temporary Hold)")
-        echo "Files with suffix: $temphold_files"
-        files_with_suffix=$temphold_files
+        gamadmin_hold_files=$($GAM user "$user" show filelist id name | grep -c "(Suspended Account - Temporary Hold)")
+        echo "Files with suffix: $gamadmin_hold_files"
+        files_with_suffix=$gamadmin_hold_files
     fi
     
     # Check files without suffix (should be 0 for consistent account)
@@ -4812,7 +4617,7 @@ remove_from_groups() {
     fi
     
     # Get list of groups user is a member of
-    groups=$($GAM print groups member $user 2>/dev/null | grep your-domain.edu)
+    groups=$($GAM print groups member $user 2>/dev/null | grep ${DOMAIN:-yourdomain.edu})
     
     if [[ -z "$groups" ]]; then
         echo "User $user is not a member of any groups"
@@ -4867,7 +4672,7 @@ restore_lastname() {
     fi
 }
 
-# Function to fix filenames (from temphold-filesfix.sh)
+# Function to fix filenames (from gamadmin-filesfix.sh)
 fix_filenames() {
     local user="$1"
     echo -e "${GREEN}Step 2: Fixing filenames for $user${NC}"
@@ -4922,7 +4727,7 @@ fix_filenames() {
     fi
 }
 
-# Function to rename all files (from temphold-file-rename.sh)
+# Function to rename all files (from gamadmin-file-rename.sh)
 rename_all_files() {
     local user_email_full="$1"
     local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
@@ -4941,8 +4746,8 @@ rename_all_files() {
         # Create simulated data for dry-run
         mkdir -p "$(dirname "$INPUT_FILE")"
         echo "owner,id,filename,shared_with,permission" > "$INPUT_FILE"
-        echo "$user_email,123abc,Document1.pdf,activeuser1@your-domain.edu,reader" >> "$INPUT_FILE"
-        echo "$user_email,456def,Document2.pdf,activeuser2@your-domain.edu,writer" >> "$INPUT_FILE"
+        echo "$user_email,123abc,Document1.pdf,activeuser1@${DOMAIN:-yourdomain.edu},reader" >> "$INPUT_FILE"
+        echo "$user_email,456def,Document2.pdf,activeuser2@${DOMAIN:-yourdomain.edu},writer" >> "$INPUT_FILE"
         echo "$user_email,789ghi,Document3.pdf,externaluser@gmail.com,reader" >> "$INPUT_FILE"
     else
         analyze_user_file_sharing "$user_email_full"
@@ -4956,11 +4761,11 @@ rename_all_files() {
         return 0
     fi
     
-    # Filter for files shared with active your-domain.edu accounts ONLY
+    # Filter for files shared with active ${DOMAIN:-yourdomain.edu} accounts ONLY
     # Exclude external domains and already suspended accounts
-    echo "Filtering for files shared with active your-domain.edu accounts..."
+    echo "Filtering for files shared with active ${DOMAIN:-yourdomain.edu} accounts..."
     
-    # Generate list of files shared ONLY with active your-domain.edu accounts
+    # Generate list of files shared ONLY with active ${DOMAIN:-yourdomain.edu} accounts
     # This excludes files shared with external domains or already suspended users
     awk -F, '
     NR==1 {next}  # Skip header
@@ -4979,15 +4784,15 @@ rename_all_files() {
     
     echo "Analysis of $user_email file sharing:"
     echo "  Total files owned: $total_files"
-    echo "  Files shared with active your-domain.edu accounts: $shared_count"
+    echo "  Files shared with active ${DOMAIN:-yourdomain.edu} accounts: $shared_count"
     echo "  Files shared externally or with suspended accounts: $external_files"
     echo ""
     
     if [[ $shared_count -eq 0 ]]; then
-        echo -e "${GREEN}✓ No files are shared with active your-domain.edu accounts.${NC}"
+        echo -e "${GREEN}✓ No files are shared with active ${DOMAIN:-yourdomain.edu} accounts.${NC}"
         echo -e "${CYAN}This is ideal for security - no internal sharing to protect.${NC}"
         echo -e "${CYAN}Only files already marked as pending deletion were processed.${NC}"
-        log_info "User $user_email_full has no files shared with active your-domain.edu accounts - optimal security state"
+        log_info "User $user_email_full has no files shared with active ${DOMAIN:-yourdomain.edu} accounts - optimal security state"
         return 0
     fi
     
@@ -5019,7 +4824,7 @@ rename_all_files() {
     echo "${user_email},$(date '+%Y-%m-%d %H:%M:%S')" >> "${SCRIPTPATH}/file-rename-done.txt"
 }
 
-# Function to update user last name (from temphold-namechange.sh)
+# Function to update user last name (from gamadmin-namechange.sh)
 update_user_lastname() {
     local username="$1"
     echo -e "${GREEN}Step 4: Updating last name for $username${NC}"
@@ -5040,7 +4845,7 @@ update_user_lastname() {
 }
 
 # Function to remove temporary hold from user's last name
-remove_temphold_lastname() {
+remove_gamadmin_hold_lastname() {
     local email="$1"
     echo -e "${GREEN}Step 1: Removing temporary hold from last name for $email${NC}"
     
@@ -5061,7 +4866,7 @@ remove_temphold_lastname() {
 }
 
 # Function to remove temporary hold from all files
-remove_temphold_from_files() {
+remove_gamadmin_hold_from_files() {
     local user_email_full="$1"
     local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
     
@@ -5100,7 +4905,7 @@ remove_temphold_from_files() {
 }
 
 # Function to remove temporary hold from a single user
-remove_temphold_user() {
+remove_gamadmin_hold_user() {
     local user="$1"
     
     echo -e "${BLUE}=== Removing temporary hold from user: $user ===${NC}"
@@ -5108,12 +4913,12 @@ remove_temphold_user() {
     
     # Step 1: Remove temporary hold from lastname
     show_progress 1 3 "Removing temporary hold from lastname"
-    remove_temphold_lastname "$user"
+    remove_gamadmin_hold_lastname "$user"
     echo ""
     
     # Step 2: Remove temporary hold from all files
     show_progress 2 3 "Removing temporary hold from all files"
-    remove_temphold_from_files "$user"
+    remove_gamadmin_hold_from_files "$user"
     echo ""
     
     # Step 3: Move user to appropriate OU
@@ -5128,7 +4933,7 @@ remove_temphold_user() {
     
     # Step 4: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
-        echo "$user" >> "${SCRIPTPATH}/temphold-removed.log"
+        echo "$user" >> "${SCRIPTPATH}/gamadmin-removed.log"
         echo "$(date '+%Y-%m-%d %H:%M:%S'),$user" >> "${SCRIPTPATH}/file-removal-done.txt"
     else
         echo -e "${CYAN}[DRY-RUN] Would log user removal${NC}"
@@ -5138,7 +4943,7 @@ remove_temphold_user() {
 }
 
 # Function to remove temporary hold from multiple users from file
-remove_temphold_users_from_file() {
+remove_gamadmin_hold_users_from_file() {
     local file_path="$1"
     local user_count=$(wc -l < "$file_path")
     local current=0
@@ -5151,7 +4956,7 @@ remove_temphold_users_from_file() {
         if [[ -n "$user" && ! "$user" =~ ^[[:space:]]*# ]]; then
             ((current++))
             echo -e "${YELLOW}Progress: $current/$user_count${NC}"
-            remove_temphold_user "$user"
+            remove_gamadmin_hold_user "$user"
             echo "----------------------------------------"
         fi
     done < "$file_path"
@@ -5287,7 +5092,7 @@ remove_pending_users_from_file() {
 process_user() {
     local user="$1"
     
-    log_info "Starting add_temphold operation for user: $user" "console"
+    log_info "Starting add_gamadmin_hold operation for user: $user" "console"
     start_operation_timer
     
     echo -e "${BLUE}=== Processing user: $user ===${NC}"
@@ -5320,15 +5125,15 @@ process_user() {
     
     # Step 6: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
-        echo "$user" >> "${SCRIPTPATH}/temphold-done.log"
-        log_operation "add_temphold" "$user" "SUCCESS" "Temporary hold added successfully"
+        echo "$user" >> "${SCRIPTPATH}/gamadmin-done.log"
+        log_operation "add_gamadmin_hold" "$user" "SUCCESS" "Temporary hold added successfully"
     else
-        echo -e "${CYAN}[DRY-RUN] Would log user to temphold-done.log${NC}"
-        log_operation "add_temphold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
+        echo -e "${CYAN}[DRY-RUN] Would log user to gamadmin-done.log${NC}"
+        log_operation "add_gamadmin_hold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
     fi
     
-    end_operation_timer "add_temphold" 1
-    log_info "Completed add_temphold operation for user: $user" "console"
+    end_operation_timer "add_gamadmin_hold" 1
+    log_info "Completed add_gamadmin_hold operation for user: $user" "console"
     echo -e "${GREEN}User $user has been processed successfully.${NC}"
     echo ""
 }
@@ -6024,7 +5829,7 @@ stage3_sharing_analysis_menu() {
         clear
         echo -e "${GREEN}=== Stage 3: File Sharing Analysis & Reports ===${NC}"
         echo ""
-        echo -e "${CYAN}Analyze files shared by pending deletion accounts with active your-domain.edu users.${NC}"
+        echo -e "${CYAN}Analyze files shared by pending deletion accounts with active ${DOMAIN:-yourdomain.edu} users.${NC}"
         echo -e "${CYAN}Generate reports for active users about files they're receiving from suspended accounts.${NC}"
         echo ""
         echo "1. Analyze single user's file sharing"
@@ -6261,7 +6066,7 @@ stage4_final_decisions_menu() {
                 user=$(get_user_input)
                 show_summary "$user"
                 if enhanced_confirm "move to temporary hold" 1 "normal"; then
-                    create_backup "$user" "add_temphold"
+                    create_backup "$user" "add_gamadmin_hold"
                     process_user "$user"
                 else
                     echo -e "${YELLOW}Operation cancelled.${NC}"
@@ -6287,8 +6092,8 @@ stage4_final_decisions_menu() {
                 user=$(get_user_input)
                 show_removal_summary "$user"
                 if enhanced_confirm "remove from temporary hold" 1 "normal"; then
-                    create_backup "$user" "remove_temphold"
-                    remove_temphold_user "$user"
+                    create_backup "$user" "remove_gamadmin_hold"
+                    remove_gamadmin_hold_user "$user"
                 else
                     echo -e "${YELLOW}Operation cancelled.${NC}"
                 fi
@@ -6296,7 +6101,7 @@ stage4_final_decisions_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             4) 
-                query_temphold_users
+                query_gamadmin_hold_users
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
@@ -6425,7 +6230,7 @@ stage5_deletion_operations_menu() {
                 echo ""
                 
                 local exit_row_count=$($GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail 2>/dev/null | tail -n +2 | wc -l)
-                local temphold_count=$(query_temphold_users | tail -n +2 | wc -l)
+                local temphold_count=$(query_gamadmin_hold_users | tail -n +2 | wc -l)
                 local pending_count=$(query_pending_users | tail -n +2 | wc -l)
                 
                 echo "Accounts by stage:"
