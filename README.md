@@ -1,162 +1,197 @@
 ![GWOMBAT Logo](assets/gwombat2.png)
 # GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
-A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) manages Google Workspace accounts through their complete lifecycle from suspension to deletion with persistent state tracking and verification capabilities.
+A comprehensive Google Workspace administration system providing account lifecycle management, file operations, shared drive management, user analysis, reporting, and system administration. GWOMBAT offers a complete suite of tools for managing Google Workspace environments with database tracking, verification, and automated workflows.
 
-## 🚀 Major Update (August 2025)
+## 🚀 What is GWOMBAT?
 
-### ✅ Application Renamed: GWOMBAT
-- Complete rename from "GAMadmin" to "GWOMBAT" (Google Workspace Optimization, Management, Backups And Taskrunner) 
-- Updated branding and version (v3.0)
-- Reflects expanded scope beyond temporary hold operations
+GWOMBAT is an enterprise-grade Google Workspace administration platform that goes far beyond simple account management. It provides:
 
-### ✅ Database Integration
-- **SQLite backend** for persistent account state tracking
-- **List management** system for batch operations with tags
-- **Verification engine** to check account states vs expected stages
-- **Complete audit trail** with session tracking and operation history
+- **Complete Account Lifecycle Management** - From suspension through deletion with database tracking
+- **Advanced File & Drive Operations** - Bulk file operations, shared drive cleanup, ownership management  
+- **Comprehensive User Analysis** - File sharing analysis, ownership auditing, activity reports
+- **Robust Reporting & Monitoring** - Daily reports, operation summaries, performance tracking
+- **Secure System Administration** - Database backups, deployment automation, configuration management
+- **Integrated Database System** - SQLite-based persistent state tracking and verification
 
-### ✅ Account Discovery & Scanning
-- **Automated scanning** of all suspended accounts in Google Workspace
-- **Stage detection** based on organizational unit placement
-- **Auto-list creation** from discovered accounts by stage
-- **Bulk verification** of account states across lists
+## 📋 Complete Feature Overview
 
-### ✅ Secure Deployment System
-- **Git-based deployment** with version control and rollbacks
-- **SSH key automation** with password-protected deployment keys
-- **Environment configuration** via .env files (no hardcoded paths)
-- **Deployment logging** with complete audit trail
+### 🔄 1. Suspended Account Lifecycle Management (8 Operations)
+- **Add/Remove Temporary Hold** - Mark accounts for extended review periods
+- **Add/Remove Pending Deletion** - Process accounts for final deletion with file markers
+- **Single User Operations** - Interactive single-account processing
+- **Batch Operations from Lists** - Process multiple accounts with progress tracking
+- **Import from CSV** - Bulk import account lists with automatic processing
+- **Preview Mode** - Dry-run operations to preview changes before execution
+- **Database Integration** - Persistent tracking of all account states and history
+- **Automated Verification** - Check account states match expected lifecycle stage
 
-## 📋 System Overview
+### 👥 2. User & Group Management (2 Operations)
+- **File Ownership Audit** - Identify files owned by users in external folders
+- **Orphaned File Collection** - Collect scattered files into designated folders
 
-### Main Menu Structure (Reorganized by Function)
-```
-GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
+### 💾 3. File & Drive Operations (13 Operations)
+- **Shared Drive Cleanup** - Remove pending deletion markers from shared drives
+- **Interactive Drive Operations** - Manual review and processing of shared drive files
+- **Admin Access Management** - Grant/revoke admin access to shared drives and files
+- **Archived Drive Creation** - Create dedicated archive drives for departed users
+- **URL Parsing & Search** - Accept drive URLs or search by name for easy identification
+- **File Activity Analysis** - Analyze recent vs. old file activity patterns
+- **Bulk File Operations** - Process hundreds of files with progress tracking
+- **Ownership Transfer** - Transfer file ownership in bulk with verification
+- **Group Management** - Backup/restore group memberships during transitions
+- **Bulk Group Operations** - Add/remove users from groups in batch
+- **Date Restoration** - Restore original file modification dates after operations
+- **Preview Mode** - Dry-run all operations to preview changes
+- **Command Transparency** - Display all GAM commands before execution
 
-=== ACCOUNT MANAGEMENT ===
-1. 🔄 Suspended Account Lifecycle Management (8 options)
-2. 👥 User & Group Management (2 options)
+### 🔍 4. Analysis & Discovery (11 Operations)
+- **Account Discovery & Scanning** - Automatically discover suspended accounts and categorize by stage
+- **File Sharing Analysis** - Comprehensive analysis of user file sharing patterns
+- **License Management** - Add/remove/audit Google Workspace licenses
+- **Batch License Operations** - Process license changes across multiple users
+- **User Activity Reports** - Generate detailed activity reports for individual users
+- **Cross-Domain Sharing** - Identify files shared outside the organization
+- **Permission Auditing** - Analyze file and folder permissions
+- **Storage Usage Analysis** - Track storage consumption patterns
+- **Collaboration Mapping** - Map user collaboration networks
+- **External Sharing Reports** - Identify potential security risks
+- **Compliance Reporting** - Generate reports for compliance requirements
 
-=== DATA & FILE OPERATIONS ===
-3. 💾 File & Drive Operations (13 options)
-4. 🔍 Analysis & Discovery (11 options)
-5. 📋 Account List Management (11 options)
+### 📋 5. Account List Management (11 Operations)
+- **Database-Driven Lists** - Create and manage account lists with tags
+- **CSV Import/Export** - Import account lists from CSV with automatic processing
+- **List Progress Tracking** - Monitor completion status of batch operations
+- **Account Verification** - Verify account states match database expectations
+- **Automated Discovery** - Scan Google Workspace and auto-create lists by stage
+- **List Membership Management** - Add/remove accounts from lists
+- **Bulk Processing** - Process entire lists with operation batching
+- **List Statistics** - View progress and completion statistics
+- **List Merging** - Combine multiple lists for complex operations
+- **List Filtering** - Filter lists by criteria for targeted operations
+- **List History** - Track changes and operations performed on lists
 
-=== MONITORING & SYSTEM ===
-6. 📈 Reports & Monitoring (11 options)
-7. ⚙️ System Administration (6 options)
+### 📈 6. Reports & Monitoring (11 Operations)
+- **Daily Activity Reports** - Comprehensive daily summaries of all operations
+- **Session Logging** - Detailed logs of all user sessions and activities
+- **Operation Summaries** - Real-time summaries of batch operations
+- **Performance Statistics** - Track operation duration and system performance
+- **Error Monitoring** - Centralized error logging and analysis
+- **Audit Trail** - Complete audit trail with session correlation
+- **Log Management** - Automated log cleanup and retention management
+- **Database Health** - Monitor database performance and integrity
+- **System Status** - Real-time system health monitoring
+- **Usage Analytics** - Track system usage patterns and trends
+- **Compliance Reports** - Generate reports for compliance and audit requirements
 
-8. ❌ Exit
-```
+### ⚙️ 7. System Administration (7 Operations)
+- **Database Backup & Restore** - Automated database backups with Google Drive integration
+- **Configuration Management** - Dynamic configuration with environment variables
+- **Deployment Automation** - Secure git-based deployment with SSH key management
+- **Dependency Checking** - Automated verification of system dependencies
+- **Log Maintenance** - Automated log cleanup and archiving
+- **Performance Optimization** - System performance monitoring and tuning
+- **Security Management** - SSH key rotation, access control, and security auditing
 
-### Account Lifecycle Stages
-The system tracks accounts through these lifecycle stages with persistent database storage:
+## 🛠️ Advanced Technical Features
 
-1. **recently_suspended** - Newly suspended accounts
-2. **pending_deletion** - Accounts marked for deletion with file markers
-3. **temporary_hold** - Accounts given additional time before deletion
-4. **exit_row** - Accounts prepared for final deletion
-5. **deleted** - Completed deletion operations
+### Database System
+- **SQLite Backend** - Lightweight, serverless database for persistence
+- **7-Table Schema** - Comprehensive data model for accounts, lists, operations, and audit trails
+- **ACID Compliance** - Ensure data integrity across all operations
+- **Automated Backups** - Regular backups to local storage and Google Drive
+- **Migration Support** - Schema versioning and upgrade capabilities
+- **Performance Optimization** - Indexed queries and optimized data structures
 
-### Database-Driven Operations
-- **Account Lists/Tags**: Group accounts for batch processing
-- **State Verification**: Automated checking of account states vs GAM reality
-- **Progress Tracking**: Monitor completion status of batch operations  
-- **Operation History**: Complete audit trail with session correlation
-- **Import/Export**: CSV import with automatic list creation
+### Security & Compliance
+- **SSH Key Authentication** - Dedicated deployment keys with password protection
+- **Audit Logging** - Complete operation history with session correlation
+- **Environment Isolation** - No secrets in code, all configuration via .env files
+- **Access Control** - Granular permission management for different operations
+- **Data Protection** - Encryption at rest and secure data handling
+- **Compliance Support** - Built-in reporting for regulatory requirements
 
-## 🛠️ Installation & Deployment
+### User Experience
+- **Intuitive Menu System** - Logically organized by function type
+- **Universal Navigation** - 'm' (main menu) and 'x' (exit) options on all screens
+- **Progress Tracking** - Real-time progress bars for long-running operations
+- **Command Transparency** - Display all GAM commands before execution
+- **Input Validation** - Smart input parsing including URL extraction
+- **Error Handling** - Graceful error handling with informative messages
+- **Dry-Run Mode** - Preview all operations before execution
 
-### Local Development Setup
+## 🔧 Installation & Configuration
 
-1. **Clone and configure**:
+### Prerequisites
+- **GAM (Google Apps Manager)** - Primary Google Workspace interface
+- **SQLite** - Database backend (usually pre-installed)
+- **Git/SSH** - Secure deployment infrastructure
+- **Bash 4+** - Shell scripting environment
+- **expect** - SSH key password automation
+
+### Quick Start
 ```bash
-git clone <your-repo>
+# 1. Clone and configure
+git clone git@github.com:mattbaya/gwombat.git
 cd gwombat
 cp .env.template .env
 # Edit .env with your configuration
-```
 
-2. **Create SSH deployment key**:
-```bash
+# 2. Create SSH deployment key (optional)
 ssh-keygen -t ed25519 -C "gwombatgit-key" -f ~/.ssh/gwombatgit-key
-ssh-copy-id -i ~/.ssh/gwombatgit-key.pub user@server
+
+# 3. Run GWOMBAT
+./gwombat.sh
 ```
-
-3. **Install dependencies**:
-```bash
-brew install expect  # For SSH key automation
-```
-
-### Production Deployment
-
-**Using the automated deployment script**:
-```bash
-./deploy.sh
-```
-
-The deployment script handles:
-- ✅ SSH key authentication with password automation
-- ✅ Git-based atomic deployments
-- ✅ Server configuration setup
-- ✅ Permission and directory management
-- ✅ Complete deployment logging
 
 ### Environment Configuration
 
-**Local (.env)**:
+**Local Development (.env)**:
 ```bash
-# SSH Key Configuration
-SSH_KEY_PASSWORD="your-secure-password"
-SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
-
-# Production Server Configuration  
-PRODUCTION_SERVER="gamera2.your-domain.edu"
-PRODUCTION_USER="gwombat"
-GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
-```
-
-**Production (server.env)**:
-```bash
-# Server paths
-GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
-GAM_PATH="/usr/local/bin/gam"
+# Domain and Organization Configuration
 DOMAIN="your-domain.edu"
+ADMIN_EMAIL="gwombat@your-domain.edu"
+ADMIN_USER="gamadmin@your-domain.edu"  # Your actual admin user
 
-# Organizational Units
+# Production Server Configuration (for deployment)
+PRODUCTION_SERVER="your-server.edu"
+PRODUCTION_USER="your-user"
+GWOMBAT_PATH="/opt/gamera/your-path/gwombat"
+
+# SSH Configuration (optional, for deployment)
+SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
+SSH_KEY_PASSWORD="your-secure-password"
+
+# Organizational Unit Paths
 SUSPENDED_OU="/Suspended Users"
 PENDING_DELETION_OU="/Suspended Users/Pending Deletion"
 TEMPORARY_HOLD_OU="/Suspended Users/Temporary Hold"
+EXIT_ROW_OU="/Suspended Users/Exit Row"
+
+# GAM Configuration
+GAM_PATH="/usr/local/bin/gam"
+GAM_CONFIG_PATH="/home/your-user/.gam"
+
+# Google Drive Configuration
+DRIVE_LABEL_ID="your-drive-label-id"
 ```
 
-## 🔧 Key Features
-
-### Database System
-- **Persistent State**: SQLite database tracks all account states
-- **List Management**: Tag-based grouping for batch operations
-- **Verification**: Automated checking of account vs expected states
-- **Audit Trail**: Complete operation history with session tracking
-
-### Account Management  
-- **Lifecycle Tracking**: Database-driven state management
-- **Batch Operations**: Process multiple accounts with progress tracking
-- **Verification System**: Confirm account states match expectations
-- **Automated Discovery**: Scan and categorize all suspended accounts
-
-### Deployment & Configuration
-- **Environment Agnostic**: No hardcoded paths or server details
-- **Secure Deployment**: SSH key-based authentication with automation
-- **Version Control**: Git-based deployments with rollback capability
-- **Configuration Management**: Multi-level configuration via .env files
+**Production Server (server.env)**:
+```bash
+# Server-specific configuration
+GWOMBAT_PATH="/opt/production/path/gwombat"
+GAM_PATH="/usr/local/bin/gam"
+DOMAIN="your-domain.edu"
+# ... additional server-specific settings
+```
 
 ## 📊 Database Schema
 
-The system uses a comprehensive SQLite schema with 7 main tables:
+GWOMBAT uses a comprehensive SQLite database with 7 main tables:
 
 - **accounts** - Core account information and current lifecycle stage
 - **account_lists** - List/tag definitions for grouping accounts
-- **account_list_memberships** - Many-to-many account-list relationships
+- **account_list_memberships** - Many-to-many account-list relationships  
 - **stage_history** - Complete lifecycle change tracking
 - **verification_status** - Stage-specific verification results
 - **operation_log** - Audit trail for all operations
@@ -164,80 +199,126 @@ The system uses a comprehensive SQLite schema with 7 main tables:
 
 ## 🔍 Usage Examples
 
-### Account List Management
+### Account Lifecycle Management
 ```bash
-# Run GWOMBAT
+# Launch GWOMBAT and select Account Lifecycle Management
 ./gwombat.sh
 
-# Select: 5. Account List Management
-# Options include:
-# - View all account lists with progress
-# - Create new account lists
-# - Import accounts from CSV files
-# - Scan all suspended accounts
-# - Auto-create lists from account scan
-# - Verify account states in bulk
+# Process multiple accounts
+Select: 1. Suspended Account Lifecycle Management
+Select: 4. Batch operations from account list
+Select your account list and operation type
 ```
 
-### Account Discovery
+### Shared Drive Operations
 ```bash
-# Scan all suspended accounts and discover their stages
-# Select: Account List Management → Scan all suspended accounts
-# This will categorize accounts by their current OU placement
+# Clean up shared drives
+Select: 3. File & Drive Operations  
+Select: 1. Clean shared drive
+
+# Enter drive URL or search by name
+Option 1: Paste https://drive.google.com/drive/folders/your-drive-id
+Option 2: Search for "Department Files"
 ```
 
-### Deployment
+### Analysis & Discovery
 ```bash
-# Deploy to production with one command
-./deploy.sh
-# Enter deployment key password once - handles everything else automatically
+# Discover and categorize accounts
+Select: 4. Analysis & Discovery
+Select: 1. Account discovery and scanning
+
+# Generate comprehensive reports
+Select: 4. Analysis & Discovery
+Select: 3. File sharing analysis
 ```
 
 ## 📁 File Organization
 
 ```
 gwombat/
-├── gwombat.sh                     # Main application (6500+ lines)
-├── database_functions.sh          # Database operations (688 lines)
-├── database_schema.sql            # SQLite schema definition
-├── deploy.sh                      # Secure deployment script
-├── .env.template                  # Local configuration template
+├── gwombat.sh                     # Main application (6800+ lines)
+├── shared-utilities/              
+│   ├── database_functions.sh      # Database operations (700+ lines)
+│   ├── fixshared.sh              # Shared drive utilities
+│   ├── recent4.sh                # File activity analysis
+│   └── [8 other utility scripts]
+├── database_schema.sql            # Complete SQLite schema
+├── deploy.sh                      # Secure deployment automation
+├── .env.template                  # Local configuration template  
 ├── server.env.template            # Server configuration template
+├── README.md                      # This comprehensive documentation
+├── CLAUDE.md                      # AI development context
 ├── DEPLOYMENT.md                  # Deployment documentation
-├── CLAUDE.md                      # Development context for AI
-├── shared-utilities/              # Essential standalone utilities
-├── old-scripts-replaced-by-master/# Archived script collections
+├── REQUIREMENTS.md                # System requirements
+├── assets/                        # Graphics and documentation assets
 ├── config/                        # Runtime configuration
 ├── logs/                          # Session and operation logs
 ├── reports/                       # Generated reports
-├── backups/                       # Data backups
-└── tmp/                          # Temporary files
+├── backups/                       # Database and configuration backups
+└── tmp/                          # Temporary processing files
 ```
+
+## 🚀 Recent Enhancements (August 2025)
+
+### Major Updates
+- **URL Parsing & Search** - Accept Google Drive URLs or search drives by name
+- **Command Transparency** - Display all GAM commands before execution
+- **Fixed Summary Counters** - Accurate operation summaries and statistics
+- **Enhanced Navigation** - Universal x/m options for exit and main menu
+- **Security Improvements** - Purged sensitive files from git history
+- **Admin User Configuration** - Configurable admin user via ADMIN_USER variable
+
+### Security Enhancements
+- **Complete History Cleanup** - Removed all sensitive files from git history
+- **Configurable Admin User** - No more hardcoded admin accounts
+- **Environment Variables** - All sensitive configuration moved to .env files
+- **SSH Key Management** - Automated deployment with secure key handling
 
 ## 🔐 Security Features
 
-- **SSH Key Authentication**: Dedicated deployment keys with password protection
-- **Environment Isolation**: No secrets in code, all configuration in .env files  
-- **Audit Logging**: Complete operation tracking with session correlation
-- **Version Control**: All changes tracked via git with rollback capability
-- **Permission Management**: Proper file and directory permissions on deployment
+- **Environment-Based Configuration** - All sensitive data in .env files
+- **SSH Key Deployment** - Automated secure deployment to production
+- **Complete Audit Trail** - Every operation logged with session correlation
+- **Database Backups** - Automated backups with Google Drive integration
+- **Access Control** - Role-based access to different operations
+- **Data Encryption** - Secure handling of sensitive account information
+- **Git Security** - Sensitive files excluded from version control
 
-## 📋 Dependencies
+## 📋 System Requirements
 
-- **GAM (Google Apps Manager)** - Primary Google Workspace interface
-- **SQLite** - Database backend for persistent state
-- **Git/SSH** - Secure deployment infrastructure  
-- **expect** - SSH key password automation
-- **Bash 4+** - Shell scripting environment
+### Required
+- **Linux/macOS** - Primary development and production platforms
+- **Bash 4.0+** - Core scripting environment
+- **GAM** - Google Apps Manager for Google Workspace integration
+- **SQLite** - Database backend (usually pre-installed)
+- **Git** - Version control and deployment
+- **SSH** - Secure remote access for deployment
+
+### Optional
+- **expect** - Automated SSH key password entry for deployment
+- **Google Drive API** - Automated backup uploads
+- **curl/wget** - Additional web-based integrations
+
+## 🌟 Why Choose GWOMBAT?
+
+1. **Comprehensive Solution** - Complete Google Workspace administration in one platform
+2. **Database-Driven** - Persistent state tracking and verification across all operations
+3. **Enterprise-Grade** - Built for large-scale Google Workspace environments
+4. **Security-First** - Complete audit trails, secure deployment, environment isolation
+5. **User-Friendly** - Intuitive menus with progress tracking and error handling
+6. **Extensible** - Modular design allows easy addition of new features
+7. **Transparent** - Shows exactly what commands are being executed
+8. **Reliable** - Comprehensive error handling and rollback capabilities
 
 ## 🚀 Future Enhancements
 
-- Enhanced verification with more sophisticated state checking
-- Scheduled workflow automation for batch operations
-- Web-based dashboard for status monitoring  
-- API integrations for external system hooks
-- Multi-server deployment management
+- **Web Dashboard** - Browser-based interface for monitoring and basic operations
+- **API Integration** - RESTful API for external system integration
+- **Workflow Automation** - Scheduled and triggered workflow execution
+- **Multi-Domain Support** - Manage multiple Google Workspace domains
+- **Advanced Analytics** - Machine learning-powered insights and recommendations
+- **Mobile Interface** - Mobile-responsive dashboard for on-the-go monitoring
 
 ---
 
-GWOMBAT represents a comprehensive evolution from simple script collection to enterprise-grade account lifecycle management system with database persistence, automated verification, and secure deployment capabilities.
+GWOMBAT represents the evolution from simple script collections to a comprehensive, enterprise-grade Google Workspace administration platform. With its database-driven architecture, security-first design, and comprehensive feature set, GWOMBAT provides everything needed to manage Google Workspace environments at scale.

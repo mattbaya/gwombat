@@ -127,6 +127,11 @@
 - **List Management**: Tag-based batch operations with verification
 - **Deployment Automation**: SSH key-based secure deployment system
 - **Configuration Externalization**: All paths and settings moved to .env files
+- **Admin User Configuration**: Added ADMIN_USER variable to .env for configurable admin accounts
+- **URL Parsing & Search**: Smart drive ID input with URL parsing and name search
+- **Command Transparency**: Display all GAM commands before execution for full visibility
+- **Enhanced Navigation**: Universal x/m menu options across all interfaces
+- **Security Hardening**: Complete removal of sensitive files from git history
 
 ### Dependencies
 - **GAM (Google Apps Manager)**: Primary interface to Google Workspace  
@@ -154,19 +159,42 @@ bash -n database_functions.sh
 ### Environment Configuration
 **Local Development (.env)**:
 ```bash
-PRODUCTION_SERVER="gamera2.your-domain.edu"
-PRODUCTION_USER="gwombat"  
-GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
+# Domain and Organization Configuration
+DOMAIN="your-domain.edu"
+ADMIN_EMAIL="gwombat@your-domain.edu"
+ADMIN_USER="your-actual-admin@your-domain.edu"  # Your real admin user
+
+# Production Server Configuration
+PRODUCTION_SERVER="your-server.edu"
+PRODUCTION_USER="your-user"
+GWOMBAT_PATH="/opt/path/to/gwombat"
+
+# SSH Configuration  
 SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
 SSH_KEY_PASSWORD="secure-password"
+
+# GAM Configuration
+GAM_PATH="/usr/local/bin/gam"
+GAM_CONFIG_PATH="/home/your-user/.gam"
+
+# Organizational Unit Paths
+SUSPENDED_OU="/Suspended Users"
+PENDING_DELETION_OU="/Suspended Users/Pending Deletion"
+TEMPORARY_HOLD_OU="/Suspended Users/Temporary Hold"
+EXIT_ROW_OU="/Suspended Users/Exit Row"
+
+# Google Drive Configuration
+DRIVE_LABEL_ID="your-drive-label-id"
 ```
 
 **Production Server (server.env)**:
 ```bash
-GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
+GWOMBAT_PATH="/opt/production/path/gwombat"
 GAM_PATH="/usr/local/bin/gam"
 DOMAIN="your-domain.edu"
+ADMIN_USER="your-actual-admin@your-domain.edu"
 SUSPENDED_OU="/Suspended Users"
+# ... additional server-specific settings
 ```
 
 ## File Organization

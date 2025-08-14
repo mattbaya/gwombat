@@ -16,8 +16,8 @@ GWOMBAT uses git for deployment to maintain version control and enable easy roll
 Copy the template and configure your deployment settings:
 ```bash
 cp .env.template .env
-# Edit .env with your specific values:
-# PRODUCTION_SERVER, PRODUCTION_USER, GWOMBAT_PATH, etc.
+# Edit .env with your specific values including:
+# DOMAIN, ADMIN_USER, PRODUCTION_SERVER, PRODUCTION_USER, GWOMBAT_PATH, etc.
 ```
 
 The deployment script reads from your `.env` file - no need to edit `deploy.sh` directly.

@@ -79,11 +79,13 @@ gam version
 gam info domain
 ```
 
-### 3. Set GAM Path
+### 3. Configure GWOMBAT for GAM
 Update your environment configuration:
 ```bash
-# In server.env
+# In .env or server.env
 GAM_PATH="/path/to/your/gam"  # Common: /usr/local/bin/gam
+GAM_CONFIG_PATH="/home/your-user/.gam"  # Your GAM config directory
+ADMIN_USER="your-admin@your-domain.edu"  # Your actual admin account
 ```
 
 ## Google Workspace Requirements
@@ -102,12 +104,13 @@ GAM_PATH="/path/to/your/gam"  # Common: /usr/local/bin/gam
   - `https://www.googleapis.com/auth/drive`
 
 ### Admin Permissions
-The account running GAM requires:
+The account configured as ADMIN_USER in your .env file requires:
 - **Super Admin** privileges (recommended)
 - Or specific admin roles:
   - User Management Admin
   - Groups Admin
   - Organizational Unit Admin
+  - Drive and Docs Admin (for file operations)
 
 ## File System Requirements
 
