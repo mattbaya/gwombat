@@ -106,3 +106,4 @@ performance-*/
 # Exclude organization-specific data
 *your-domain*
 *@your-domain.edu*
+old-scripts-replaced-by-master/
