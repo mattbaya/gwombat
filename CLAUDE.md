@@ -97,6 +97,13 @@
 
 ## Development Context for Claude
 
+### ⚠️ CRITICAL NAMING CONVENTION ⚠️
+**ALWAYS use "GAMadmin" (with 'd') - NEVER "GAMladmin" (with 'ld')**
+- ✅ Correct: GAMadmin, gamadmin, gamadmingit-key
+- ❌ Wrong: GAMladmin, gamladmin, gamladmingit-key
+- This is a persistent typo issue - always double-check spelling
+- Search and replace any instances of "gamladmin" with "gamadmin"
+
 ### Current Integration Status
 ✅ **Application Renamed**: Complete rename to GAMadmin with updated branding
 ✅ **Database System**: Full SQLite integration with comprehensive schema

@@ -16,7 +16,7 @@ Edit `deploy.sh` and update these variables:
 PRODUCTION_SERVER="gamera.your-domain.edu"  # Your server name
 PRODUCTION_USER="your-username"          # Your username
 PRODUCTION_PATH="/opt/your-path/gamadmin" # Where app runs
-BARE_REPO_PATH="/opt/your-path/gamladmin.git"  # Git repository
+BARE_REPO_PATH="/opt/your-path/gamadmin.git"  # Git repository
 ```
 
 ### 2. Ensure SSH Access
@@ -63,14 +63,14 @@ If you prefer not to use the deployment script:
 ### Initial Setup
 ```bash
 # On production server
-mkdir -p /opt/your-path/gamladmin.git
-cd /opt/your-path/gamladmin.git  
+mkdir -p /opt/your-path/gamadmin.git
+cd /opt/your-path/gamadmin.git  
 git init --bare
 
-git clone /opt/your-path/gamladmin.git /opt/your-path/gamladmin
+git clone /opt/your-path/gamadmin.git /opt/your-path/gamadmin
 
 # On your desktop
-git remote add production username@server:/opt/your-path/gamladmin.git
+git remote add production username@server:/opt/your-path/gamadmin.git
 ```
 
 ### Deploy
@@ -79,7 +79,7 @@ git remote add production username@server:/opt/your-path/gamladmin.git
 git push production main
 
 # Update working directory on server
-ssh username@server 'cd /opt/your-path/gamladmin && git pull origin main'
+ssh username@server 'cd /opt/your-path/gamadmin && git pull origin main'
 ```
 
 ## Rollback to Previous Version
@@ -88,7 +88,7 @@ If you need to rollback:
 
 ```bash
 # On production server, see available versions
-cd /opt/your-path/gamladmin
+cd /opt/your-path/gamadmin
 git log --oneline
 
 # Rollback to specific commit
@@ -101,8 +101,8 @@ git checkout HEAD~1
 ## Directory Structure on Production
 
 ```
-/opt/your-path/gamladmin/          # Working directory (where app runs)
-├── gamladmin.sh                   # Main script
+/opt/your-path/gamadmin/          # Working directory (where app runs)
+├── gamadmin.sh                   # Main script
 ├── database_functions.sh         # Database operations
 ├── database_schema.sql           # Database schema
 ├── logs/                         # Application logs
@@ -110,7 +110,7 @@ git checkout HEAD~1
 ├── tmp/                          # Temporary files
 └── backups/                      # Backups
 
-/opt/your-path/gamladmin.git/        # Bare repository (for git)
+/opt/your-path/gamadmin.git/        # Bare repository (for git)
 ```
 
 ## Troubleshooting
@@ -131,7 +131,7 @@ git commit -m "Your commit message"
 ### Check deployment status
 ```bash
 # On production server
-cd /opt/your-path/gamladmin
+cd /opt/your-path/gamadmin
 git log --oneline -5  # See recent deployments
 git status            # Check working directory status
 ```
