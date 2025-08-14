@@ -1,5 +1,9 @@
 # Environment files with sensitive data
 .env
+server.env
+*.env
+!.env.template
+!server.env.template
 
 # Database files (may contain sensitive account data)
 *.db
@@ -7,23 +11,61 @@
 *.sqlite3
 account_lifecycle.db
 
-# Log files
+# SSH Keys and authentication
+*.key
+*.pem
+*_rsa
+*_rsa.pub
+*.ppk
+.ssh/
+ssh_config
+
+# Log files (may contain sensitive operations data)
 logs/*.log
 *.log
 deploy-*.log
+audit-*.log
+performance-*.log
+error-*.log
+session-*.log
 
 # Temporary files
 tmp/*
 temp/*
 *.tmp
+.tmp/
 
-# Backup files
+# Backup files (may contain sensitive data)
 backups/*
 *.backup
+*.bak
+*.gz
+*.zip
+*.tar.gz
 
 # CSV files with account data
 *.csv
 csv-files/*
+reports/*.csv
+output/*.csv
+
+# Configuration with secrets
+config.json
+secrets.json
+credentials.json
+auth.json
+
+# GAM configuration (may contain OAuth tokens)
+.gam/
+gam.cfg
+oauth.txt
+oauth2.txt
+
+# Google API credentials
+client_secrets.json
+service_account.json
+*-service-account.json
+*.p12
 
 # OS generated files
 .DS_Store
@@ -40,3 +82,27 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+*.sublime-*
+.atom/
+
+# Package manager files that might contain sensitive info
+node_modules/
+.npm/
+yarn-error.log
+
+# Application-specific sensitive files
+session-*/
+audit-*/
+performance-*/
+
+# Exclude any files with passwords, keys, secrets in filename
+*password*
+*secret*
+*credential*
+*private*
+!*.template
+!*example*
+
+# Exclude organization-specific data
+*your-domain*
+*@your-domain.edu*
