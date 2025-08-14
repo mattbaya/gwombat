@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Temporary Hold Master Script
+# GAMadmin - Google Apps Manager Administration Tool
 #
-# A comprehensive script that consolidates all temporary hold operations for suspended user accounts into a single interactive tool with preview functionality.
+# A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows.
 #
 # ## Overview
 #
@@ -214,7 +214,7 @@
 #
 # - v1.0 - Initial consolidated version with interactive menu and preview functionality
 
-# Master Temporary Hold Script
+# GAMadmin Configuration
 # Consolidates all temphold operations with menu system and preview functionality
 
 # Variables now loaded via load_configuration() function
@@ -304,7 +304,7 @@ create_default_config() {
     cat > "$CONFIG_FILE" << EOF
 {
   "version": "2.0",
-  "description": "Temporary Hold Master Script Configuration",
+  "description": "GAMadmin Configuration",
   "created": "$(date -Iseconds)",
   "settings": {
     "gam_path": "/usr/local/bin/gam",
@@ -347,7 +347,7 @@ echo "=== SESSION START: $(date) ===" >> "$LOG_FILE"
 echo "Session ID: $SESSION_ID" >> "$LOG_FILE"
 echo "User: $(whoami)" >> "$LOG_FILE"
 echo "Working Directory: $(pwd)" >> "$LOG_FILE"
-echo "Script Version: Master Temporary Hold Script v2.0" >> "$LOG_FILE"
+echo "Script Version: GAMadmin v3.0" >> "$LOG_FILE"
 echo "GAM Path: $GAM" >> "$LOG_FILE"
 echo "Script Path: $SCRIPTPATH" >> "$LOG_FILE"
 echo "Progress Enabled: $PROGRESS_ENABLED" >> "$LOG_FILE"
@@ -1114,7 +1114,7 @@ audit_file_ownership_menu() {
 # Function to display the main menu
 show_main_menu() {
     clear
-    echo -e "${BLUE}=== Suspended Account Management System ===${NC}"
+    echo -e "${BLUE}=== GAMadmin - Google Apps Manager Administration ===${NC}"
     echo ""
     echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
@@ -1125,14 +1125,15 @@ show_main_menu() {
     echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
     echo "3. 💾 File & Drive Operations (13 options)"
     echo "4. 🔍 Analysis & Discovery (11 options)"
+    echo "5. 📋 Account List Management (11 options)"
     echo ""
     echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
-    echo "5. 📈 Reports & Monitoring (11 options)"
-    echo "6. ⚙️  System Administration (6 options)"
+    echo "6. 📈 Reports & Monitoring (11 options)"
+    echo "7. ⚙️  System Administration (6 options)"
     echo ""
-    echo "7. ❌ Exit"
+    echo "8. ❌ Exit"
     echo ""
-    read -p "Select an option (1-7): " choice
+    read -p "Select an option (1-8): " choice
     echo ""
     return $choice
 }
@@ -5537,6 +5538,245 @@ group_operations_menu() {
     done
 }
 
+# Source database functions
+source "${SCRIPTPATH}/database_functions.sh" 2>/dev/null || {
+    echo -e "${YELLOW}Warning: Database functions not available. Some features may be limited.${NC}"
+}
+
+# List Management Menu
+list_management_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== Account List Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Track account batches through lifecycle stages with persistent state${NC}"
+        echo ""
+        echo "1. 📋 View all account lists"
+        echo "2. ➕ Create new account list"
+        echo "3. 📥 Import accounts from file to list"
+        echo "4. 👥 View accounts in specific list"
+        echo "5. ✅ Verify list progress (check account states)"
+        echo "6. 🔄 Bulk verify all accounts in list"
+        echo "7. 📊 List progress summary"
+        echo "8. 🔍 Scan all suspended accounts (discover current stages)"
+        echo "9. 🤖 Auto-create lists from account scan"
+        echo "10. 🗃️  Database maintenance"
+        echo ""
+        echo "11. Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-11, m, x): " list_choice
+        echo ""
+        
+        case $list_choice in
+            1)
+                echo -e "${CYAN}Current Account Lists:${NC}"
+                echo ""
+                if db_list_account_lists; then
+                    echo ""
+                else
+                    echo -e "${YELLOW}No lists found or database not initialized${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                read -p "Enter list name: " list_name
+                read -p "Enter description (optional): " list_desc
+                echo ""
+                echo "Select target stage for this list:"
+                echo "1. recently_suspended"
+                echo "2. pending_deletion"
+                echo "3. temporary_hold"
+                echo "4. exit_row"
+                echo "5. deleted"
+                read -p "Select stage (1-5): " stage_choice
+                
+                case $stage_choice in
+                    1) target_stage="recently_suspended" ;;
+                    2) target_stage="pending_deletion" ;;
+                    3) target_stage="temporary_hold" ;;
+                    4) target_stage="exit_row" ;;
+                    5) target_stage="deleted" ;;
+                    *) 
+                        echo -e "${RED}Invalid stage selection${NC}"
+                        read -p "Press Enter to continue..."
+                        continue
+                        ;;
+                esac
+                
+                if [[ -n "$list_name" ]]; then
+                    db_create_list "$list_name" "$list_desc" "$target_stage"
+                else
+                    echo -e "${RED}List name cannot be empty${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            3)
+                read -p "Enter path to file containing account emails: " file_path
+                read -p "Enter list name (will create if doesn't exist): " list_name
+                echo ""
+                echo "Select initial stage for imported accounts:"
+                echo "1. recently_suspended"
+                echo "2. pending_deletion" 
+                echo "3. temporary_hold"
+                echo "4. exit_row"
+                read -p "Select stage (1-4): " stage_choice
+                
+                case $stage_choice in
+                    1) initial_stage="recently_suspended" ;;
+                    2) initial_stage="pending_deletion" ;;
+                    3) initial_stage="temporary_hold" ;;
+                    4) initial_stage="exit_row" ;;
+                    *) 
+                        echo -e "${RED}Invalid stage selection${NC}"
+                        read -p "Press Enter to continue..."
+                        continue
+                        ;;
+                esac
+                
+                if [[ -n "$file_path" && -n "$list_name" ]]; then
+                    import_accounts_to_list "$file_path" "$list_name" "$initial_stage"
+                else
+                    echo -e "${RED}File path and list name are required${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            4)
+                read -p "Enter list name: " list_name
+                if [[ -n "$list_name" ]]; then
+                    echo -e "${CYAN}Accounts in list '$list_name':${NC}"
+                    echo ""
+                    db_get_list_accounts "$list_name"
+                else
+                    echo -e "${RED}List name cannot be empty${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                read -p "Enter account email: " email
+                read -p "Enter expected stage (optional): " stage
+                if [[ -n "$email" ]]; then
+                    if [[ -n "$stage" ]]; then
+                        verify_account_state "$email" "$stage"
+                    else
+                        # Get current stage from database
+                        current_stage=$(sqlite3 "$DB_FILE" "SELECT current_stage FROM accounts WHERE email = '$email';" 2>/dev/null)
+                        if [[ -n "$current_stage" ]]; then
+                            verify_account_state "$email" "$current_stage"
+                        else
+                            echo -e "${RED}Account not found in database or no stage specified${NC}"
+                        fi
+                    fi
+                else
+                    echo -e "${RED}Email cannot be empty${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            6)
+                read -p "Enter list name: " list_name
+                if [[ -n "$list_name" ]]; then
+                    bulk_verify_list "$list_name"
+                else
+                    echo -e "${RED}List name cannot be empty${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            7)
+                echo -e "${CYAN}Account List Progress Summary:${NC}"
+                echo ""
+                if db_list_account_lists; then
+                    echo ""
+                    echo -e "${YELLOW}Progress shows: accounts_at_target / total_accounts (completion%)${NC}"
+                    echo -e "${YELLOW}Verified shows accounts that passed all verification checks${NC}"
+                else
+                    echo -e "${YELLOW}No lists found or database not initialized${NC}"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            8)
+                echo -e "${CYAN}Scanning all suspended accounts for current stage discovery...${NC}"
+                echo ""
+                read -p "Update database with discovered accounts? (yes/no): " update_choice
+                if [[ "$update_choice" == "yes" ]]; then
+                    scan_suspended_accounts true
+                else
+                    scan_suspended_accounts false
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            9)
+                echo -e "${CYAN}Auto-creating lists from current account scan...${NC}"
+                echo ""
+                read -p "Enter list prefix (default: scan_$(date +%Y%m%d_%H%M)): " list_prefix
+                if [[ -z "$list_prefix" ]]; then
+                    auto_create_stage_lists
+                else
+                    auto_create_stage_lists "$list_prefix"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            10)
+                echo -e "${CYAN}Database Maintenance${NC}"
+                echo ""
+                echo "1. Initialize/recreate database"
+                echo "2. Check database status"
+                echo "3. Export database backup"
+                echo "4. View database statistics"
+                read -p "Select maintenance option (1-4): " maint_choice
+                
+                case $maint_choice in
+                    1)
+                        echo -e "${YELLOW}This will recreate the database. Continue? (yes/no)${NC}"
+                        read -p "> " confirm
+                        if [[ "$confirm" == "yes" ]]; then
+                            rm -f "$DB_FILE"
+                            init_database && echo -e "${GREEN}Database recreated${NC}"
+                        fi
+                        ;;
+                    2)
+                        if check_database; then
+                            echo -e "${GREEN}Database is accessible${NC}"
+                            echo "Location: $DB_FILE"
+                            echo "Size: $(du -h "$DB_FILE" 2>/dev/null | cut -f1 || echo 'unknown')"
+                            echo "Tables: $(sqlite3 "$DB_FILE" ".tables" 2>/dev/null | wc -w || echo 'unknown')"
+                        else
+                            echo -e "${RED}Database is not accessible${NC}"
+                        fi
+                        ;;
+                    3)
+                        backup_file="${DB_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+                        cp "$DB_FILE" "$backup_file" 2>/dev/null && \
+                            echo -e "${GREEN}Database backed up to: $backup_file${NC}" || \
+                            echo -e "${RED}Backup failed${NC}"
+                        ;;
+                    4)
+                        if check_database; then
+                            echo -e "${CYAN}Database Statistics:${NC}"
+                            sqlite3 "$DB_FILE" "
+                                SELECT 'Total Accounts: ' || COUNT(*) FROM accounts;
+                                SELECT 'Active Lists: ' || COUNT(*) FROM account_lists WHERE is_active = 1;
+                                SELECT 'Total Verifications: ' || COUNT(*) FROM verification_status;
+                                SELECT 'Total Operations: ' || COUNT(*) FROM operation_log;
+                            "
+                        else
+                            echo -e "${RED}Database not accessible${NC}"
+                        fi
+                        ;;
+                esac
+                read -p "Press Enter to continue..."
+                ;;
+            11) return ;;
+            m|M) return ;;
+            x|X) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-11, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 # Menu functions for consolidated operations
 
 file_drive_operations_menu() {
@@ -6235,12 +6475,15 @@ main() {
                 analysis_discovery_menu
                 ;;
             5)
-                reports_and_cleanup_menu
+                list_management_menu
                 ;;
             6)
-                system_administration_menu
+                reports_and_cleanup_menu
                 ;;
             7)
+                system_administration_menu
+                ;;
+            8)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -6248,7 +6491,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-7.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-8.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
