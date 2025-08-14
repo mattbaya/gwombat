@@ -1,3 +1,4 @@
+![GWOMBAT Logo](assets/gwombat2.png)
 # GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
 A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) manages Google Workspace accounts through their complete lifecycle from suspension to deletion with persistent state tracking and verification capabilities.
