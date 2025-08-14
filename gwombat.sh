@@ -5722,7 +5722,7 @@ group_operations_menu() {
 }
 
 # Source database functions
-source "${SCRIPTPATH}/database_functions.sh" 2>/dev/null || {
+source "${SCRIPTPATH}/shared-utilities/database_functions.sh" 2>/dev/null || {
     echo -e "${YELLOW}Warning: Database functions not available. Some features may be limited.${NC}"
 }
 
