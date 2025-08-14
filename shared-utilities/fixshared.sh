@@ -8,16 +8,20 @@
 # Get the shared drive ID from command line
 GAM="/usr/local/bin/gam"
 drive_id=$1
-owner=gwombat@your-domain.edu
+# Load admin user from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+owner=${ADMIN_USER:-gwombat@your-domain.edu}
 SCRIPTPATH="/opt/your-path/mjb9/suspended/"
 touch $SCRIPTPATH/logs/$drive_id-renames.txt
 
 # Add gwombat as a user;
 echo "Adding user gwombat to the shared drive id $drive_id"
-$GAM user gwombat@your-domain.edu add drivefileacl $drive_id user gwombat@your-domain.edu role editor asadmin 2>/dev/null
+$GAM user ${ADMIN_USER:-gwombat@your-domain.edu} add drivefileacl $drive_id user ${ADMIN_USER:-gwombat@your-domain.edu} role editor asadmin 2>/dev/null
 
 # Query the files in the shared drive and output only the files with "(PENDING DELETION - CONTACT OIT)" or "(Suspended Account - Temporary Hold)" in the name
-allfiles="$( $GAM user gwombat@your-domain.edu show filelist select teamdriveid "$drive_id" fields "id,name" )"
+allfiles="$( $GAM user ${ADMIN_USER:-gwombat@your-domain.edu} show filelist select teamdriveid "$drive_id" fields "id,name" )"
 
 #echo "$allfiles"
 #echo "---------"
@@ -58,6 +62,6 @@ fi
 done <<< "$files"
 
 echo "Removing gwombat from the shared drive id $drive_id"
-/root/bin/gamadv-x/gam user gwombat@your-domain.edu delete drivefileacl $drive_id gwombat@your-domain.edu asadmin 2>/dev/null
+/root/bin/gamadv-x/gam user ${ADMIN_USER:-gwombat@your-domain.edu} delete drivefileacl $drive_id ${ADMIN_USER:-gwombat@your-domain.edu} asadmin 2>/dev/null
 echo "Log file for this is at /opt/your-path/mjb9/suspended/logs/$drive_id-renames.txt"
 echo "--------------------------------------------------"

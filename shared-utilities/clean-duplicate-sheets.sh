@@ -19,7 +19,11 @@ fi
 PARENT_ID="$1"
 SHEET_NAME="$2"
 GAM="/usr/local/bin/gam"
-GAM_USER="gwombat@your-domain.edu"
+# Load admin user from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+GAM_USER="${ADMIN_USER:-gwombat@your-domain.edu}"
 echo "#################Removing Duplicate Sheets####################"
 #echo "Cleaning duplicate '$SHEET_NAME' sheets"
 

@@ -79,6 +79,12 @@ load_configuration() {
     DEFAULT_BACKUP_RETENTION_DAYS="90"
     DEFAULT_OPERATION_TIMEOUT="300"
     
+    # Load .env file if it exists
+    if [[ -f ".env" ]]; then
+        source .env
+        echo "Loaded environment configuration from .env"
+    fi
+    
     # Override with environment variables if set
     GAM="${GAM_PATH:-$DEFAULT_GAM_PATH}"
     SCRIPTPATH="${SCRIPT_PATH:-$DEFAULT_SCRIPT_PATH}"
@@ -1857,7 +1863,7 @@ cleanup_shared_drive() {
     echo ""
     
     # Grant admin user editor access to the shared drive
-    local admin_user="gwombat@${DOMAIN:-yourdomain.edu}"
+    local admin_user="${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}"
     echo -e "${CYAN}Adding admin access to shared drive...${NC}"
     if ! $GAM user "$admin_user" add drivefileacl "$drive_id" user "$admin_user" role editor asadmin 2>/dev/null; then
         echo -e "${RED}Error: Failed to add admin access to shared drive${NC}"
@@ -3584,7 +3590,7 @@ build_file_path() {
     
     while [[ -n "$current_id" && "$current_id" != "root" ]]; do
         # Get file name and parent
-        local file_info=$($GAM user "gwombat@${DOMAIN:-yourdomain.edu}" show fileinfo "$current_id" fields name,parents 2>/dev/null)
+        local file_info=$($GAM user "${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}" show fileinfo "$current_id" fields name,parents 2>/dev/null)
         local name=$(echo "$file_info" | grep "name:" | cut -d' ' -f2-)
         local parent=$(echo "$file_info" | grep "parents:" | cut -d' ' -f2)
         
@@ -3717,9 +3723,9 @@ transfer_ownership_to_gwombat() {
             # Check if file is owned by external account
             if [[ "$owner_email" != *"@${DOMAIN:-yourdomain.edu}" ]]; then
                 echo "  External file detected - copying instead of transferring: $file_name"
-                $GAM user gwombat@${DOMAIN:-yourdomain.edu} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
+                $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
             else
-                $GAM user "$user_email" add drivefileacl "$file_id" user gwombat@${DOMAIN:-yourdomain.edu} role owner transferownership true
+                $GAM user "$user_email" add drivefileacl "$file_id" user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} role owner transferownership true
             fi
         done
     else
@@ -3887,7 +3893,7 @@ restore_file_dates() {
         show_progress $counter $file_count "Fixing date: $file_name"
         
         # Try to find appropriate date from file activity
-        local activity_date=$($GAM user gwombat@${DOMAIN:-yourdomain.edu} show driveactivity "$file_id" 2>/dev/null | \
+        local activity_date=$($GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} show driveactivity "$file_id" 2>/dev/null | \
                               grep -E "time.*$(date -d "$target_date" +%Y)" | head -1 | \
                               grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "$target_date")
         
@@ -3978,21 +3984,21 @@ shared_drive_operations() {
     case $operation in
         "remove_pending_labels")
             echo -e "${GREEN}Removing pending deletion labels from shared drive...${NC}"
-            $GAM user gwombat@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
+            $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print filelist query "parents in '$drive_id'" \
                 fields id,name | tail -n +2 | while IFS=',' read -r file_id file_name; do
                 if [[ "$file_name" == *"PENDING DELETION"* ]] || [[ "$file_name" == *"Suspended Account - Temporary Hold"* ]]; then
                     local new_name=$(echo "$file_name" | sed -E 's/ \(PENDING DELETION - CONTACT OIT\)//g' | \
                                     sed -E 's/ \(Suspended Account - Temporary Hold\)//g')
                     echo "  Cleaning: $file_name -> $new_name"
-                    $GAM user gwombat@${DOMAIN:-yourdomain.edu} update drivefile "$file_id" name "$new_name"
+                    $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} update drivefile "$file_id" name "$new_name"
                 fi
             done
             ;;
         "grant_admin_access")
             echo -e "${GREEN}Granting gamadmin access to all files in shared drive...${NC}"
-            $GAM user gwombat@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
+            $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print filelist query "parents in '$drive_id'" \
                 fields id | tail -n +2 | while read file_id; do
-                $GAM user gwombat@${DOMAIN:-yourdomain.edu} add drivefileacl "$file_id" user gwombat@${DOMAIN:-yourdomain.edu} role writer
+                $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} add drivefileacl "$file_id" user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} role writer
             done
             ;;
         "create_user_drive")
@@ -4002,7 +4008,7 @@ shared_drive_operations() {
             echo "Created shared drive: $new_drive_id"
             
             # Grant access to gwombat
-            $GAM update shareddrive "$new_drive_id" add organizer gwombat@${DOMAIN:-yourdomain.edu}
+            $GAM update shareddrive "$new_drive_id" add organizer ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}
             echo "$new_drive_id"
             ;;
     esac
