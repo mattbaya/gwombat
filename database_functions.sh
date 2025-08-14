@@ -20,6 +20,16 @@ init_database() {
             return 1
         fi
         
+        # Check if sqlite3 is installed
+        if ! command -v sqlite3 >/dev/null 2>&1; then
+            echo -e "${RED}Error: sqlite3 is not installed${NC}"
+            echo -e "${YELLOW}To install SQLite:${NC}"
+            echo -e "${YELLOW}  CentOS/RHEL: sudo yum install sqlite${NC}"
+            echo -e "${YELLOW}  Ubuntu/Debian: sudo apt-get install sqlite3${NC}"
+            echo -e "${YELLOW}  macOS: brew install sqlite${NC}"
+            return 1
+        fi
+        
         sqlite3 "$db_file" < "$DB_SCHEMA_FILE"
         
         if [[ $? -eq 0 ]]; then

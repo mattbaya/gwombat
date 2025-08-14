@@ -175,6 +175,81 @@ DRY_RUN=false
 DISCOVERY_MODE=false
 PROGRESS_ENABLED=true
 
+# Dependency check function
+check_dependencies() {
+    local missing_deps=()
+    local warnings=()
+    
+    echo -e "${BLUE}=== GAMadmin Dependency Check ===${NC}"
+    echo ""
+    
+    # Essential dependencies
+    if ! command -v bash >/dev/null 2>&1; then
+        missing_deps+=("bash")
+    else
+        local bash_version=$(bash --version | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+        echo -e "${GREEN}✓ Bash: $bash_version${NC}"
+    fi
+    
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        missing_deps+=("sqlite3")
+    else
+        local sqlite_version=$(sqlite3 --version | cut -d' ' -f1)
+        echo -e "${GREEN}✓ SQLite: $sqlite_version${NC}"
+    fi
+    
+    if ! command -v git >/dev/null 2>&1; then
+        missing_deps+=("git")
+    else
+        local git_version=$(git --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+        echo -e "${GREEN}✓ Git: $git_version${NC}"
+    fi
+    
+    # Check GAM
+    local gam_path="${GAM_PATH:-/usr/local/bin/gam}"
+    if [[ -x "$gam_path" ]]; then
+        local gam_version=$($gam_path version 2>/dev/null | head -n1 || echo "unknown")
+        echo -e "${GREEN}✓ GAM: $gam_version${NC}"
+        echo -e "${GREEN}  Path: $gam_path${NC}"
+    else
+        missing_deps+=("GAM (Google Apps Manager)")
+        echo -e "${RED}✗ GAM not found at: $gam_path${NC}"
+    fi
+    
+    # Optional dependencies
+    if command -v expect >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ expect (deployment automation)${NC}"
+    else
+        warnings+=("expect - needed for automated deployment")
+    fi
+    
+    if command -v curl >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ curl${NC}"
+    else
+        warnings+=("curl - useful for web requests")
+    fi
+    
+    # Display results
+    echo ""
+    if [[ ${#missing_deps[@]} -eq 0 ]]; then
+        echo -e "${GREEN}✓ All essential dependencies satisfied${NC}"
+    else
+        echo -e "${RED}✗ Missing essential dependencies:${NC}"
+        printf '  - %s\n' "${missing_deps[@]}"
+        echo ""
+        echo -e "${YELLOW}See REQUIREMENTS.md for installation instructions${NC}"
+        return 1
+    fi
+    
+    if [[ ${#warnings[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}⚠ Optional dependencies missing:${NC}"
+        printf '  - %s\n' "${warnings[@]}"
+    fi
+    
+    echo ""
+    return 0
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -943,7 +1018,7 @@ show_main_menu() {
     echo ""
     echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
     echo "6. 📈 Reports & Monitoring (11 options)"
-    echo "7. ⚙️  System Administration (6 options)"
+    echo "7. ⚙️  System Administration (7 options)"
     echo ""
     echo "8. ❌ Exit"
     echo ""
@@ -5613,12 +5688,13 @@ system_administration_menu() {
         echo "3. 🛠️  System Health & Maintenance"
         echo "4. 💾 Backup Management"
         echo "5. 📋 File Ownership Audit"
+        echo "6. 🔧 Check System Dependencies"
         echo ""
-        echo "6. Return to main menu"
+        echo "7. Return to main menu"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-6, m, x): " admin_choice
+        read -p "Select an option (1-7, m, x): " admin_choice
         echo ""
         
         case $admin_choice in
@@ -5637,11 +5713,15 @@ system_administration_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             5) audit_file_ownership_menu ;;
-            6) return ;;
+            6) 
+                check_dependencies
+                read -p "Press Enter to continue..."
+                ;;
+            7) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6271,6 +6351,13 @@ stage5_deletion_operations_menu() {
 
 # Main script execution
 main() {
+    # Run dependency check on startup
+    if ! check_dependencies; then
+        echo -e "${RED}Dependency check failed. Please install missing dependencies before continuing.${NC}"
+        echo -e "${YELLOW}Press Enter to continue anyway, or Ctrl+C to exit...${NC}"
+        read -r
+    fi
+    
     while true; do
         show_main_menu
         choice=$?
