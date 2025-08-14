@@ -15,7 +15,7 @@
 ### 1. Core Lifecycle Management (`gwombat.sh`)
 **Main Menu Structure** (reorganized for logical grouping):
 - **Account Management**:
-  - Suspended Account Lifecycle Management (6 options)
+  - Suspended Account Lifecycle Management (8 options)
   - User & Group Management (2 options)
 - **Data & File Operations**:
   - File & Drive Operations (13 options)

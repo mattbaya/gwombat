@@ -34,7 +34,7 @@ A comprehensive suspended account lifecycle management system with database trac
 GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
 === ACCOUNT MANAGEMENT ===
-1. 🔄 Suspended Account Lifecycle Management (6 options)
+1. 🔄 Suspended Account Lifecycle Management (8 options)
 2. 👥 User & Group Management (2 options)
 
 === DATA & FILE OPERATIONS ===

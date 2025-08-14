@@ -90,7 +90,7 @@ If you need to rollback:
 
 ```bash
 # On production server, see available versions
-cd /opt/your-path/gamadmin
+cd /opt/your-path/gwombat
 git log --oneline
 
 # Rollback to specific commit
@@ -104,7 +104,7 @@ git checkout HEAD~1
 
 ```
 /opt/your-path/gwombat/          # Working directory (where app runs)
-├── gamadmin.sh                   # Main script
+├── gwombat.sh                    # Main script
 ├── database_functions.sh         # Database operations
 ├── database_schema.sql           # Database schema
 ├── logs/                         # Application logs
@@ -133,7 +133,7 @@ git commit -m "Your commit message"
 ### Check deployment status
 ```bash
 # On production server
-cd /opt/your-path/gamadmin
+cd /opt/your-path/gwombat
 git log --oneline -5  # See recent deployments
 git status            # Check working directory status
 ```
