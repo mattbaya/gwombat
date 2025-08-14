@@ -107,3 +107,6 @@ performance-*/
 *your-domain*
 *@your-domain.edu*
 old-scripts-replaced-by-master/
+.claude/
+logs/*
+reports/*
