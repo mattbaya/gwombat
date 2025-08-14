@@ -14,10 +14,24 @@ else
 fi
 
 # Validate required environment variables
-if [[ -z "$PRODUCTION_SERVER" || -z "$PRODUCTION_USER" || -z "$PRODUCTION_PATH" || -z "$BARE_REPO_PATH" ]]; then
-    echo -e "${RED}Error: Missing required .env variables (PRODUCTION_SERVER, PRODUCTION_USER, PRODUCTION_PATH, BARE_REPO_PATH)${NC}"
+if [[ -z "$PRODUCTION_SERVER" || -z "$PRODUCTION_USER" || -z "$GAMADMIN_PATH" ]]; then
+    echo -e "${RED}Error: Missing required .env variables (PRODUCTION_SERVER, PRODUCTION_USER, GAMADMIN_PATH)${NC}"
     exit 1
 fi
+
+# Set derived paths
+PRODUCTION_PATH="${PRODUCTION_PATH:-$GAMADMIN_PATH}"
+BARE_REPO_PATH="${BARE_REPO_PATH:-${GAMADMIN_PATH}.git}"
+
+# Create deployment log
+DEPLOY_LOG="deploy-$(date +%Y%m%d_%H%M%S).log"
+echo "=== GAMadmin Deployment Log - $(date) ===" > "$DEPLOY_LOG"
+echo "Production Server: $PRODUCTION_SERVER" >> "$DEPLOY_LOG"
+echo "Production User: $PRODUCTION_USER" >> "$DEPLOY_LOG"
+echo "GAMadmin Path: $GAMADMIN_PATH" >> "$DEPLOY_LOG"
+echo "Bare Repo Path: $BARE_REPO_PATH" >> "$DEPLOY_LOG"
+echo "Current Commit: $(git log --oneline -1)" >> "$DEPLOY_LOG"
+echo "" >> "$DEPLOY_LOG"
 
 # Colors for output
 RED='\033[0;31m'
@@ -27,6 +41,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== GAMadmin Deployment Script ===${NC}"
+echo -e "${BLUE}Deployment log: $DEPLOY_LOG${NC}"
 echo ""
 
 # Check if we're in the right directory
@@ -80,12 +95,33 @@ ssh "$PRODUCTION_USER@$PRODUCTION_SERVER" "
     fi
 "
 
-# Configure SSH to use our specific key for this deployment
+# Start ssh-agent and load deployment key once
+echo -e "${BLUE}Starting SSH agent and loading deployment key...${NC}"
+eval "$(ssh-agent -s)" >/dev/null
+
+# Load deployment key with password automation
+echo -e "${BLUE}Loading deployment key (one-time password entry)...${NC}"
+expect -c "
+    spawn ssh-add \"$SSH_KEY_PATH\"
+    expect \"Enter passphrase\"
+    send \"$SSH_KEY_PASSWORD\\r\"
+    expect eof
+" >/dev/null 2>&1
+
+if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}✅ Deployment key loaded successfully${NC}"
+else
+    echo -e "${RED}❌ Failed to load deployment key${NC}"
+    kill $SSH_AGENT_PID >/dev/null 2>&1 || true
+    exit 1
+fi
+
+# Configure git to use SSH with our specific key only
 SSH_CONFIG_HOST="gamadmin-deploy"
 SSH_REMOTE_URL="$SSH_CONFIG_HOST:$BARE_REPO_PATH"
 
 # Create temporary SSH config entry
-echo -e "${BLUE}Configuring SSH for deployment key...${NC}"
+echo -e "${BLUE}Configuring SSH for deployment...${NC}"
 mkdir -p ~/.ssh
 if ! grep -q "Host $SSH_CONFIG_HOST" ~/.ssh/config 2>/dev/null; then
     cat >> ~/.ssh/config << EOF
@@ -95,6 +131,7 @@ Host $SSH_CONFIG_HOST
     User $PRODUCTION_USER
     IdentityFile $SSH_KEY_PATH
     IdentitiesOnly yes
+    PreferredAuthentications publickey
 EOF
     echo "Added SSH config entry for deployment"
 else
@@ -110,22 +147,16 @@ else
     git remote set-url production "$SSH_REMOTE_URL"
 fi
 
-# Load SSH key with password automation
-echo -e "${BLUE}Loading SSH key for deployment...${NC}"
-eval "$(ssh-agent -s)" >/dev/null
-expect -c "
-    spawn ssh-add \"$SSH_KEY_PATH\"
-    expect \"Enter passphrase\"
-    send \"$SSH_KEY_PASSWORD\\r\"
-    expect eof
-" >/dev/null 2>&1
-
-# Push to production (SSH config handles which key to use)
+# Push to production (using loaded key)
 echo -e "${BLUE}Pushing to production server...${NC}"
+export SSH_AUTH_SOCK=$SSH_AUTH_SOCK
+export SSH_AGENT_PID=$SSH_AGENT_PID
 git push production main
 
-# Update working directory on production server  
+# Update working directory on production server (using same ssh-agent session)
 echo -e "${BLUE}Updating production working directory...${NC}"
+export SSH_AUTH_SOCK=$SSH_AUTH_SOCK
+export SSH_AGENT_PID=$SSH_AGENT_PID
 ssh "$SSH_CONFIG_HOST" "
     cd '$PRODUCTION_PATH'
     git pull origin main
@@ -161,6 +192,10 @@ echo -e "${BLUE}To run on production server:${NC}"
 echo -e "${BLUE}  ssh $SSH_CONFIG_HOST${NC}"
 echo -e "${BLUE}  cd $PRODUCTION_PATH${NC}"
 echo -e "${BLUE}  ./gamadmin.sh${NC}"
+
+# Log deployment completion
+echo "=== Deployment completed successfully at $(date) ===" >> "$DEPLOY_LOG"
+echo -e "${GREEN}Deployment logged to: $DEPLOY_LOG${NC}"
 
 # Clean up ssh-agent
 kill $SSH_AGENT_PID >/dev/null 2>&1 || true

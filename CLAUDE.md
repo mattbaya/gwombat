@@ -1,129 +1,191 @@
 # CLAUDE.md - AI Development Context
 
 ## Project Overview
-This is the **Suspended Account Lifecycle Management System** - a comprehensive bash script that manages Google Workspace accounts through their complete lifecycle from suspension to deletion. The script consolidates over 100+ individual utility scripts into a unified, interactive system.
+**GAMadmin** (Google Apps Manager Administration) is a comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. This system manages Google Workspace accounts through their complete lifecycle from suspension to deletion, with persistent state tracking and verification capabilities.
 
 ## Current State (August 2025)
-- **Primary Script**: `temphold-master.sh` - Master lifecycle management script (6000+ lines)
-- **Architecture**: Menu-driven interactive system with 5 lifecycle stages + utility tools
-- **Integration Status**: All script collections consolidated and archived
-- **Documentation**: Recently updated with comprehensive menu navigation improvements
+- **Primary Script**: `gamadmin.sh` - Master lifecycle management script (6500+ lines)
+- **Architecture**: Menu-driven interactive system with database integration and automated workflows
+- **Database System**: SQLite-based persistent state tracking with verification
+- **Deployment**: Git-based with secure SSH key deployment to production servers
+- **Configuration**: Fully environment-configurable via .env files
 
 ## Key Components
 
-### 1. Core Lifecycle Management (`temphold-master.sh`)
-**Main Menu Structure** (with option counts for navigation):
-- Stage 1: Recently Suspended Accounts (5 options)
-- Stage 2: Process Pending Deletion (6 options)  
-- Stage 3: File Sharing Analysis & Reports (7 options)
-- Stage 4: Final Decisions - Exit Row/Temporary Hold (6 options)
-- Stage 5: Account Deletion Operations (5 options)
-- Discovery & Query Tools (11 options)
-- Administrative Tools & Cleanup (6 options)
-- Reports & Monitoring (10 options)
+### 1. Core Lifecycle Management (`gamadmin.sh`)
+**Main Menu Structure** (reorganized for logical grouping):
+- **Account Management**:
+  - Suspended Account Lifecycle Management (6 options)
+  - User & Group Management (2 options)
+- **Data & File Operations**:
+  - File & Drive Operations (13 options)
+  - Analysis & Discovery (11 options)  
+  - Account List Management (11 options)
+- **Monitoring & System**:
+  - Reports & Monitoring (11 options)
+  - System Administration (6 options)
 
-**Recent Navigation Improvements**:
-- Added option counts to all main menu entries
-- Universal 'm' (main menu) and 'x' (exit) options in all submenus
-- Improved menu navigation UX with clear option indicators
+**Recent Major Enhancements**:
+- Complete application rename to GAMadmin
+- Database-driven account lifecycle tracking
+- Account scanning and stage discovery
+- List-based batch operations with verification
+- Secure deployment system with SSH key automation
 
-### 2. Shared Utilities (`shared-utilities/`)
-Essential standalone scripts:
-- `add-members-to-group.sh` - Bulk group membership management
-- `datefix.sh` - Sophisticated date restoration from Drive activity
-- `recent4.sh` - File activity analysis with configurable thresholds
-- `ownership_management.sh` - Enterprise-grade ownership transfer workflows
-- `fixshared.sh` - Shared drive cleanup and pending deletion marker removal
-- `find-suspended.sh` - Account analysis for deletion candidates
+### 2. Database System (`database_functions.sh`, `database_schema.sql`)
+**Core Features**:
+- **Account Tracking**: Persistent state management across lifecycle stages
+- **List Management**: Tag-based grouping for batch operations
+- **Verification System**: Automated checking of account states vs expected stages
+- **Audit Logging**: Complete operation history with session tracking
+- **Progress Tracking**: List-based completion monitoring
 
-### 3. Archived Collections (`old-scripts-replaced-by-master/`)
-Contains 8 complete script collections (5,100+ files):
-- `calendar/` - Google Calendar operations
-- `changeowner/` - File ownership management system
-- `find-accounts-with-no-sharing/` and `find-no-shares/` - Account analysis tools
-- `group/` - Google Groups management
-- `misc/` - Date restoration and miscellaneous utilities
-- `recentlymodified/` - File activity analysis
-- `shareddrives/` - Shared drive management system
+**Database Schema** (7 main tables):
+- `accounts` - Core account information and current stage
+- `account_lists` - List/tag definitions for grouping accounts
+- `account_list_memberships` - Many-to-many account-list relationships
+- `stage_history` - Complete lifecycle change history
+- `verification_status` - Stage-specific verification results
+- `operation_log` - Audit trail for all operations
+- `config` - System configuration storage
+
+### 3. Deployment System (`deploy.sh`, `.env`, `server.env`)
+**Secure Git-Based Deployment**:
+- Password-protected SSH key with automated entry
+- Environment-specific configuration via .env files
+- Server-specific paths via server.env configuration
+- Deployment logging with complete audit trail
+- Atomic deployments with easy rollback capability
+
+### 4. Account Discovery & Scanning
+**Automated Discovery**:
+- Scan all suspended accounts in Google Workspace
+- Determine current lifecycle stage based on OU placement
+- Auto-create lists based on discovered account stages
+- Database integration for persistent tracking
+- Bulk verification of account states
 
 ## Technical Architecture
 
-### Menu System
-- **Hierarchical structure** with clear navigation paths
-- **Context-aware menus** that show relevant operations for each lifecycle stage
-- **Comprehensive error handling** with user-friendly messages
-- **Progress tracking** for batch operations
-- **Dry-run capabilities** for preview before execution
+### Menu System Evolution
+- **Logical Grouping**: Reorganized from 9 to 8 main categories by function type
+- **Enhanced Navigation**: Universal 'm' (main menu) and 'x' (exit) options
+- **Option Counts**: All menu entries show submenu option counts
+- **Database Integration**: List management seamlessly integrated
+- **Context-Aware**: Menus adapt based on available data and operations
 
-### Key Functions Integration
-- **Account Analysis**: `analyze_accounts_no_sharing()`, `analyze_file_activity()`
-- **Ownership Management**: `transfer_ownership_to_gamadmin()`, `manage_suspension_groups()`
-- **File Processing**: `restore_file_dates()`, `cleanup_shared_drive()`
-- **Group Management**: `bulk_add_to_group()`, `remove_user_from_all_groups()`
-- **Lifecycle Operations**: Complete stage-based workflow management
+### Database Integration
+- **SQLite Backend**: Lightweight, serverless database for persistence
+- **Verification Engine**: Automated checking of account states vs GAM reality
+- **Batch Operations**: List-based processing with progress tracking
+- **Session Management**: Complete audit trail with session correlation
+- **Import/Export**: CSV import with automatic list creation
 
 ### Configuration Management
-- **Dynamic configuration system** with fallback defaults
-- **Flexible path management** for different environments
-- **Comprehensive logging** with session tracking
-- **Performance monitoring** and operation auditing
+**Multi-Level Configuration**:
+- **Local (.env)**: Deployment credentials and server details
+- **Server (server.env)**: Production paths and GAM configuration  
+- **Application**: Dynamic configuration with environment variable overrides
+- **Database**: Runtime configuration storage
+
+### Deployment Architecture
+**Git-Based Workflow**:
+- **Bare Repository**: Production server hosts bare git repository
+- **Working Directory**: Separate directory for running application
+- **SSH Config**: Dedicated deployment key with automatic authentication
+- **Environment Separation**: Configurable paths for different servers
 
 ## Development Context for Claude
 
 ### Current Integration Status
-✅ **Completed**: All major script collections have been analyzed, integrated, and archived
-✅ **Menu Navigation**: Recently improved with option counts and universal navigation
-✅ **Group Management**: Bulk operations fully integrated into administrative tools
-✅ **Documentation**: Updated to reflect current system capabilities
+✅ **Application Renamed**: Complete rename to GAMadmin with updated branding
+✅ **Database System**: Full SQLite integration with comprehensive schema
+✅ **Account Discovery**: Automated scanning and stage detection
+✅ **Deployment System**: Secure, automated deployment with SSH key management
+✅ **Configuration Management**: Fully environment-configurable system
+✅ **List Management**: Complete batch operation system with verification
 
 ### Key Development Patterns
-1. **Function-based architecture** with clear separation of concerns
-2. **Menu-driven UX** with consistent patterns across all sections
-3. **Comprehensive error handling** and user input validation
-4. **Extensive logging and audit trails** for all operations
-5. **GAM integration** for Google Workspace management
-6. **Dry-run capabilities** for safe operation preview
+1. **Database-First Architecture**: Persistent state drives all operations
+2. **Environment Configuration**: No hardcoded paths or server-specific values
+3. **Verification-Driven Operations**: Automated checking of account states
+4. **Git-Based Deployment**: Version-controlled, auditable deployments
+5. **Menu-Driven UX**: Consistent interactive experience
+6. **Comprehensive Logging**: Multi-level logging for operations and deployments
 
-### Recent Major Changes
-- **Script Consolidation**: Integrated 100+ scripts into unified system
-- **Menu Enhancement**: Added navigation improvements and option counts
-- **Group Management**: Added bulk group operations to administrative tools menu
-- **Architecture Cleanup**: Eliminated external dependencies and improved modularity
+### Recent Major Changes (August 2025)
+- **Complete Rename**: temphold-master → GAMadmin
+- **Database Integration**: Added SQLite for persistent state management
+- **Account Scanning**: Automated discovery of account stages via OU placement
+- **List Management**: Tag-based batch operations with verification
+- **Deployment Automation**: SSH key-based secure deployment system
+- **Configuration Externalization**: All paths and settings moved to .env files
 
 ### Dependencies
-- **GAM (Google Apps Manager)**: Primary interface to Google Workspace
+- **GAM (Google Apps Manager)**: Primary interface to Google Workspace  
+- **SQLite**: Database backend for persistent state
+- **SSH/Git**: Secure deployment infrastructure
+- **expect**: Password automation for SSH keys
 - **Standard Unix Tools**: bash, grep, sed, awk for text processing
-- **File System**: Organized directory structure for logs, configs, and temporary files
 
 ### Testing Commands
 ```bash
-# Test menu navigation
-echo "1" | timeout 5 bash temphold-master.sh
+# Test database initialization
+./gamadmin.sh # Select Account List Management → Database maintenance
 
-# Test exit functionality  
-echo -e "1\nx" | timeout 5 bash temphold-master.sh
+# Test account scanning  
+./gamadmin.sh # Select Account List Management → Scan suspended accounts
+
+# Test deployment
+./deploy.sh
 
 # Verify script syntax
-bash -n temphold-master.sh
+bash -n gamadmin.sh
+bash -n database_functions.sh
 ```
 
-### Future Considerations
-- Additional utility script integration as needed
-- Enhanced reporting and analytics capabilities
-- Possible web interface for non-technical users
-- Integration with other institutional systems
+### Environment Configuration
+**Local Development (.env)**:
+```bash
+PRODUCTION_SERVER="gamera2.your-domain.edu"
+PRODUCTION_USER="gamadmin"  
+GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
+SSH_KEY_PATH="$HOME/.ssh/gamadmingit-key"
+SSH_KEY_PASSWORD="secure-password"
+```
+
+**Production Server (server.env)**:
+```bash
+GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
+GAM_PATH="/usr/local/bin/gam"
+DOMAIN="your-domain.edu"
+SUSPENDED_OU="/Suspended Users"
+```
 
 ## File Organization
 ```
-temphold-master/
-├── temphold-master.sh              # Main lifecycle management script
-├── shared-utilities/               # Essential standalone utilities
-├── old-scripts-replaced-by-master/ # Archived script collections  
-├── config/                        # Configuration files
-├── logs/                          # Session and operation logs
-├── reports/                       # Generated reports and summaries
-├── backups/                       # Configuration and data backups
-└── tmp/                          # Temporary processing files
+gamadmin/
+├── gamadmin.sh                    # Main application (6500+ lines)
+├── database_functions.sh          # Database operations (688 lines)
+├── database_schema.sql            # SQLite schema definition
+├── deploy.sh                      # Secure deployment script
+├── .env.template                  # Local configuration template
+├── server.env.template            # Server configuration template
+├── DEPLOYMENT.md                  # Deployment documentation
+├── shared-utilities/              # Essential standalone utilities
+├── old-scripts-replaced-by-master/# Archived script collections  
+├── config/                       # Runtime configuration files
+├── logs/                         # Session and operation logs
+├── reports/                      # Generated reports and summaries
+├── backups/                      # Configuration and data backups
+└── tmp/                         # Temporary processing files
 ```
 
-This project represents a comprehensive consolidation of institutional Google Workspace management tools into a cohesive, user-friendly system suitable for both technical and non-technical administrators.
+## Future Development Considerations
+- **Enhanced Verification**: More sophisticated account state checking
+- **Workflow Automation**: Scheduled batch operations
+- **Reporting Dashboard**: Web-based status monitoring
+- **Integration APIs**: Hooks for external systems
+- **Multi-Server Management**: Deploy to multiple environments
+
+This project represents a comprehensive evolution from simple script collection to enterprise-grade account lifecycle management system with database persistence, automated verification, and secure deployment capabilities.

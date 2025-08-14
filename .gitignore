@@ -10,6 +10,7 @@ account_lifecycle.db
 # Log files
 logs/*.log
 *.log
+deploy-*.log
 
 # Temporary files
 tmp/*
