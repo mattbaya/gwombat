@@ -1,4 +1,6 @@
-# GAMadmin System Requirements
+# GWOMBAT System Requirements
+
+**GWOMBAT**: Google Workspace Optimization, Management, Backups And Taskrunner
 
 ## Required Dependencies
 
@@ -111,8 +113,8 @@ The account running GAM requires:
 
 ### Directory Structure
 ```
-/path/to/gamadmin/
-├── gamadmin.sh              # Main application
+/path/to/gwombat/
+├── gwombat.sh               # Main application
 ├── database_functions.sh    # Database operations
 ├── database_schema.sql      # SQLite schema
 ├── server.env              # Server configuration
@@ -202,7 +204,7 @@ sqlite3 --version
 **Permission denied**
 ```bash
 # Fix script permissions
-chmod +x gamadmin.sh database_functions.sh
+chmod +x gwombat.sh database_functions.sh
 
 # Fix directory permissions
 chmod 755 logs reports tmp backups

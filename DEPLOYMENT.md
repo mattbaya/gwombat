@@ -1,7 +1,9 @@
-# GAMadmin Deployment Guide
+# GWOMBAT Deployment Guide
+
+**GWOMBAT**: Google Workspace Optimization, Management, Backups And Taskrunner
 
 ## Overview
-GAMadmin uses git for deployment to maintain version control and enable easy rollbacks. This approach is superior to rsync because:
+GWOMBAT uses git for deployment to maintain version control and enable easy rollbacks. This approach is superior to rsync because:
 
 - **Version Control**: Track exactly what's deployed
 - **Atomic Deployments**: All-or-nothing updates  
@@ -15,8 +17,8 @@ Edit `deploy.sh` and update these variables:
 ```bash
 PRODUCTION_SERVER="gamera.your-domain.edu"  # Your server name
 PRODUCTION_USER="your-username"          # Your username
-PRODUCTION_PATH="/opt/your-path/gamadmin" # Where app runs
-BARE_REPO_PATH="/opt/your-path/gamadmin.git"  # Git repository
+PRODUCTION_PATH="/opt/your-path/gwombat" # Where app runs
+BARE_REPO_PATH="/opt/your-path/gwombat.git"  # Git repository
 ```
 
 ### 2. Ensure SSH Access
@@ -63,14 +65,14 @@ If you prefer not to use the deployment script:
 ### Initial Setup
 ```bash
 # On production server
-mkdir -p /opt/your-path/gamadmin.git
-cd /opt/your-path/gamadmin.git  
+mkdir -p /opt/your-path/gwombat.git
+cd /opt/your-path/gwombat.git  
 git init --bare
 
-git clone /opt/your-path/gamadmin.git /opt/your-path/gamadmin
+git clone /opt/your-path/gwombat.git /opt/your-path/gwombat
 
 # On your desktop
-git remote add production username@server:/opt/your-path/gamadmin.git
+git remote add production username@server:/opt/your-path/gwombat.git
 ```
 
 ### Deploy
@@ -79,7 +81,7 @@ git remote add production username@server:/opt/your-path/gamadmin.git
 git push production main
 
 # Update working directory on server
-ssh username@server 'cd /opt/your-path/gamadmin && git pull origin main'
+ssh username@server 'cd /opt/your-path/gwombat && git pull origin main'
 ```
 
 ## Rollback to Previous Version
@@ -101,7 +103,7 @@ git checkout HEAD~1
 ## Directory Structure on Production
 
 ```
-/opt/your-path/gamadmin/          # Working directory (where app runs)
+/opt/your-path/gwombat/          # Working directory (where app runs)
 ├── gamadmin.sh                   # Main script
 ├── database_functions.sh         # Database operations
 ├── database_schema.sql           # Database schema
@@ -110,7 +112,7 @@ git checkout HEAD~1
 ├── tmp/                          # Temporary files
 └── backups/                      # Backups
 
-/opt/your-path/gamadmin.git/        # Bare repository (for git)
+/opt/your-path/gwombat.git/        # Bare repository (for git)
 ```
 
 ## Troubleshooting

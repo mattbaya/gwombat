@@ -1,11 +1,11 @@
-# GAMadmin - Google Apps Manager Administration
+# GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
-A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. GAMadmin manages Google Workspace accounts through their complete lifecycle from suspension to deletion with persistent state tracking and verification capabilities.
+A comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) manages Google Workspace accounts through their complete lifecycle from suspension to deletion with persistent state tracking and verification capabilities.
 
 ## 🚀 Major Update (August 2025)
 
-### ✅ Application Renamed: GAMadmin
-- Complete rename from "temphold-master" to "GAMadmin" 
+### ✅ Application Renamed: GWOMBAT
+- Complete rename from "GAMadmin" to "GWOMBAT" (Google Workspace Optimization, Management, Backups And Taskrunner) 
 - Updated branding and version (v3.0)
 - Reflects expanded scope beyond temporary hold operations
 
@@ -31,7 +31,7 @@ A comprehensive suspended account lifecycle management system with database trac
 
 ### Main Menu Structure (Reorganized by Function)
 ```
-GAMadmin - Google Apps Manager Administration
+GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
 === ACCOUNT MANAGEMENT ===
 1. 🔄 Suspended Account Lifecycle Management (6 options)
@@ -72,15 +72,15 @@ The system tracks accounts through these lifecycle stages with persistent databa
 1. **Clone and configure**:
 ```bash
 git clone <your-repo>
-cd gamadmin
+cd gwombat
 cp .env.template .env
 # Edit .env with your configuration
 ```
 
 2. **Create SSH deployment key**:
 ```bash
-ssh-keygen -t ed25519 -C "gamadmingit-key" -f ~/.ssh/gamadmingit-key
-ssh-copy-id -i ~/.ssh/gamadmingit-key.pub user@server
+ssh-keygen -t ed25519 -C "gwombatgit-key" -f ~/.ssh/gwombatgit-key
+ssh-copy-id -i ~/.ssh/gwombatgit-key.pub user@server
 ```
 
 3. **Install dependencies**:
@@ -108,18 +108,18 @@ The deployment script handles:
 ```bash
 # SSH Key Configuration
 SSH_KEY_PASSWORD="your-secure-password"
-SSH_KEY_PATH="$HOME/.ssh/gamadmingit-key"
+SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
 
 # Production Server Configuration  
 PRODUCTION_SERVER="gamera2.your-domain.edu"
-PRODUCTION_USER="gamadmin"
-GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
+PRODUCTION_USER="gwombat"
+GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
 ```
 
 **Production (server.env)**:
 ```bash
 # Server paths
-GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
+GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
 GAM_PATH="/usr/local/bin/gam"
 DOMAIN="your-domain.edu"
 
@@ -165,8 +165,8 @@ The system uses a comprehensive SQLite schema with 7 main tables:
 
 ### Account List Management
 ```bash
-# Run GAMadmin
-./gamadmin.sh
+# Run GWOMBAT
+./gwombat.sh
 
 # Select: 5. Account List Management
 # Options include:
@@ -195,8 +195,8 @@ The system uses a comprehensive SQLite schema with 7 main tables:
 ## 📁 File Organization
 
 ```
-gamadmin/
-├── gamadmin.sh                    # Main application (6500+ lines)
+gwombat/
+├── gwombat.sh                     # Main application (6500+ lines)
 ├── database_functions.sh          # Database operations (688 lines)
 ├── database_schema.sql            # SQLite schema definition
 ├── deploy.sh                      # Secure deployment script
@@ -239,4 +239,4 @@ gamadmin/
 
 ---
 
-GAMadmin represents a comprehensive evolution from simple script collection to enterprise-grade account lifecycle management system with database persistence, automated verification, and secure deployment capabilities.
+GWOMBAT represents a comprehensive evolution from simple script collection to enterprise-grade account lifecycle management system with database persistence, automated verification, and secure deployment capabilities.

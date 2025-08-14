@@ -8,16 +8,16 @@
 # Get the shared drive ID from command line
 GAM="/usr/local/bin/gam"
 drive_id=$1
-owner=gamadmin@your-domain.edu
+owner=gwombat@your-domain.edu
 SCRIPTPATH="/opt/your-path/mjb9/suspended/"
 touch $SCRIPTPATH/logs/$drive_id-renames.txt
 
-# Add gamadmin as a user;
-echo "Adding user gamadmin to the shared drive id $drive_id"
-$GAM user gamadmin@your-domain.edu add drivefileacl $drive_id user gamadmin@your-domain.edu role editor asadmin 2>/dev/null
+# Add gwombat as a user;
+echo "Adding user gwombat to the shared drive id $drive_id"
+$GAM user gwombat@your-domain.edu add drivefileacl $drive_id user gwombat@your-domain.edu role editor asadmin 2>/dev/null
 
 # Query the files in the shared drive and output only the files with "(PENDING DELETION - CONTACT OIT)" or "(Suspended Account - Temporary Hold)" in the name
-allfiles="$( $GAM user gamadmin@your-domain.edu show filelist select teamdriveid "$drive_id" fields "id,name" )"
+allfiles="$( $GAM user gwombat@your-domain.edu show filelist select teamdriveid "$drive_id" fields "id,name" )"
 
 #echo "$allfiles"
 #echo "---------"
@@ -47,7 +47,7 @@ while IFS=, read -r owner fileid filename; do
 
 # Remove pending deletion label from file as well
 if [ -n "$fileid" ]; then
-  output=$($GAM user gamadmin process filedrivelabels $fileid deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null)
+  output=$($GAM user gwombat process filedrivelabels $fileid deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null)
   
   # Check if the output contains "Deleted" and then print the message
   if echo "$output" | grep -q "Deleted"; then
@@ -57,7 +57,7 @@ fi
 
 done <<< "$files"
 
-echo "Removing gamadmin from the shared drive id $drive_id"
-/root/bin/gamadv-x/gam user gamadmin@your-domain.edu delete drivefileacl $drive_id gamadmin@your-domain.edu asadmin 2>/dev/null
+echo "Removing gwombat from the shared drive id $drive_id"
+/root/bin/gamadv-x/gam user gwombat@your-domain.edu delete drivefileacl $drive_id gwombat@your-domain.edu asadmin 2>/dev/null
 echo "Log file for this is at /opt/your-path/mjb9/suspended/logs/$drive_id-renames.txt"
 echo "--------------------------------------------------"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# GAMadmin Deployment Script
-# Deploys GAMadmin to production server using git
+# GWOMBAT Deployment Script
+# Deploys GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) to production server using git
 
 set -e  # Exit on any error
 
@@ -14,21 +14,21 @@ else
 fi
 
 # Validate required environment variables
-if [[ -z "$PRODUCTION_SERVER" || -z "$PRODUCTION_USER" || -z "$GAMADMIN_PATH" ]]; then
-    echo -e "${RED}Error: Missing required .env variables (PRODUCTION_SERVER, PRODUCTION_USER, GAMADMIN_PATH)${NC}"
+if [[ -z "$PRODUCTION_SERVER" || -z "$PRODUCTION_USER" || -z "$GWOMBAT_PATH" ]]; then
+    echo -e "${RED}Error: Missing required .env variables (PRODUCTION_SERVER, PRODUCTION_USER, GWOMBAT_PATH)${NC}"
     exit 1
 fi
 
 # Set derived paths
-PRODUCTION_PATH="${PRODUCTION_PATH:-$GAMADMIN_PATH}"
-BARE_REPO_PATH="${BARE_REPO_PATH:-${GAMADMIN_PATH}.git}"
+PRODUCTION_PATH="${PRODUCTION_PATH:-$GWOMBAT_PATH}"
+BARE_REPO_PATH="${BARE_REPO_PATH:-${GWOMBAT_PATH}.git}"
 
 # Create deployment log
 DEPLOY_LOG="deploy-$(date +%Y%m%d_%H%M%S).log"
-echo "=== GAMadmin Deployment Log - $(date) ===" > "$DEPLOY_LOG"
+echo "=== GWOMBAT Deployment Log - $(date) ===" > "$DEPLOY_LOG"
 echo "Production Server: $PRODUCTION_SERVER" >> "$DEPLOY_LOG"
 echo "Production User: $PRODUCTION_USER" >> "$DEPLOY_LOG"
-echo "GAMadmin Path: $GAMADMIN_PATH" >> "$DEPLOY_LOG"
+echo "GWOMBAT Path: $GWOMBAT_PATH" >> "$DEPLOY_LOG"
 echo "Bare Repo Path: $BARE_REPO_PATH" >> "$DEPLOY_LOG"
 echo "Current Commit: $(git log --oneline -1)" >> "$DEPLOY_LOG"
 echo "" >> "$DEPLOY_LOG"
@@ -40,13 +40,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== GAMadmin Deployment Script ===${NC}"
+echo -e "${BLUE}=== GWOMBAT Deployment Script ===${NC}"
 echo -e "${BLUE}Deployment log: $DEPLOY_LOG${NC}"
 echo ""
 
 # Check if we're in the right directory
-if [[ ! -f "gamadmin.sh" ]]; then
-    echo -e "${RED}Error: gamadmin.sh not found. Please run this script from the GAMadmin directory.${NC}"
+if [[ ! -f "gwombat.sh" ]]; then
+    echo -e "${RED}Error: gwombat.sh not found. Please run this script from the GWOMBAT directory.${NC}"
     exit 1
 fi
 

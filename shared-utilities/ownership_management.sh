@@ -12,7 +12,7 @@ TEMP="$SCRIPTPATH/temp/$FOLDERID-unsuspended-temp.csv"
 temp_file="$SCRIPTPATH/temp/$FOLDERID-temp.txt"
 
 echo "Setting $ADMIN_USER as owner of $FOLDERID"
-"$GAM" user "$OWNER" add drivefileacl "$FOLDERID" user "$ADMIN_USER" role owner > "$SCRIPTPATH/temp/${FOLDERID}_change-$OWNER-to-gamadmin.txt"
+"$GAM" user "$OWNER" add drivefileacl "$FOLDERID" user "$ADMIN_USER" role owner > "$SCRIPTPATH/temp/${FOLDERID}_change-$OWNER-to-gwombat.txt"
 
 echo "Claiming ownership of $FOLDERID for $ADMIN_USER (this might take a while)"
 "$GAM" user "$ADMIN_USER" claim ownership $FOLDERID >> $SCRIPTPATH/temp/$FOLDERID-ownership-change-tree.csv

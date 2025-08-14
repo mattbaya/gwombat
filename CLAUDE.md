@@ -1,10 +1,10 @@
 # CLAUDE.md - AI Development Context
 
 ## Project Overview
-**GAMadmin** (Google Apps Manager Administration) is a comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. This system manages Google Workspace accounts through their complete lifecycle from suspension to deletion, with persistent state tracking and verification capabilities.
+**GWOMBAT** (Google Workspace Optimization, Management, Backups And Taskrunner) is a comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. This system manages Google Workspace accounts through their complete lifecycle from suspension to deletion, with persistent state tracking and verification capabilities.
 
 ## Current State (August 2025)
-- **Primary Script**: `gamadmin.sh` - Master lifecycle management script (6500+ lines)
+- **Primary Script**: `gwombat.sh` - Master lifecycle management script (6500+ lines)
 - **Architecture**: Menu-driven interactive system with database integration and automated workflows
 - **Database System**: SQLite-based persistent state tracking with verification
 - **Deployment**: Git-based with secure SSH key deployment to production servers
@@ -12,7 +12,7 @@
 
 ## Key Components
 
-### 1. Core Lifecycle Management (`gamadmin.sh`)
+### 1. Core Lifecycle Management (`gwombat.sh`)
 **Main Menu Structure** (reorganized for logical grouping):
 - **Account Management**:
   - Suspended Account Lifecycle Management (6 options)
@@ -26,7 +26,7 @@
   - System Administration (6 options)
 
 **Recent Major Enhancements**:
-- Complete application rename to GAMadmin
+- Complete application rename to GWOMBAT
 - Database-driven account lifecycle tracking
 - Account scanning and stage discovery
 - List-based batch operations with verification
@@ -98,14 +98,14 @@
 ## Development Context for Claude
 
 ### ⚠️ CRITICAL NAMING CONVENTION ⚠️
-**ALWAYS use "GAMadmin" (with 'd') - NEVER "GAMladmin" (with 'ld')**
-- ✅ Correct: GAMadmin, gamadmin, gamadmingit-key
+**ALWAYS use "GWOMBAT" (Google Workspace Optimization, Management, Backups And Taskrunner)**
+- ✅ Correct: GWOMBAT, gwombat, gwombatgit-key
 - ❌ Wrong: GAMladmin, gamladmin, gamladmingit-key
 - This is a persistent typo issue - always double-check spelling
-- Search and replace any instances of "gamladmin" with "gamadmin"
+- Search and replace any instances of "gamadmin" or "GAMadmin" with "gwombat" or "GWOMBAT"
 
 ### Current Integration Status
-✅ **Application Renamed**: Complete rename to GAMadmin with updated branding
+✅ **Application Renamed**: Complete rename to GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) with updated branding
 ✅ **Database System**: Full SQLite integration with comprehensive schema
 ✅ **Account Discovery**: Automated scanning and stage detection
 ✅ **Deployment System**: Secure, automated deployment with SSH key management
@@ -121,7 +121,7 @@
 6. **Comprehensive Logging**: Multi-level logging for operations and deployments
 
 ### Recent Major Changes (August 2025)
-- **Complete Rename**: temphold-master → GAMadmin
+- **Complete Rename**: GAMadmin → GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner)
 - **Database Integration**: Added SQLite for persistent state management
 - **Account Scanning**: Automated discovery of account stages via OU placement
 - **List Management**: Tag-based batch operations with verification
@@ -138,16 +138,16 @@
 ### Testing Commands
 ```bash
 # Test database initialization
-./gamadmin.sh # Select Account List Management → Database maintenance
+./gwombat.sh # Select Account List Management → Database maintenance
 
 # Test account scanning  
-./gamadmin.sh # Select Account List Management → Scan suspended accounts
+./gwombat.sh # Select Account List Management → Scan suspended accounts
 
 # Test deployment
 ./deploy.sh
 
 # Verify script syntax
-bash -n gamadmin.sh
+bash -n gwombat.sh
 bash -n database_functions.sh
 ```
 
@@ -155,15 +155,15 @@ bash -n database_functions.sh
 **Local Development (.env)**:
 ```bash
 PRODUCTION_SERVER="gamera2.your-domain.edu"
-PRODUCTION_USER="gamadmin"  
-GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
-SSH_KEY_PATH="$HOME/.ssh/gamadmingit-key"
+PRODUCTION_USER="gwombat"  
+GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
+SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
 SSH_KEY_PASSWORD="secure-password"
 ```
 
 **Production Server (server.env)**:
 ```bash
-GAMADMIN_PATH="/opt/gamera/mjb9/gamadmin"
+GWOMBAT_PATH="/opt/gamera/mjb9/gwombat"
 GAM_PATH="/usr/local/bin/gam"
 DOMAIN="your-domain.edu"
 SUSPENDED_OU="/Suspended Users"
@@ -171,8 +171,8 @@ SUSPENDED_OU="/Suspended Users"
 
 ## File Organization
 ```
-gamadmin/
-├── gamadmin.sh                    # Main application (6500+ lines)
+gwombat/
+├── gwombat.sh                     # Main application (6500+ lines)
 ├── database_functions.sh          # Database operations (688 lines)
 ├── database_schema.sql            # SQLite schema definition
 ├── deploy.sh                      # Secure deployment script

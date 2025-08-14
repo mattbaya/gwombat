@@ -3,7 +3,7 @@
 # Script to update all menus with 'm' and 'x' options
 # This will add main menu and exit options to all submenus
 
-SCRIPT_FILE="/Users/mjb9/mjb9-gamera/suspended/temphold-master/temphold-master.sh"
+SCRIPT_FILE="/Users/mjb9/mjb9-gamera/suspended/gamadmin/gwombat.sh"
 
 # Function to update menu display with m/x options
 update_menu_display() {

@@ -59,6 +59,13 @@ check_database() {
     return $?
 }
 
+# Sanitize input for SQL to prevent injection
+sanitize_sql_input() {
+    local input="$1"
+    # Replace single quotes with two single quotes (SQL escaping)
+    echo "${input//\'/\'\'}"
+}
+
 # Add or update account in database
 db_add_account() {
     local email="$1"
@@ -70,6 +77,12 @@ db_add_account() {
         echo -e "${RED}Error: Email and stage are required${NC}"
         return 1
     fi
+    
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    stage=$(sanitize_sql_input "$stage")
+    display_name=$(sanitize_sql_input "$display_name")
+    ou_path=$(sanitize_sql_input "$ou_path")
     
     init_database || return 1
     
@@ -98,6 +111,11 @@ db_create_list() {
         return 1
     fi
     
+    # Sanitize all inputs
+    list_name=$(sanitize_sql_input "$list_name")
+    description=$(sanitize_sql_input "$description")
+    target_stage=$(sanitize_sql_input "$target_stage")
+    
     init_database || return 1
     
     sqlite3 "$DB_FILE" <<EOF
@@ -124,6 +142,10 @@ db_add_to_list() {
         echo -e "${RED}Error: Email and list name are required${NC}"
         return 1
     fi
+    
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    list_name=$(sanitize_sql_input "$list_name")
     
     init_database || return 1
     
@@ -154,6 +176,12 @@ db_record_stage_change() {
         echo -e "${RED}Error: Email and target stage are required${NC}"
         return 1
     fi
+    
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    from_stage=$(sanitize_sql_input "$from_stage")
+    to_stage=$(sanitize_sql_input "$to_stage")
+    operation_details=$(sanitize_sql_input "$operation_details")
     
     init_database || return 1
     
@@ -190,6 +218,13 @@ db_set_verification() {
         return 1
     fi
     
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    stage=$(sanitize_sql_input "$stage")
+    verification_type=$(sanitize_sql_input "$verification_type")
+    status=$(sanitize_sql_input "$status")
+    details=$(sanitize_sql_input "$details")
+    
     init_database || return 1
     
     sqlite3 "$DB_FILE" <<EOF
@@ -216,6 +251,9 @@ db_get_list_accounts() {
         return 1
     fi
     
+    # Sanitize all inputs
+    list_name=$(sanitize_sql_input "$list_name")
+    
     init_database || return 1
     
     sqlite3 "$DB_FILE" -header -column <<EOF
@@ -237,6 +275,10 @@ db_get_verification_status() {
         echo -e "${RED}Error: Email is required${NC}"
         return 1
     fi
+    
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    stage=$(sanitize_sql_input "$stage")
     
     init_database || return 1
     
@@ -282,6 +324,10 @@ verify_account_state() {
         echo -e "${RED}Error: Email and expected stage are required${NC}"
         return 1
     fi
+    
+    # Sanitize all inputs
+    email=$(sanitize_sql_input "$email")
+    expected_stage=$(sanitize_sql_input "$expected_stage")
     
     echo -e "${CYAN}Verifying account state: $email (expected: $expected_stage)${NC}"
     
@@ -402,6 +448,10 @@ bulk_verify_list() {
         return 1
     fi
     
+    # Sanitize all inputs
+    list_name=$(sanitize_sql_input "$list_name")
+    expected_stage=$(sanitize_sql_input "$expected_stage")
+    
     # If no stage provided, get from list definition
     if [[ -z "$expected_stage" ]]; then
         expected_stage=$(sqlite3 "$DB_FILE" "SELECT target_stage FROM account_lists WHERE name = '$list_name';")
@@ -466,6 +516,10 @@ import_accounts_to_list() {
         return 1
     fi
     
+    # Sanitize list_name and initial_stage (file_path doesn't go into SQL)
+    list_name=$(sanitize_sql_input "$list_name")
+    initial_stage=$(sanitize_sql_input "$initial_stage")
+    
     # Create list if it doesn't exist
     db_create_list "$list_name" "Imported from $file_path" "$initial_stage"
     
@@ -485,6 +539,9 @@ import_accounts_to_list() {
             ((skipped_count++))
             continue
         fi
+        
+        # Sanitize email input from file
+        email=$(sanitize_sql_input "$email")
         
         # Add account to database
         if db_add_account "$email" "$initial_stage"; then

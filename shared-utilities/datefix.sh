@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GAM="/root/bin/gamadv-x/gam"
-ADMINUSER=gamadmin@your-domain.edu
+ADMINUSER=gwombat@your-domain.edu
 SCRIPTPATH="/opt/your-path/mjb9/misc/"
 earliestDate="2023-05-01T00:00:00Z"
 earliestTimestamp=$(date -d "$earliestDate" +%s)

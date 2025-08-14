@@ -48,15 +48,15 @@ fi
 echo "Recent files for ${USER_EMAIL}:       ${RECENT_COUNT} files, total size ${RECENT_SIZE}"
 echo "Old files for ${USER_EMAIL}:       ${OLD_COUNT} files, total size ${OLD_SIZE}"
 
-$GAM user gamadmin@your-domain.edu add drivefileacl $REPORTSFOLDER user "$USER_EMAIL" role writer >/dev/null 2>&1
+$GAM user gwombat@your-domain.edu add drivefileacl $REPORTSFOLDER user "$USER_EMAIL" role writer >/dev/null 2>&1
 
 # Create the Google Sheets file
 sheet_id=$($GAM user $USER_EMAIL create drivefile drivefilename "$USER_EMAIL Shared Files" localfile $OUTPUT_FILE mimetype "application/vnd.google-apps.spreadsheet" parentid $REPORTSFOLDER returnidonly)
 
-$GAM user gamadmin@your-domain.edu delete drivefileacl $REPORTSFOLDER "$USER_EMAIL" >/dev/null 2>&1
+$GAM user gwombat@your-domain.edu delete drivefileacl $REPORTSFOLDER "$USER_EMAIL" >/dev/null 2>&1
 
 # Add srogers@your-domain.edu as editor
 $GAM user $USER_EMAIL add drivefileacl $sheet_id user "srogers@your-domain.edu" role writer >/dev/null 2>&1
 
-$GAM user gamadmin@your-domain.edu show fileinfo $sheet_id fields webViewLink
+$GAM user gwombat@your-domain.edu show fileinfo $sheet_id fields webViewLink
 

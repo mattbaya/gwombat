@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# GAMadmin - Google Apps Manager Administration Tool
+# GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 #
 # A comprehensive suspended account lifecycle management system with database tracking,
 # verification, and automated workflows. For complete documentation, installation
@@ -20,8 +20,8 @@
 # and deployment instructions, see README.md and DEPLOYMENT.md
 #
 
-# GAMadmin Configuration
-# Consolidates all suspended account operations with menu system and preview functionality
+# GWOMBAT Configuration
+# Google Workspace Optimization, Management, Backups And Taskrunner - consolidates all suspended account operations with menu system and preview functionality
 
 # Variables now loaded via load_configuration() function
 
@@ -63,7 +63,7 @@ OPERATION_SUMMARY="${REPORT_DIR}/operation-summary-${SESSION_ID}.txt"
 USER_ACTIVITY_REPORT="${REPORT_DIR}/user-activity-$(date +%Y%m%d).txt"
 
 # Configuration Management
-CONFIG_FILE="./config/gamadmin-config.json"
+CONFIG_FILE="./config/gwombat-config.json"
 CONFIG_DIR="./config"
 mkdir -p "$CONFIG_DIR"
 
@@ -71,7 +71,7 @@ mkdir -p "$CONFIG_DIR"
 load_configuration() {
     # Set default values
     DEFAULT_GAM_PATH="/usr/local/bin/gam"
-    DEFAULT_SCRIPT_PATH="${GAMADMIN_PATH:-$(pwd)}"
+    DEFAULT_SCRIPT_PATH="${GWOMBAT_PATH:-$(pwd)}"
     DEFAULT_SHARED_UTILITIES_PATH="shared-utilities"
     DEFAULT_PROGRESS_ENABLED="true"
     DEFAULT_CONFIRMATION_LEVEL="normal"
@@ -118,7 +118,7 @@ create_default_config() {
     cat > "$CONFIG_FILE" << EOF
 {
   "version": "2.0",
-  "description": "GAMadmin Configuration",
+  "description": "GWOMBAT Configuration",
   "created": "$(date -Iseconds)",
   "settings": {
     "gam_path": "/usr/local/bin/gam",
@@ -161,7 +161,7 @@ echo "=== SESSION START: $(date) ===" >> "$LOG_FILE"
 echo "Session ID: $SESSION_ID" >> "$LOG_FILE"
 echo "User: $(whoami)" >> "$LOG_FILE"
 echo "Working Directory: $(pwd)" >> "$LOG_FILE"
-echo "Script Version: GAMadmin v3.0" >> "$LOG_FILE"
+echo "Script Version: GWOMBAT v3.0" >> "$LOG_FILE"
 echo "GAM Path: $GAM" >> "$LOG_FILE"
 echo "Script Path: $SCRIPTPATH" >> "$LOG_FILE"
 echo "Progress Enabled: $PROGRESS_ENABLED" >> "$LOG_FILE"
@@ -175,12 +175,44 @@ DRY_RUN=false
 DISCOVERY_MODE=false
 PROGRESS_ENABLED=true
 
+# Security: GAM Input Sanitization Function
+# Removes or escapes dangerous shell characters from user inputs to prevent command injection
+sanitize_gam_input() {
+    local input="$1"
+    local sanitized=""
+    
+    if [[ -z "$input" ]]; then
+        echo ""
+        return 0
+    fi
+    
+    # Remove dangerous shell metacharacters that could lead to command injection
+    # Keep only alphanumeric, dots, hyphens, underscores, @, spaces, and basic punctuation for emails/usernames
+    sanitized=$(echo "$input" | sed 's/[;&|`$(){}[\]<>"'\''\\]//g')
+    
+    # Log sanitization if changes were made
+    if [[ "$input" != "$sanitized" ]]; then
+        echo "WARNING: Input sanitized - removed potentially dangerous characters" >> "$AUDIT_LOG"
+        echo "Original: $input" >> "$AUDIT_LOG"
+        echo "Sanitized: $sanitized" >> "$AUDIT_LOG"
+        echo "Timestamp: $(date)" >> "$AUDIT_LOG"
+        echo "---" >> "$AUDIT_LOG"
+        
+        # Also log to console if not in quiet mode
+        if [[ "${QUIET_MODE:-false}" != "true" ]]; then
+            echo -e "${YELLOW}WARNING: Input sanitized to remove potentially dangerous characters${NC}" >&2
+        fi
+    fi
+    
+    echo "$sanitized"
+}
+
 # Dependency check function
 check_dependencies() {
     local missing_deps=()
     local warnings=()
     
-    echo -e "${BLUE}=== GAMadmin Dependency Check ===${NC}"
+    echo -e "${BLUE}=== GWOMBAT Dependency Check ===${NC}"
     echo ""
     
     # Essential dependencies
@@ -422,7 +454,7 @@ generate_daily_report() {
             echo "Total Operations: $(wc -l < "$OPERATION_LOG" 2>/dev/null || echo "0")"
             echo ""
             echo "Operations by Type:"
-            grep -o "add_gamadmin_hold\|remove_gamadmin_hold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
+            grep -o "add_gwombat_hold\|remove_gwombat_hold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
             echo ""
             echo "Operations by Status:"
             grep -o "SUCCESS\|ERROR\|SKIPPED" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No status data"
@@ -472,6 +504,172 @@ cleanup_logs() {
     log_info "Log cleanup completed"
 }
 
+# Database backup functions
+create_database_backup() {
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="${BACKUP_DIR}/account_lifecycle_${timestamp}.db.gz"
+    local db_file="${SCRIPTPATH}/account_lifecycle.db"
+    
+    echo -e "${CYAN}Creating database backup...${NC}"
+    
+    # Ensure backup directory exists
+    mkdir -p "$BACKUP_DIR"
+    
+    # Check if database exists
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${RED}Database file not found: $db_file${NC}"
+        return 1
+    fi
+    
+    # Create compressed backup
+    if gzip -c "$db_file" > "$backup_file"; then
+        echo -e "${GREEN}✅ Database backup created: $backup_file${NC}"
+        log_info "Database backup created: $backup_file"
+        
+        # Get backup size
+        local backup_size=$(du -h "$backup_file" | cut -f1)
+        echo -e "${CYAN}Backup size: $backup_size${NC}"
+        
+        return 0
+    else
+        echo -e "${RED}❌ Failed to create database backup${NC}"
+        return 1
+    fi
+}
+
+upload_backup_to_drive() {
+    local latest_backup=$(ls -t "$BACKUP_DIR"/*.db.gz 2>/dev/null | head -1)
+    
+    if [[ -z "$latest_backup" ]]; then
+        echo -e "${RED}No database backup found to upload${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Uploading backup to Google Drive...${NC}"
+    
+    # Use GAM to upload to admin user's drive
+    local admin_email="${ADMIN_EMAIL:-admin@${DOMAIN:-yourdomain.edu}}"
+    local backup_filename=$(basename "$latest_backup")
+    
+    if $GAM user "$admin_email" add drivefile localfile "$latest_backup" drivefilename "GWOMBAT_DB_Backup_$backup_filename" parentname "GWOMBAT Backups" 2>/dev/null; then
+        echo -e "${GREEN}✅ Backup uploaded to Google Drive successfully${NC}"
+        log_info "Database backup uploaded to Google Drive: $backup_filename"
+        return 0
+    else
+        echo -e "${YELLOW}⚠️  Failed to upload to Google Drive (folder may not exist)${NC}"
+        echo -e "${CYAN}Trying upload to root Drive folder...${NC}"
+        
+        if $GAM user "$admin_email" add drivefile localfile "$latest_backup" drivefilename "GWOMBAT_DB_Backup_$backup_filename" 2>/dev/null; then
+            echo -e "${GREEN}✅ Backup uploaded to Google Drive root folder${NC}"
+            log_info "Database backup uploaded to Google Drive root: $backup_filename"
+            return 0
+        else
+            echo -e "${RED}❌ Failed to upload backup to Google Drive${NC}"
+            return 1
+        fi
+    fi
+}
+
+cleanup_database_backups() {
+    local days_to_keep="${1:-5}"
+    
+    echo -e "${CYAN}Cleaning up database backups older than $days_to_keep days...${NC}"
+    
+    if [[ ! -d "$BACKUP_DIR" ]]; then
+        echo -e "${YELLOW}No backup directory found${NC}"
+        return 0
+    fi
+    
+    # Count backups before cleanup
+    local before_count=$(ls "$BACKUP_DIR"/*.db.gz 2>/dev/null | wc -l)
+    
+    # Remove old backups
+    find "$BACKUP_DIR" -name "*.db.gz" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    
+    # Count backups after cleanup
+    local after_count=$(ls "$BACKUP_DIR"/*.db.gz 2>/dev/null | wc -l)
+    local removed_count=$((before_count - after_count))
+    
+    echo -e "${GREEN}✅ Cleanup completed${NC}"
+    echo -e "${CYAN}Removed $removed_count old backups, $after_count backups remaining${NC}"
+    
+    log_info "Database backup cleanup: removed $removed_count backups, $after_count remaining"
+}
+
+restore_database_backup() {
+    echo -e "${CYAN}Available database backups:${NC}"
+    
+    if [[ ! -d "$BACKUP_DIR" ]]; then
+        echo -e "${RED}No backup directory found${NC}"
+        return 1
+    fi
+    
+    local backups=($(ls -t "$BACKUP_DIR"/*.db.gz 2>/dev/null))
+    
+    if [[ ${#backups[@]} -eq 0 ]]; then
+        echo -e "${RED}No database backups found${NC}"
+        return 1
+    fi
+    
+    # List available backups
+    local i=1
+    for backup in "${backups[@]}"; do
+        local backup_name=$(basename "$backup")
+        local backup_date=$(date -r "$backup" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "Unknown date")
+        local backup_size=$(du -h "$backup" | cut -f1)
+        echo "$i. $backup_name ($backup_date) - $backup_size"
+        ((i++))
+    done
+    
+    echo ""
+    read -p "Select backup to restore (1-${#backups[@]}): " backup_choice
+    
+    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [[ $backup_choice -lt 1 ]] || [[ $backup_choice -gt ${#backups[@]} ]]; then
+        echo -e "${RED}Invalid selection${NC}"
+        return 1
+    fi
+    
+    local selected_backup="${backups[$((backup_choice-1))]}"
+    local db_file="${SCRIPTPATH}/account_lifecycle.db"
+    local backup_of_current="${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
+    
+    echo ""
+    echo -e "${YELLOW}⚠️  WARNING: This will replace the current database!${NC}"
+    echo -e "${CYAN}Current database will be backed up to: $(basename "$backup_of_current")${NC}"
+    echo ""
+    read -p "Are you sure you want to restore from backup? (yes/no): " confirm
+    
+    if [[ "$confirm" != "yes" ]]; then
+        echo -e "${YELLOW}Restore cancelled${NC}"
+        return 0
+    fi
+    
+    # Backup current database if it exists
+    if [[ -f "$db_file" ]]; then
+        if cp "$db_file" "$backup_of_current"; then
+            echo -e "${GREEN}✅ Current database backed up${NC}"
+        else
+            echo -e "${RED}❌ Failed to backup current database${NC}"
+            return 1
+        fi
+    fi
+    
+    # Restore from backup
+    if gunzip -c "$selected_backup" > "$db_file"; then
+        echo -e "${GREEN}✅ Database restored successfully from backup${NC}"
+        log_info "Database restored from backup: $(basename "$selected_backup")"
+        return 0
+    else
+        echo -e "${RED}❌ Failed to restore database from backup${NC}"
+        # Try to restore the backup we just made
+        if [[ "$backup_of_current" ]]; then
+            cp "$backup_of_current" "$db_file"
+            echo -e "${YELLOW}Current database restored from backup${NC}"
+        fi
+        return 1
+    fi
+}
+
 # Function for reports and cleanup menu
 reports_and_cleanup_menu() {
     while true; do
@@ -485,7 +683,7 @@ reports_and_cleanup_menu() {
         echo "5. View performance statistics"
         echo "6. Clean up old logs (30+ days)"
         echo "7. Clean up old logs (custom days)"
-        echo "8. View backup files"
+        echo "8. Database backup management"
         echo "9. Configuration management"
         echo "10. Audit file ownership locations"
         echo ""
@@ -576,14 +774,43 @@ reports_and_cleanup_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             8)
-                echo -e "${CYAN}Recent backup files:${NC}"
-                if [[ -d "$BACKUP_DIR" ]]; then
-                    ls -la "$BACKUP_DIR" | tail -10
-                    echo ""
-                    echo -e "${YELLOW}(Showing 10 most recent backups)${NC}"
-                else
-                    echo "No backup directory found"
-                fi
+                echo -e "${CYAN}Database Backup Management${NC}"
+                echo ""
+                echo "1. Create database backup now"
+                echo "2. Create backup and upload to Google Drive"
+                echo "3. View recent backups"
+                echo "4. Clean up old backups (keep 5 days)"
+                echo "5. Restore from backup"
+                echo ""
+                read -p "Select backup option (1-5): " backup_choice
+                case $backup_choice in
+                    1)
+                        create_database_backup
+                        ;;
+                    2)
+                        create_database_backup
+                        upload_backup_to_drive
+                        ;;
+                    3)
+                        echo -e "${CYAN}Recent database backups:${NC}"
+                        if [[ -d "$BACKUP_DIR" ]]; then
+                            ls -la "$BACKUP_DIR"/*.db.gz 2>/dev/null | tail -10
+                            echo ""
+                            echo -e "${YELLOW}(Showing 10 most recent database backups)${NC}"
+                        else
+                            echo "No backup directory found"
+                        fi
+                        ;;
+                    4)
+                        cleanup_database_backups 5
+                        ;;
+                    5)
+                        restore_database_backup
+                        ;;
+                    *)
+                        echo -e "${RED}Invalid option${NC}"
+                        ;;
+                esac
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
@@ -1003,12 +1230,12 @@ audit_file_ownership_menu() {
 # Function to display the main menu
 show_main_menu() {
     clear
-    echo -e "${BLUE}=== GAMadmin - Google Apps Manager Administration ===${NC}"
+    echo -e "${BLUE}=== GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner ===${NC}"
     echo ""
     echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
     echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
-    echo "1. 🔄 Suspended Account Lifecycle Management (6 options)"
+    echo "1. 🔄 Suspended Account Lifecycle Management (8 options)"
     echo "2. 👥 User & Group Management (2 options)"
     echo ""
     echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
@@ -1127,8 +1354,8 @@ get_operation_choice() {
     while true; do
         read -p "Choose operation (1-4): " op_choice
         case $op_choice in
-            1) echo "add_gamadmin_hold"; break ;;
-            2) echo "remove_gamadmin_hold"; break ;;
+            1) echo "add_gwombat_hold"; break ;;
+            2) echo "remove_gwombat_hold"; break ;;
             3) echo "add_pending"; break ;;
             4) echo "remove_pending"; break ;;
             *) echo -e "${RED}Please select 1, 2, 3, or 4.${NC}" ;;
@@ -1365,14 +1592,14 @@ check_operation_prerequisites() {
                 [[ "$proceed" =~ ^[Yy] ]] || return 1
             fi
             ;;
-        "add_gamadmin_hold")
+        "add_gwombat_hold")
             if [[ "$lastname" == *"(Suspended Account - Temporary Hold)"* ]]; then
                 echo -e "${YELLOW}Warning: User $user already has temporary hold marker. Skip? (y/n)${NC}"
                 read -p "> " skip
                 [[ "$skip" =~ ^[Yy] ]] && return 2  # Return 2 for skip
             fi
             ;;
-        "remove_gamadmin_hold")
+        "remove_gwombat_hold")
             if [[ "$lastname" != *"(Suspended Account - Temporary Hold)"* ]]; then
                 echo -e "${YELLOW}Warning: User $user does not have temporary hold marker. Proceed anyway? (y/n)${NC}"
                 read -p "> " proceed
@@ -1428,7 +1655,7 @@ show_summary() {
     echo "   - Remove user from all groups (with backup)"
     echo ""
     echo -e "${GREEN}6. Logging:${NC}"
-    echo "   - Add user to gamadmin-done.log"
+    echo "   - Add user to gwombat-done.log"
     echo "   - Add timestamp to file-rename-done.txt"
     echo "   - Create group membership backup"
     echo ""
@@ -1461,7 +1688,7 @@ show_removal_summary() {
     echo "   - If moving to ${DOMAIN:-yourdomain.edu}, offer to restore groups from backup"
     echo ""
     echo -e "${GREEN}4. Logging:${NC}"
-    echo "   - Add user to gamadmin-removed.log"
+    echo "   - Add user to gwombat-removed.log"
     echo "   - Add timestamp to file-removal-done.txt"
     echo "   - Log any group restoration activity"
     echo ""
@@ -1564,13 +1791,13 @@ dry_run_mode() {
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR: $user${NC}"
             
             case $operation in
-                "add_gamadmin_hold")
+                "add_gwombat_hold")
                     show_summary "$user"
                     process_user "$user"
                     ;;
-                "remove_gamadmin_hold")
+                "remove_gwombat_hold")
                     show_removal_summary "$user"
-                    remove_gamadmin_hold_user "$user"
+                    remove_gwombat_hold_user "$user"
                     ;;
                 "add_pending")
                     show_pending_summary "$user"
@@ -1590,11 +1817,11 @@ dry_run_mode() {
             echo -e "${MAGENTA}🔍 DRY-RUN PREVIEW FOR $user_count USERS${NC}"
             
             case $operation in
-                "add_gamadmin_hold")
+                "add_gwombat_hold")
                     process_users_from_file "$file_path"
                     ;;
-                "remove_gamadmin_hold")
-                    remove_gamadmin_hold_users_from_file "$file_path"
+                "remove_gwombat_hold")
+                    remove_gwombat_hold_users_from_file "$file_path"
                     ;;
                 "add_pending")
                     process_pending_users_from_file "$file_path"
@@ -1630,7 +1857,7 @@ cleanup_shared_drive() {
     echo ""
     
     # Grant admin user editor access to the shared drive
-    local admin_user="gamadmin@${DOMAIN:-yourdomain.edu}"
+    local admin_user="gwombat@${DOMAIN:-yourdomain.edu}"
     echo -e "${CYAN}Adding admin access to shared drive...${NC}"
     if ! $GAM user "$admin_user" add drivefileacl "$drive_id" user "$admin_user" role editor asadmin 2>/dev/null; then
         echo -e "${RED}Error: Failed to add admin access to shared drive${NC}"
@@ -1699,7 +1926,7 @@ cleanup_shared_drive() {
                     
                     # Remove pending deletion label if it exists
                     if [[ -n "$fileid" ]]; then
-                        $GAM user gamadmin process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null | grep -q "Deleted" && echo "Label removed" || true
+                        $GAM user gwombat process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null | grep -q "Deleted" && echo "Label removed" || true
                     fi
                 else
                     echo -e "${RED}Failed to rename: $filename${NC}"
@@ -1823,13 +2050,13 @@ shared_drive_cleanup_menu() {
         echo -e "${GREEN}=== SHARED DRIVE OPERATIONS ===${NC}"
         echo "1. Clean shared drive (remove all pending deletion markers)"
         echo "2. Remove pending deletion markers (interactive)"
-        echo "3. Grant gamadmin access to shared drive files"
+        echo "3. Grant gwombat access to shared drive files"
         echo "4. Create archived shared drive for user"
         echo ""
         echo -e "${GREEN}=== ACCOUNT ANALYSIS ===${NC}"
         echo "5. Analyze accounts with no file sharing"
         echo "6. File activity analysis (recent vs old files)"
-        echo "7. Transfer file ownership to gamadmin"
+        echo "7. Transfer file ownership to gwombat"
         echo ""
         echo -e "${GREEN}=== GROUP & DATE MANAGEMENT ===${NC}"
         echo "8. Backup/restore user group memberships"
@@ -1941,10 +2168,10 @@ shared_drive_cleanup_menu() {
             7)
                 read -p "Enter user email: " user_email
                 if [[ -n "$user_email" ]]; then
-                    echo -e "${YELLOW}This will transfer ALL files from $user_email to gamadmin${NC}"
+                    echo -e "${YELLOW}This will transfer ALL files from $user_email to gwombat${NC}"
                     read -p "Are you sure? (yes/no): " confirm
                     if [[ "$confirm" == "yes" ]]; then
-                        transfer_ownership_to_gamadmin "$user_email"
+                        transfer_ownership_to_gwombat "$user_email"
                     else
                         echo "Operation cancelled"
                     fi
@@ -2274,6 +2501,15 @@ collect_orphaned_files() {
         return 1
     fi
     
+    # Sanitize inputs to prevent command injection
+    username=$(sanitize_gam_input "$username")
+    target_folder=$(sanitize_gam_input "$target_folder")
+    
+    if [[ -z "$username" ]]; then
+        echo -e "${RED}Error: Username became empty after sanitization${NC}"
+        return 1
+    fi
+    
     echo -e "${BLUE}=== Collecting Orphaned Files for: $username ===${NC}"
     echo ""
     
@@ -2288,7 +2524,7 @@ collect_orphaned_files() {
     echo "Use shortcuts: $use_shortcuts"
     echo ""
     
-    local gam_command="$GAM user $username collect orphans targetuserfoldername \"$target_folder\""
+    local gam_command="$GAM user \"$username\" collect orphans targetuserfoldername \"$target_folder\""
     if [[ "$use_shortcuts" == "true" ]]; then
         gam_command="$gam_command useshortcuts"
     fi
@@ -3198,7 +3434,7 @@ discovery_mode() {
     
     case $discovery_choice in
         1) 
-            query_gamadmin_hold_users
+            query_gwombat_hold_users
             ;;
         2) 
             query_pending_users
@@ -3260,12 +3496,12 @@ check_incomplete_operations() {
     echo -e "${YELLOW}Checking for incomplete operations...${NC}"
     
     # Check for partial log entries
-    if [[ -f "${SCRIPTPATH}/gamadmin-done.log" ]]; then
-        echo "Users in gamadmin-done.log: $(wc -l < "${SCRIPTPATH}/gamadmin-done.log")"
+    if [[ -f "${SCRIPTPATH}/gwombat-done.log" ]]; then
+        echo "Users in gwombat-done.log: $(wc -l < "${SCRIPTPATH}/gwombat-done.log")"
     fi
     
-    if [[ -f "${SCRIPTPATH}/gamadmin-removed.log" ]]; then
-        echo "Users in gamadmin-removed.log: $(wc -l < "${SCRIPTPATH}/gamadmin-removed.log")"
+    if [[ -f "${SCRIPTPATH}/gwombat-removed.log" ]]; then
+        echo "Users in gwombat-removed.log: $(wc -l < "${SCRIPTPATH}/gwombat-removed.log")"
     fi
     
     # Check for orphaned tmp files
@@ -3348,7 +3584,7 @@ build_file_path() {
     
     while [[ -n "$current_id" && "$current_id" != "root" ]]; do
         # Get file name and parent
-        local file_info=$($GAM user "gamadmin@${DOMAIN:-yourdomain.edu}" show fileinfo "$current_id" fields name,parents 2>/dev/null)
+        local file_info=$($GAM user "gwombat@${DOMAIN:-yourdomain.edu}" show fileinfo "$current_id" fields name,parents 2>/dev/null)
         local name=$(echo "$file_info" | grep "name:" | cut -d' ' -f2-)
         local parent=$(echo "$file_info" | grep "parents:" | cut -d' ' -f2)
         
@@ -3445,11 +3681,11 @@ analyze_user_file_sharing() {
 # =====================================
 
 # Function to transfer ownership of files to gamadmin
-transfer_ownership_to_gamadmin() {
+transfer_ownership_to_gwombat() {
     local user_email="$1"
     local dry_run="${2:-false}"
     
-    echo -e "${GREEN}Transferring file ownership from $user_email to gamadmin...${NC}"
+    echo -e "${GREEN}Transferring file ownership from $user_email to gwombat...${NC}"
     
     # Check if user account is suspended - temporarily unsuspend if needed
     local was_suspended=false
@@ -3968,7 +4204,7 @@ get_user_ou() {
 }
 
 # Function to query users in temporary hold OU
-query_gamadmin_hold_users() {
+query_gwombat_hold_users() {
     echo -e "${CYAN}Querying users in Temporary Hold OU...${NC}"
     
     if [[ "$DRY_RUN" == "true" || "$DISCOVERY_MODE" == "true" ]]; then
@@ -4232,6 +4468,14 @@ bulk_cleanup_orphaned_files() {
             local username=$(basename "$scan_file" .txt | sed 's/gam_output_//')
             local file_count=$(wc -l < "$scan_file")
             
+            # Sanitize username to prevent command injection
+            username=$(sanitize_gam_input "$username")
+            
+            if [[ -z "$username" ]]; then
+                echo -e "${RED}Error: Username became empty after sanitization, skipping file: $scan_file${NC}"
+                continue
+            fi
+            
             ((users_processed++))
             echo "Processing $username ($file_count files)..."
             
@@ -4240,6 +4484,15 @@ bulk_cleanup_orphaned_files() {
                 if [[ -n "$fileid" && "$fileid" != "id" ]]; then
                     ((files_processed++))
                     
+                    # Sanitize fileid to prevent command injection
+                    fileid=$(sanitize_gam_input "$fileid")
+                    filename=$(sanitize_gam_input "$filename")
+                    
+                    if [[ -z "$fileid" ]]; then
+                        echo -e "${RED}Warning: File ID became empty after sanitization, skipping${NC}"
+                        continue
+                    fi
+                    
                     # Remove pending deletion suffix from filename
                     local new_filename=${filename//" (PENDING DELETION - CONTACT OIT)"/}
                     if [[ "$new_filename" != "$filename" ]]; then
@@ -4247,7 +4500,7 @@ bulk_cleanup_orphaned_files() {
                     fi
                     
                     # Remove drive label
-                    execute_command "$GAM user $username process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
+                    execute_command "$GAM user \"$username\" process filedrivelabels \"$fileid\" deletelabelfield \"$LABEL_ID\" \"$FIELD_ID\"" "Remove drive label"
                     
                     echo "Cleaned: $fileid" >> "${SCRIPTPATH}/logs/orphaned-files-cleaned.txt"
                 fi
@@ -4289,8 +4542,8 @@ offer_bulk_operations() {
         read -p "Select operation (1-6): " bulk_op
         
         case $bulk_op in
-            1) bulk_process_users "$result_file" "add_gamadmin_hold" ;;
-            2) bulk_process_users "$result_file" "remove_gamadmin_hold" ;;
+            1) bulk_process_users "$result_file" "add_gwombat_hold" ;;
+            2) bulk_process_users "$result_file" "remove_gwombat_hold" ;;
             3) bulk_process_users "$result_file" "add_pending" ;;
             4) bulk_process_users "$result_file" "remove_pending" ;;
             5) bulk_diagnose_users "$result_file" ;;
@@ -4324,8 +4577,8 @@ bulk_process_users() {
         echo -e "${YELLOW}Progress: $current/$user_count${NC}"
         
         case $operation in
-            "add_gamadmin_hold") process_user "$user" ;;
-            "remove_gamadmin_hold") remove_gamadmin_hold_user "$user" ;;
+            "add_gwombat_hold") process_user "$user" ;;
+            "remove_gwombat_hold") remove_gwombat_hold_user "$user" ;;
             "add_pending") process_pending_user "$user" ;;
             "remove_pending") remove_pending_user "$user" ;;
         esac
@@ -4547,7 +4800,16 @@ add_pending_to_files() {
 # Function to add drive labels to files
 add_drive_labels() {
     local user_email_full="$1"
-    local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
+    
+    # Sanitize input to prevent command injection
+    user_email_full=$(sanitize_gam_input "$user_email_full")
+    
+    if [[ -z "$user_email_full" ]]; then
+        echo -e "${RED}Error: User email became empty after sanitization${NC}"
+        return 1
+    fi
+    
+    local user_email=$(echo "$user_email_full" | awk -F@ '{print $1}')
     
     echo -e "${GREEN}Step 3: Adding drive labels to files for $user_email_full${NC}"
     
@@ -4559,7 +4821,7 @@ add_drive_labels() {
     fi
     
     # Add Education Plus license temporarily for drive labels
-    execute_command "$GAM user $user_email_full add license \"Google Workspace for Education Plus\"" "Add temporary license"
+    execute_command "$GAM user \"$user_email_full\" add license \"Google Workspace for Education Plus\"" "Add temporary license"
     echo "Waiting 30 seconds for license to take effect..."
     sleep 30
     
@@ -4581,12 +4843,21 @@ add_drive_labels() {
         if [[ "$file_id" != "id" && "$file_id" != *"mimeType"* ]]; then
             ((counter++))
             show_progress $counter $total "Adding drive labels"
-            execute_command "$GAM user $user_email_full process filedrivelabels $file_id addlabelfield $LABEL_ID $FIELD_ID selection $SELECTION_ID" "Add label to file"
+            
+            # Sanitize file_id to prevent command injection
+            file_id=$(sanitize_gam_input "$file_id")
+            
+            if [[ -z "$file_id" ]]; then
+                echo -e "${RED}Warning: File ID became empty after sanitization, skipping${NC}"
+                continue
+            fi
+            
+            execute_command "$GAM user \"$user_email_full\" process filedrivelabels \"$file_id\" addlabelfield \"$LABEL_ID\" \"$FIELD_ID\" selection \"$SELECTION_ID\"" "Add label to file"
         fi
     done < "$UNIQUE_FILE"
     
     # Remove the temporary license
-    execute_command "$GAM user $user_email_full delete license \"Google Workspace for Education Plus\"" "Remove temporary license"
+    execute_command "$GAM user \"$user_email_full\" delete license \"Google Workspace for Education Plus\"" "Remove temporary license"
     
     echo "Completed adding drive labels for $user_email"
 }
@@ -4682,6 +4953,15 @@ remove_pending_from_files() {
 # Function to remove user from all groups
 remove_from_groups() {
     local user="$1"
+    
+    # Sanitize input to prevent command injection
+    user=$(sanitize_gam_input "$user")
+    
+    if [[ -z "$user" ]]; then
+        echo -e "${RED}Error: User became empty after sanitization${NC}"
+        return 1
+    fi
+    
     echo -e "${GREEN}Step 4: Removing user from all groups for $user${NC}"
     
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -4692,7 +4972,7 @@ remove_from_groups() {
     fi
     
     # Get list of groups user is a member of
-    groups=$($GAM print groups member $user 2>/dev/null | grep ${DOMAIN:-yourdomain.edu})
+    groups=$($GAM print groups member "$user" 2>/dev/null | grep ${DOMAIN:-yourdomain.edu})
     
     if [[ -z "$groups" ]]; then
         echo "User $user is not a member of any groups"
@@ -4920,7 +5200,7 @@ update_user_lastname() {
 }
 
 # Function to remove temporary hold from user's last name
-remove_gamadmin_hold_lastname() {
+remove_gwombat_hold_lastname() {
     local email="$1"
     echo -e "${GREEN}Step 1: Removing temporary hold from last name for $email${NC}"
     
@@ -4941,7 +5221,7 @@ remove_gamadmin_hold_lastname() {
 }
 
 # Function to remove temporary hold from all files
-remove_gamadmin_hold_from_files() {
+remove_gwombat_hold_from_files() {
     local user_email_full="$1"
     local user_email=$(echo $user_email_full | awk -F@ '{print $1}')
     
@@ -4980,7 +5260,7 @@ remove_gamadmin_hold_from_files() {
 }
 
 # Function to remove temporary hold from a single user
-remove_gamadmin_hold_user() {
+remove_gwombat_hold_user() {
     local user="$1"
     
     echo -e "${BLUE}=== Removing temporary hold from user: $user ===${NC}"
@@ -4988,12 +5268,12 @@ remove_gamadmin_hold_user() {
     
     # Step 1: Remove temporary hold from lastname
     show_progress 1 3 "Removing temporary hold from lastname"
-    remove_gamadmin_hold_lastname "$user"
+    remove_gwombat_hold_lastname "$user"
     echo ""
     
     # Step 2: Remove temporary hold from all files
     show_progress 2 3 "Removing temporary hold from all files"
-    remove_gamadmin_hold_from_files "$user"
+    remove_gwombat_hold_from_files "$user"
     echo ""
     
     # Step 3: Move user to appropriate OU
@@ -5018,7 +5298,7 @@ remove_gamadmin_hold_user() {
 }
 
 # Function to remove temporary hold from multiple users from file
-remove_gamadmin_hold_users_from_file() {
+remove_gwombat_hold_users_from_file() {
     local file_path="$1"
     local user_count=$(wc -l < "$file_path")
     local current=0
@@ -5031,7 +5311,7 @@ remove_gamadmin_hold_users_from_file() {
         if [[ -n "$user" && ! "$user" =~ ^[[:space:]]*# ]]; then
             ((current++))
             echo -e "${YELLOW}Progress: $current/$user_count${NC}"
-            remove_gamadmin_hold_user "$user"
+            remove_gwombat_hold_user "$user"
             echo "----------------------------------------"
         fi
     done < "$file_path"
@@ -5167,7 +5447,7 @@ remove_pending_users_from_file() {
 process_user() {
     local user="$1"
     
-    log_info "Starting add_gamadmin_hold operation for user: $user" "console"
+    log_info "Starting add_gwombat_hold operation for user: $user" "console"
     start_operation_timer
     
     echo -e "${BLUE}=== Processing user: $user ===${NC}"
@@ -5201,14 +5481,14 @@ process_user() {
     # Step 6: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
         echo "$user" >> "${SCRIPTPATH}/gamadmin-done.log"
-        log_operation "add_gamadmin_hold" "$user" "SUCCESS" "Temporary hold added successfully"
+        log_operation "add_gwombat_hold" "$user" "SUCCESS" "Temporary hold added successfully"
     else
         echo -e "${CYAN}[DRY-RUN] Would log user to gamadmin-done.log${NC}"
-        log_operation "add_gamadmin_hold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
+        log_operation "add_gwombat_hold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
     fi
     
-    end_operation_timer "add_gamadmin_hold" 1
-    log_info "Completed add_gamadmin_hold operation for user: $user" "console"
+    end_operation_timer "add_gwombat_hold" 1
+    log_info "Completed add_gwombat_hold operation for user: $user" "console"
     echo -e "${GREEN}User $user has been processed successfully.${NC}"
     echo ""
 }
@@ -5246,27 +5526,41 @@ lifecycle_management_menu() {
         echo -e "${CYAN}Complete account management from suspension through deletion${NC}"
         echo -e "${YELLOW}Workflow: Recently Suspended → Pending Deletion → Final Decisions → Deletion${NC}"
         echo ""
-        echo "1. 📋 Manage Recently Suspended Accounts"
-        echo "2. 🔄 Process Accounts for Pending Deletion"
-        echo "3. 📊 File Sharing Analysis & Reports"
-        echo "4. 🎯 Final Decisions (Temporary Hold / Exit Row)"
-        echo "5. 🗑️  Account Deletion Operations"
-        echo "6. 🔍 Quick Account Status Checker"
+        echo "1. 🔍 Scan All Suspended Accounts (Discover & Categorize)"
+        echo "2. 📝 Auto-Create Stage Lists from Current Accounts"
+        echo "3. 📋 Manage Recently Suspended Accounts"
+        echo "4. 🔄 Process Accounts for Pending Deletion"
+        echo "5. 📊 File Sharing Analysis & Reports"
+        echo "6. 🎯 Final Decisions (Temporary Hold / Exit Row)"
+        echo "7. 🗑️  Account Deletion Operations"
+        echo "8. 🔍 Quick Account Status Checker"
         echo ""
-        echo "7. Return to main menu"
+        echo "9. Return to main menu"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-7, m, x): " lifecycle_choice
+        read -p "Select an option (1-9, m, x): " lifecycle_choice
         echo ""
         
         case $lifecycle_choice in
-            1) stage1_recently_suspended_menu ;;
-            2) stage2_pending_deletion_menu ;;
-            3) stage3_sharing_analysis_menu ;;
-            4) stage4_final_decisions_menu ;;
-            5) stage5_deletion_operations_menu ;;
-            6) 
+            1) 
+                echo -e "${CYAN}Scanning all suspended accounts...${NC}"
+                scan_suspended_accounts
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                echo -e "${CYAN}Auto-creating stage lists...${NC}"
+                auto_create_stage_lists
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3) stage1_recently_suspended_menu ;;
+            4) stage2_pending_deletion_menu ;;
+            5) stage3_sharing_analysis_menu ;;
+            6) stage4_final_decisions_menu ;;
+            7) stage5_deletion_operations_menu ;;
+            8) 
                 read -p "Enter username to check: " username
                 if [[ -n "$username" ]]; then
                     diagnose_account "$username"
@@ -5276,11 +5570,11 @@ lifecycle_management_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7) return ;;
+            9) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-9, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6146,7 +6440,7 @@ stage4_final_decisions_menu() {
                 user=$(get_user_input)
                 show_summary "$user"
                 if enhanced_confirm "move to temporary hold" 1 "normal"; then
-                    create_backup "$user" "add_gamadmin_hold"
+                    create_backup "$user" "add_gwombat_hold"
                     process_user "$user"
                 else
                     echo -e "${YELLOW}Operation cancelled.${NC}"
@@ -6172,8 +6466,8 @@ stage4_final_decisions_menu() {
                 user=$(get_user_input)
                 show_removal_summary "$user"
                 if enhanced_confirm "remove from temporary hold" 1 "normal"; then
-                    create_backup "$user" "remove_gamadmin_hold"
-                    remove_gamadmin_hold_user "$user"
+                    create_backup "$user" "remove_gwombat_hold"
+                    remove_gwombat_hold_user "$user"
                 else
                     echo -e "${YELLOW}Operation cancelled.${NC}"
                 fi
@@ -6181,7 +6475,7 @@ stage4_final_decisions_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             4) 
-                query_gamadmin_hold_users
+                query_gwombat_hold_users
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
@@ -6310,7 +6604,7 @@ stage5_deletion_operations_menu() {
                 echo ""
                 
                 local exit_row_count=$($GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail 2>/dev/null | tail -n +2 | wc -l)
-                local temphold_count=$(query_gamadmin_hold_users | tail -n +2 | wc -l)
+                local temphold_count=$(query_gwombat_hold_users | tail -n +2 | wc -l)
                 local pending_count=$(query_pending_users | tail -n +2 | wc -l)
                 
                 echo "Accounts by stage:"
