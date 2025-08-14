@@ -1254,9 +1254,16 @@ show_main_menu() {
     echo "7. ⚙️  System Administration (7 options)"
     echo ""
     echo "8. ❌ Exit"
+    echo "x. Exit"
     echo ""
-    read -p "Select an option (1-8): " choice
+    read -p "Select an option (1-8, x): " choice
     echo ""
+    
+    # Convert x to 8 (exit)
+    if [[ "$choice" == "x" || "$choice" == "X" ]]; then
+        choice=8
+    fi
+    
     return $choice
 }
 
@@ -1918,12 +1925,16 @@ cleanup_shared_drive() {
         local success_count=0
         local skip_count=0
         
-        echo "$files_with_markers" | while IFS=, read -r owner fileid filename; do
+        # Use process substitution to avoid subshell issues
+        while IFS=, read -r owner fileid filename; do
             ((count++))
             local new_filename=${filename//"(PENDING DELETION - CONTACT OIT)"/}
             
             if [[ "$new_filename" != "$filename" ]]; then
                 echo -e "${CYAN}[$count/$total_files] Processing: $filename${NC}"
+                
+                # Show GAM command being executed
+                echo -e "${YELLOW}Executing: $GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename\"${NC}"
                 
                 if $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename" 2>/dev/null; then
                     echo -e "${GREEN}Renamed: $filename -> $new_filename${NC}"
@@ -1932,7 +1943,8 @@ cleanup_shared_drive() {
                     
                     # Remove pending deletion label if it exists
                     if [[ -n "$fileid" ]]; then
-                        $GAM user gwombat process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null | grep -q "Deleted" && echo "Label removed" || true
+                        echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} process filedrivelabels \"$fileid\" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6${NC}"
+                        $GAM user "${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}" process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6 2>/dev/null | grep -q "Deleted" && echo "Label removed" || true
                     fi
                 else
                     echo -e "${RED}Failed to rename: $filename${NC}"
@@ -1941,7 +1953,7 @@ cleanup_shared_drive() {
             else
                 ((skip_count++))
             fi
-        done
+        done < <(echo "$files_with_markers")
         
         echo ""
         echo -e "${GREEN}Cleanup completed${NC}"
@@ -2048,6 +2060,84 @@ remove_pending_from_shared_drive() {
     log_info "Remove pending deletion completed for shared drive $drive_id"
 }
 
+# Function to get shared drive ID with URL parsing and search options
+get_shared_drive_id() {
+    local prompt="${1:-Enter shared drive ID or URL}"
+    local drive_id=""
+    
+    while [[ -z "$drive_id" ]]; do
+        echo ""
+        echo -e "${CYAN}Options:${NC}"
+        echo "1. Enter drive ID or paste drive URL"
+        echo "2. Search for drive by name" 
+        echo "x. Cancel"
+        echo ""
+        read -p "Select option (1-2, x): " input_option
+        
+        case $input_option in
+            1)
+                read -p "$prompt: " user_input
+                if [[ -n "$user_input" ]]; then
+                    # Check if it's a URL and extract ID
+                    if [[ "$user_input" =~ https://drive\.google\.com/drive/folders/([a-zA-Z0-9_-]+) ]]; then
+                        drive_id="${BASH_REMATCH[1]}"
+                        echo -e "${GREEN}Extracted drive ID from URL: $drive_id${NC}"
+                    elif [[ "$user_input" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                        drive_id="$user_input"
+                        echo -e "${GREEN}Using drive ID: $drive_id${NC}"
+                    else
+                        echo -e "${RED}Invalid format. Please enter a valid drive ID or URL.${NC}"
+                        read -p "Press Enter to try again..."
+                    fi
+                fi
+                ;;
+            2)
+                read -p "Enter drive name to search: " search_name
+                if [[ -n "$search_name" ]]; then
+                    echo -e "${CYAN}Searching for drives containing '$search_name'...${NC}"
+                    # Show GAM command being executed
+                    echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print teamdrives name query name contains '$search_name'${NC}"
+                    
+                    local search_results
+                    search_results=$($GAM user "${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}" print teamdrives name query "name contains '$search_name'" 2>/dev/null | tail -n +2)
+                    
+                    if [[ -n "$search_results" ]]; then
+                        echo -e "${GREEN}Found drives:${NC}"
+                        echo "$search_results" | nl -w2 -s'. '
+                        echo ""
+                        read -p "Enter the number of the drive to select (or press Enter to cancel): " selection
+                        
+                        if [[ "$selection" =~ ^[0-9]+$ ]]; then
+                            local selected_line=$(echo "$search_results" | sed -n "${selection}p")
+                            if [[ -n "$selected_line" ]]; then
+                                drive_id=$(echo "$selected_line" | cut -d',' -f1)
+                                local drive_name=$(echo "$selected_line" | cut -d',' -f2)
+                                echo -e "${GREEN}Selected: $drive_name (ID: $drive_id)${NC}"
+                            else
+                                echo -e "${RED}Invalid selection${NC}"
+                                read -p "Press Enter to try again..."
+                            fi
+                        fi
+                    else
+                        echo -e "${RED}No drives found containing '$search_name'${NC}"
+                        read -p "Press Enter to try again..."
+                    fi
+                fi
+                ;;
+            x|X)
+                return 1  # User cancelled
+                ;;
+            *)
+                echo -e "${RED}Invalid option${NC}"
+                read -p "Press Enter to try again..."
+                ;;
+        esac
+    done
+    
+    echo "$drive_id"
+    return 0
+}
+
 shared_drive_cleanup_menu() {
     while true; do
         clear
@@ -2073,13 +2163,16 @@ shared_drive_cleanup_menu() {
         echo "12. Dry-run: Preview cleanup operations"
         echo "13. Return to administrative tools menu"
         echo ""
-        read -p "Select an option (1-13): " cleanup_choice
+        echo "m. Return to main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-13, m, x): " cleanup_choice
         echo ""
         
         case $cleanup_choice in
             1)
-                read -p "Enter shared drive ID: " drive_id
-                if [[ -n "$drive_id" ]]; then
+                drive_id=$(get_shared_drive_id "Enter shared drive ID or URL")
+                if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     cleanup_shared_drive "$drive_id" false
                     echo ""
                     read -p "Press Enter to continue..."
@@ -2089,8 +2182,8 @@ shared_drive_cleanup_menu() {
                 fi
                 ;;
             2)
-                read -p "Enter shared drive ID: " drive_id
-                if [[ -n "$drive_id" ]]; then
+                drive_id=$(get_shared_drive_id "Enter shared drive ID or URL")
+                if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     remove_pending_from_shared_drive "$drive_id" false
                     echo ""
                     read -p "Press Enter to continue..."
@@ -2100,8 +2193,8 @@ shared_drive_cleanup_menu() {
                 fi
                 ;;
             3)
-                read -p "Enter shared drive ID for preview: " drive_id
-                if [[ -n "$drive_id" ]]; then
+                drive_id=$(get_shared_drive_id "Enter shared drive ID or URL for preview")
+                if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     echo ""
                     echo -e "${CYAN}Choose preview type:${NC}"
                     echo "1. Full cleanup preview"
@@ -2127,8 +2220,8 @@ shared_drive_cleanup_menu() {
                 fi
                 ;;
             3)
-                read -p "Enter shared drive ID: " drive_id
-                if [[ -n "$drive_id" ]]; then
+                drive_id=$(get_shared_drive_id "Enter shared drive ID or URL")
+                if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     shared_drive_operations "grant_admin_access" "$drive_id"
                     read -p "Press Enter to continue..."
                 else
@@ -2250,8 +2343,8 @@ shared_drive_cleanup_menu() {
                 fi
                 ;;
             12)
-                read -p "Enter shared drive ID for preview: " drive_id
-                if [[ -n "$drive_id" ]]; then
+                drive_id=$(get_shared_drive_id "Enter shared drive ID or URL for preview")
+                if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     echo ""
                     echo -e "${CYAN}Choose preview type:${NC}"
                     echo "1. Full cleanup preview"
@@ -2278,8 +2371,17 @@ shared_drive_cleanup_menu() {
             13)
                 return
                 ;;
+            m|M)
+                clear
+                show_main_menu
+                return
+                ;;
+            x|X)
+                echo -e "${CYAN}Goodbye!${NC}"
+                exit 0
+                ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-13.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-13, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6692,7 +6794,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-8.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-8 or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
