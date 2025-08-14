@@ -3680,7 +3680,7 @@ analyze_user_file_sharing() {
 # OWNERSHIP TRANSFER AND ACCOUNT MANAGEMENT FUNCTIONS
 # =====================================
 
-# Function to transfer ownership of files to gamadmin
+# Function to transfer ownership of files to gwombat
 transfer_ownership_to_gwombat() {
     local user_email="$1"
     local dry_run="${2:-false}"
@@ -3717,13 +3717,13 @@ transfer_ownership_to_gwombat() {
             # Check if file is owned by external account
             if [[ "$owner_email" != *"@${DOMAIN:-yourdomain.edu}" ]]; then
                 echo "  External file detected - copying instead of transferring: $file_name"
-                $GAM user gamadmin@${DOMAIN:-yourdomain.edu} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
+                $GAM user gwombat@${DOMAIN:-yourdomain.edu} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
             else
-                $GAM user "$user_email" add drivefileacl "$file_id" user gamadmin@${DOMAIN:-yourdomain.edu} role owner transferownership true
+                $GAM user "$user_email" add drivefileacl "$file_id" user gwombat@${DOMAIN:-yourdomain.edu} role owner transferownership true
             fi
         done
     else
-        echo -e "${CYAN}[DRY-RUN] Would transfer ownership of all files from $user_email to gamadmin${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would transfer ownership of all files from $user_email to gwombat${NC}"
     fi
     
     # Re-suspend user if they were originally suspended
@@ -3887,7 +3887,7 @@ restore_file_dates() {
         show_progress $counter $file_count "Fixing date: $file_name"
         
         # Try to find appropriate date from file activity
-        local activity_date=$($GAM user gamadmin@${DOMAIN:-yourdomain.edu} show driveactivity "$file_id" 2>/dev/null | \
+        local activity_date=$($GAM user gwombat@${DOMAIN:-yourdomain.edu} show driveactivity "$file_id" 2>/dev/null | \
                               grep -E "time.*$(date -d "$target_date" +%Y)" | head -1 | \
                               grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "$target_date")
         
@@ -3978,21 +3978,21 @@ shared_drive_operations() {
     case $operation in
         "remove_pending_labels")
             echo -e "${GREEN}Removing pending deletion labels from shared drive...${NC}"
-            $GAM user gamadmin@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
+            $GAM user gwombat@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
                 fields id,name | tail -n +2 | while IFS=',' read -r file_id file_name; do
                 if [[ "$file_name" == *"PENDING DELETION"* ]] || [[ "$file_name" == *"Suspended Account - Temporary Hold"* ]]; then
                     local new_name=$(echo "$file_name" | sed -E 's/ \(PENDING DELETION - CONTACT OIT\)//g' | \
                                     sed -E 's/ \(Suspended Account - Temporary Hold\)//g')
                     echo "  Cleaning: $file_name -> $new_name"
-                    $GAM user gamadmin@${DOMAIN:-yourdomain.edu} update drivefile "$file_id" name "$new_name"
+                    $GAM user gwombat@${DOMAIN:-yourdomain.edu} update drivefile "$file_id" name "$new_name"
                 fi
             done
             ;;
         "grant_admin_access")
             echo -e "${GREEN}Granting gamadmin access to all files in shared drive...${NC}"
-            $GAM user gamadmin@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
+            $GAM user gwombat@${DOMAIN:-yourdomain.edu} print filelist query "parents in '$drive_id'" \
                 fields id | tail -n +2 | while read file_id; do
-                $GAM user gamadmin@${DOMAIN:-yourdomain.edu} add drivefileacl "$file_id" user gamadmin@${DOMAIN:-yourdomain.edu} role writer
+                $GAM user gwombat@${DOMAIN:-yourdomain.edu} add drivefileacl "$file_id" user gwombat@${DOMAIN:-yourdomain.edu} role writer
             done
             ;;
         "create_user_drive")
@@ -4001,8 +4001,8 @@ shared_drive_operations() {
             local new_drive_id=$($GAM create shareddrive "$drive_name" adminmanaged)
             echo "Created shared drive: $new_drive_id"
             
-            # Grant access to gamadmin
-            $GAM update shareddrive "$new_drive_id" add organizer gamadmin@${DOMAIN:-yourdomain.edu}
+            # Grant access to gwombat
+            $GAM update shareddrive "$new_drive_id" add organizer gwombat@${DOMAIN:-yourdomain.edu}
             echo "$new_drive_id"
             ;;
     esac
@@ -5480,10 +5480,10 @@ process_user() {
     
     # Step 6: Log completion
     if [[ "$DRY_RUN" != "true" ]]; then
-        echo "$user" >> "${SCRIPTPATH}/gamadmin-done.log"
+        echo "$user" >> "${SCRIPTPATH}/gwombat-done.log"
         log_operation "add_gwombat_hold" "$user" "SUCCESS" "Temporary hold added successfully"
     else
-        echo -e "${CYAN}[DRY-RUN] Would log user to gamadmin-done.log${NC}"
+        echo -e "${CYAN}[DRY-RUN] Would log user to gwombat-done.log${NC}"
         log_operation "add_gwombat_hold" "$user" "DRY-RUN" "Dry-run mode - no changes made"
     fi
     
