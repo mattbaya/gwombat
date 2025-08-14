@@ -12,19 +12,20 @@ GWOMBAT uses git for deployment to maintain version control and enable easy roll
 
 ## Setup (One-Time)
 
-### 1. Configure Deployment Script
-Edit `deploy.sh` and update these variables:
+### 1. Configure Environment Variables
+Copy the template and configure your deployment settings:
 ```bash
-PRODUCTION_SERVER="gamera.your-domain.edu"  # Your server name
-PRODUCTION_USER="your-username"          # Your username
-PRODUCTION_PATH="/opt/your-path/gwombat" # Where app runs
-BARE_REPO_PATH="/opt/your-path/gwombat.git"  # Git repository
+cp .env.template .env
+# Edit .env with your specific values:
+# PRODUCTION_SERVER, PRODUCTION_USER, GWOMBAT_PATH, etc.
 ```
+
+The deployment script reads from your `.env` file - no need to edit `deploy.sh` directly.
 
 ### 2. Ensure SSH Access
 Make sure you can SSH to your production server:
 ```bash
-ssh your-username@gamera.your-domain.edu
+ssh your-username@your-production-server.edu
 ```
 
 ### 3. Run Initial Deployment
@@ -103,7 +104,7 @@ git checkout HEAD~1
 ## Directory Structure on Production
 
 ```
-/opt/your-path/gwombat/          # Working directory (where app runs)
+${GWOMBAT_PATH}/                # Working directory (configurable via .env)
 ├── gwombat.sh                    # Main script
 ├── database_functions.sh         # Database operations
 ├── database_schema.sql           # Database schema
