@@ -228,11 +228,20 @@ OU_ACTIVE="/your-domain.edu"
 # Google Drive Label IDs for pending deletion
 LABEL_ID="xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb"
 
+# Load server-specific configuration
+if [[ -f "server.env" ]]; then
+    source server.env
+    echo "Loaded server configuration from server.env"
+else
+    echo "Warning: server.env not found, using default paths"
+fi
+
 # Advanced Logging and Reporting Configuration
-LOG_DIR="./logs"
-BACKUP_DIR="./backups"
-REPORT_DIR="./reports"
-mkdir -p "$LOG_DIR" "$BACKUP_DIR" "$REPORT_DIR"
+LOG_DIR="${LOG_PATH:-./logs}"
+BACKUP_DIR="${BACKUPS_PATH:-./backups}"
+REPORT_DIR="${REPORTS_PATH:-./reports}"
+TMP_DIR="${TMP_PATH:-./tmp}"
+mkdir -p "$LOG_DIR" "$BACKUP_DIR" "$REPORT_DIR" "$TMP_DIR"
 
 # Log files
 SESSION_ID=$(date +%Y%m%d_%H%M%S)

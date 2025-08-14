@@ -9,15 +9,15 @@ set -e  # Exit on any error
 if [[ -f ".env" ]]; then
     source .env
 else
-    echo -e "${RED}Error: .env file not found. Please create it with SSH_KEY_PASSWORD and SSH_KEY_PATH${NC}"
+    echo -e "${RED}Error: .env file not found. Please create it from .env.template${NC}"
     exit 1
 fi
 
-# Configuration - UPDATE THESE VALUES
-PRODUCTION_SERVER="gamera2.your-domain.edu"
-PRODUCTION_USER="gamadmin" 
-PRODUCTION_PATH="/opt/gamera/mjb9/gamadmin"
-BARE_REPO_PATH="/opt/gamera/mjb9/gamadmin.git"
+# Validate required environment variables
+if [[ -z "$PRODUCTION_SERVER" || -z "$PRODUCTION_USER" || -z "$PRODUCTION_PATH" || -z "$BARE_REPO_PATH" ]]; then
+    echo -e "${RED}Error: Missing required .env variables (PRODUCTION_SERVER, PRODUCTION_USER, PRODUCTION_PATH, BARE_REPO_PATH)${NC}"
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -80,18 +80,38 @@ ssh "$PRODUCTION_USER@$PRODUCTION_SERVER" "
     fi
 "
 
+# Configure SSH to use our specific key for this deployment
+SSH_CONFIG_HOST="gamadmin-deploy"
+SSH_REMOTE_URL="$SSH_CONFIG_HOST:$BARE_REPO_PATH"
+
+# Create temporary SSH config entry
+echo -e "${BLUE}Configuring SSH for deployment key...${NC}"
+mkdir -p ~/.ssh
+if ! grep -q "Host $SSH_CONFIG_HOST" ~/.ssh/config 2>/dev/null; then
+    cat >> ~/.ssh/config << EOF
+
+Host $SSH_CONFIG_HOST
+    HostName $PRODUCTION_SERVER
+    User $PRODUCTION_USER
+    IdentityFile $SSH_KEY_PATH
+    IdentitiesOnly yes
+EOF
+    echo "Added SSH config entry for deployment"
+else
+    echo "SSH config entry already exists"
+fi
+
 # Add production remote (if not already added)
 if ! git remote get-url production >/dev/null 2>&1; then
     echo -e "${BLUE}Adding production remote...${NC}"
-    git remote add production "$PRODUCTION_USER@$PRODUCTION_SERVER:$BARE_REPO_PATH"
+    git remote add production "$SSH_REMOTE_URL"
 else
-    echo -e "${BLUE}Production remote already exists${NC}"
+    echo -e "${BLUE}Updating production remote URL...${NC}"
+    git remote set-url production "$SSH_REMOTE_URL"
 fi
 
-# Push to production using ssh-agent for password automation
-echo -e "${BLUE}Pushing to production server...${NC}"
-
-# Start ssh-agent and add key with password
+# Load SSH key with password automation
+echo -e "${BLUE}Loading SSH key for deployment...${NC}"
 eval "$(ssh-agent -s)" >/dev/null
 expect -c "
     spawn ssh-add \"$SSH_KEY_PATH\"
@@ -100,24 +120,13 @@ expect -c "
     expect eof
 " >/dev/null 2>&1
 
+# Push to production (SSH config handles which key to use)
+echo -e "${BLUE}Pushing to production server...${NC}"
 git push production main
 
-# Kill ssh-agent
-kill $SSH_AGENT_PID >/dev/null 2>&1 || true
-
-# Update working directory on production server
+# Update working directory on production server  
 echo -e "${BLUE}Updating production working directory...${NC}"
-
-# Use the same ssh-agent session
-eval "$(ssh-agent -s)" >/dev/null
-expect -c "
-    spawn ssh-add \"$SSH_KEY_PATH\"
-    expect \"Enter passphrase\"
-    send \"$SSH_KEY_PASSWORD\\r\"
-    expect eof
-" >/dev/null 2>&1
-
-ssh "$PRODUCTION_USER@$PRODUCTION_SERVER" "
+ssh "$SSH_CONFIG_HOST" "
     cd '$PRODUCTION_PATH'
     git pull origin main
     
@@ -126,6 +135,12 @@ ssh "$PRODUCTION_USER@$PRODUCTION_SERVER" "
     
     # Create necessary directories if they don't exist
     mkdir -p logs reports tmp backups
+    
+    # Copy server configuration template if server.env doesn't exist
+    if [[ ! -f server.env ]]; then
+        cp server.env.template server.env
+        echo 'Created server.env from template - please customize paths as needed'
+    fi
     
     # Set proper permissions
     chmod 755 logs reports tmp backups 2>/dev/null || true
@@ -143,9 +158,9 @@ echo -e "${GREEN}  Path: $PRODUCTION_PATH${NC}"
 echo -e "${GREEN}  Script: $PRODUCTION_PATH/gamadmin.sh${NC}"
 echo ""
 echo -e "${BLUE}To run on production server:${NC}"
-echo -e "${BLUE}  ssh $PRODUCTION_USER@$PRODUCTION_SERVER${NC}"
+echo -e "${BLUE}  ssh $SSH_CONFIG_HOST${NC}"
 echo -e "${BLUE}  cd $PRODUCTION_PATH${NC}"
 echo -e "${BLUE}  ./gamadmin.sh${NC}"
 
-# Kill ssh-agent
+# Clean up ssh-agent
 kill $SSH_AGENT_PID >/dev/null 2>&1 || true
