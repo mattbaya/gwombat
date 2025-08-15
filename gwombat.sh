@@ -1233,6 +1233,588 @@ audit_file_ownership_menu() {
     done
 }
 
+# Dashboard and Statistics Menu
+dashboard_menu() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== 🎯 Dashboard & Statistics ===${NC}"
+        echo ""
+        
+        # Show quick statistics at the top of the menu
+        echo -e "${CYAN}Current Statistics:${NC}"
+        
+        # Dashboard stats
+        if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+            local quick_stats=$($SHARED_UTILITIES_PATH/dashboard_functions.sh stats 2>/dev/null)
+            if [[ -n "$quick_stats" ]]; then
+                IFS='|' read -r suspended_total pending_deletion temporary_hold exit_row inactive_users_30d shared_drives_count <<< "$quick_stats"
+                echo -e "  ${WHITE}Suspended Users:${NC} ${YELLOW}$suspended_total${NC} | ${WHITE}Pending Deletion:${NC} ${RED}$pending_deletion${NC} | ${WHITE}Shared Drives:${NC} ${GREEN}$shared_drives_count${NC}"
+            fi
+        fi
+        
+        # Security stats
+        if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
+            local security_stats=$($SHARED_UTILITIES_PATH/security_reports.sh stats 2>/dev/null)
+            if [[ -n "$security_stats" ]]; then
+                IFS='|' read -r alerts_24h compliance_rate failed_logins admin_actions high_risk_oauth <<< "$security_stats"
+                echo -e "  ${WHITE}Security Alerts (24h):${NC} ${RED}$alerts_24h${NC} | ${WHITE}Compliance Rate:${NC} ${GREEN}${compliance_rate}%${NC} | ${WHITE}Failed Logins:${NC} ${YELLOW}$failed_logins${NC}"
+            fi
+        fi
+        echo ""
+        
+        echo -e "${GREEN}=== DASHBOARD OPTIONS ===${NC}"
+        echo "1. 📊 Show Full Dashboard (Live OU statistics and system overview)"
+        echo "2. 🔄 Refresh Statistics (Force refresh of all statistics)"
+        echo "3. 📈 Extended Statistics Only (Inactive users, shared drives, storage)"
+        echo "4. 🏥 System Health Check"
+        echo ""
+        echo -e "${RED}=== SECURITY REPORTS ===${NC}"
+        echo "5. 🔒 Security Dashboard (GAM7 enhanced security monitoring)"
+        echo "6. 🚨 Security Scans (Login activities, admin actions, compliance)"
+        echo "7. 📋 Generate Security Report"
+        echo ""
+        # Check backup tools availability
+        local backup_tools_available=false
+        local gyb_available=false
+        local rclone_available=false
+        
+        if [[ -x "$SHARED_UTILITIES_PATH/backup_tools.sh" ]]; then
+            backup_tools_available=true
+            # Check individual tool availability
+            if command -v "${GYB_PATH:-gyb}" >/dev/null 2>&1; then
+                gyb_available=true
+            fi
+            if command -v "${RCLONE_PATH:-rclone}" >/dev/null 2>&1; then
+                rclone_available=true
+            fi
+        fi
+        
+        echo -e "${BLUE}=== BACKUP TOOLS ===${NC}"
+        if [[ "$backup_tools_available" == "true" ]]; then
+            echo "8. 💾 Backup Tools Status (GYB and rclone integration)"
+        else
+            echo -e "${GRAY}8. 💾 Backup Tools Status (Not available - backup_tools.sh missing)${NC}"
+        fi
+        
+        if [[ "$gyb_available" == "true" ]]; then
+            echo "9. 📧 Gmail Backup Operations"
+        else
+            echo -e "${GRAY}9. 📧 Gmail Backup Operations (Install GYB: pip install gyb)${NC}"
+        fi
+        
+        if [[ "$rclone_available" == "true" ]]; then
+            echo "10. ☁️  Cloud Storage Operations"
+        else
+            echo -e "${GRAY}10. ☁️  Cloud Storage Operations (Install rclone: https://rclone.org/install/)${NC}"
+        fi
+        
+        if [[ "$backup_tools_available" == "true" ]]; then
+            echo "11. 🔧 Backup User on Suspension"
+        else
+            echo -e "${GRAY}11. 🔧 Backup User on Suspension (Requires backup tools)${NC}"
+        fi
+        echo ""
+        echo -e "${PURPLE}=== CONFIGURATION & SCHEDULING ===${NC}"
+        echo "12. ⚙️  Configuration Management (Dashboard, security, scheduling settings)"
+        echo "13. 🕐 Scheduler Management (Background task automation with opt-out)"
+        echo ""
+        echo -e "${GRAY}=== DATABASE MANAGEMENT ===${NC}"
+        echo "14. 🗄️  Initialize Dashboard Database"
+        echo "15. 🗄️  Initialize Backup Tools Database"
+        echo "16. 🗄️  Initialize Security Reports Database"
+        echo "17. 🗄️  Initialize Configuration Management Database"
+        echo ""
+        echo "18. ↩️  Return to main menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        
+        # Check for 'r' to refresh
+        echo -e "${GRAY}Tip: Press 'r' to refresh statistics${NC}"
+        read -p "Select an option (1-18, r, m, x): " dashboard_choice
+        echo ""
+        
+        case $dashboard_choice in
+            1)
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}Loading full dashboard...${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh show
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}Refreshing all statistics...${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh scan
+                    echo -e "${GREEN}Statistics refreshed. Showing updated dashboard...${NC}"
+                    echo ""
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh show true
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}Refreshing extended statistics...${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh scan-extended
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}System Health Check:${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh health
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                # Security Dashboard
+                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
+                    $SHARED_UTILITIES_PATH/security_reports.sh dashboard
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Enhanced Security Reports Setup Required ===${NC}"
+                    echo ""
+                    echo "Enhanced Security Reports provide comprehensive security monitoring:"
+                    echo "• Login activity analysis and suspicious pattern detection"
+                    echo "• Admin activity monitoring and privilege change tracking"
+                    echo "• Security compliance checking (2FA, password policies)"
+                    echo "• OAuth application risk assessment and monitoring"
+                    echo "• Automated security alerting and incident detection"
+                    echo ""
+                    echo -e "${CYAN}Requirements:${NC}"
+                    echo "• GAM7 (GAMADV-XS3) for advanced reporting capabilities"
+                    echo "• security_reports.sh in shared-utilities/"
+                    echo "• Properly configured Google Workspace API access"
+                    echo ""
+                    echo -e "${GREEN}Once setup is complete, enhanced security monitoring will be available here.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            6)
+                # Security Scans
+                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
+                    echo -e "${CYAN}Security Scans Menu${NC}"
+                    echo ""
+                    echo "1. Scan login activities (7 days)"
+                    echo "2. Scan admin activities (24 hours)"
+                    echo "3. Scan security compliance (2FA, passwords)"
+                    echo "4. Scan OAuth applications"
+                    echo "5. Run comprehensive security scan"
+                    echo "6. Check GAM7 availability"
+                    read -p "Select scan type (1-6): " scan_choice
+                    
+                    case $scan_choice in
+                        1) 
+                            read -p "Enter days to scan (default 7): " days
+                            days="${days:-7}"
+                            $SHARED_UTILITIES_PATH/security_reports.sh scan-logins "$days"
+                            ;;
+                        2)
+                            read -p "Enter days to scan (default 1): " days
+                            days="${days:-1}"
+                            $SHARED_UTILITIES_PATH/security_reports.sh scan-admin "$days"
+                            ;;
+                        3) $SHARED_UTILITIES_PATH/security_reports.sh scan-compliance ;;
+                        4) $SHARED_UTILITIES_PATH/security_reports.sh scan-oauth ;;
+                        5) 
+                            read -p "Enter days for login/admin scans (default 7): " days
+                            days="${days:-7}"
+                            $SHARED_UTILITIES_PATH/security_reports.sh scan-all "$days"
+                            ;;
+                        6) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
+                        *) echo -e "${RED}Invalid option${NC}" ;;
+                    esac
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Security Scanning Setup Required ===${NC}"
+                    echo ""
+                    echo "Security scanning provides detailed analysis of:"
+                    echo "• User login patterns and failed authentication attempts"
+                    echo "• Administrator actions and privilege changes"
+                    echo "• Security compliance violations and policy gaps"
+                    echo "• High-risk OAuth application permissions"
+                    echo ""
+                    echo -e "${CYAN}Setup Requirements:${NC}"
+                    echo "• Install security_reports.sh in shared-utilities/"
+                    echo "• Ensure GAM7 is properly configured"
+                    echo "• Initialize security reports database"
+                    echo ""
+                    echo -e "${GREEN}Once configured, comprehensive security scanning will be available here.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            7)
+                # Generate Security Report
+                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
+                    echo -e "${CYAN}Security Report Generation${NC}"
+                    echo ""
+                    echo "1. Summary report (key metrics and alerts)"
+                    echo "2. Full report (comprehensive analysis)"
+                    echo "3. Alerts only (recent security incidents)"
+                    read -p "Select report type (1-3): " report_choice
+                    
+                    report_type="summary"
+                    case $report_choice in
+                        1) report_type="summary" ;;
+                        2) report_type="full" ;;
+                        3) report_type="alerts" ;;
+                    esac
+                    
+                    echo -e "${CYAN}Generating $report_type security report...${NC}"
+                    $SHARED_UTILITIES_PATH/security_reports.sh report "$report_type"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Security Reporting Setup Required ===${NC}"
+                    echo ""
+                    echo "Security reporting generates comprehensive reports including:"
+                    echo "• Executive security health summaries"
+                    echo "• Detailed compliance and risk assessments"
+                    echo "• Security incident and alert analysis"
+                    echo "• Trend analysis and recommendations"
+                    echo ""
+                    echo -e "${GREEN}Setup security_reports.sh to enable this functionality.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            8)
+                if [[ "$backup_tools_available" == "true" ]]; then
+                    $SHARED_UTILITIES_PATH/backup_tools.sh status
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Backup Tools Setup Required ===${NC}"
+                    echo ""
+                    echo "The backup tools integration provides enhanced functionality for:"
+                    echo "• Gmail backup and restore with GYB (Got Your Back)"
+                    echo "• Cloud storage operations with rclone"
+                    echo "• Automated backup workflows for suspended users"
+                    echo ""
+                    echo -e "${CYAN}To enable backup tools:${NC}"
+                    echo "1. Ensure backup_tools.sh exists in shared-utilities/"
+                    echo "2. Install GYB: pip install gyb"
+                    echo "3. Install rclone: https://rclone.org/install/"
+                    echo "4. Configure cloud remotes with 'rclone config'"
+                    echo ""
+                    echo -e "${GREEN}Once installed, these features will be automatically available.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            9)
+                if [[ "$gyb_available" == "true" ]]; then
+                    echo -e "${CYAN}Gmail Backup Operations${NC}"
+                    read -p "Enter user email for Gmail backup: " user_email
+                    if [[ -n "$user_email" ]]; then
+                        echo "Backup type:"
+                        echo "1. Full backup"
+                        echo "2. Incremental backup"
+                        read -p "Select backup type (1-2): " backup_type_choice
+                        
+                        case $backup_type_choice in
+                            1) backup_type="full" ;;
+                            2) backup_type="incremental" ;;
+                            *) backup_type="full" ;;
+                        esac
+                        
+                        echo -e "${CYAN}Starting Gmail backup for $user_email (type: $backup_type)...${NC}"
+                        $SHARED_UTILITIES_PATH/backup_tools.sh gmail-backup "$user_email" "$backup_type"
+                    else
+                        echo -e "${RED}User email cannot be empty${NC}"
+                    fi
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== GYB (Got Your Back) Setup Required ===${NC}"
+                    echo ""
+                    echo "GYB enables comprehensive Gmail backup and restore capabilities."
+                    echo ""
+                    echo -e "${CYAN}To install GYB:${NC}"
+                    echo "• Install with pip: ${WHITE}pip install gyb${NC}"
+                    echo "• Or download from: https://github.com/GAM-team/got-your-back"
+                    echo ""
+                    echo -e "${CYAN}GYB Features:${NC}"
+                    echo "• Full Gmail mailbox backup (emails, labels, filters)"
+                    echo "• Incremental backups for efficiency"
+                    echo "• Backup verification and integrity checking"
+                    echo "• Cross-platform support (Windows, Mac, Linux)"
+                    echo ""
+                    echo -e "${GREEN}Once installed, Gmail backup operations will be available here.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            10)
+                if [[ "$rclone_available" == "true" ]]; then
+                    echo -e "${CYAN}Cloud Storage Operations${NC}"
+                    read -p "Enter source path: " source_path
+                    read -p "Enter remote name (e.g. gdrive, s3): " remote_name
+                    read -p "Enter destination path: " dest_path
+                    if [[ -n "$source_path" && -n "$remote_name" && -n "$dest_path" ]]; then
+                        echo "Operation type:"
+                        echo "1. Copy"
+                        echo "2. Sync"
+                        echo "3. Move"
+                        read -p "Select operation (1-3): " op_choice
+                        
+                        case $op_choice in
+                            1) operation="copy" ;;
+                            2) operation="sync" ;;
+                            3) operation="move" ;;
+                            *) operation="copy" ;;
+                        esac
+                        
+                        echo -e "${CYAN}Starting cloud operation: $operation...${NC}"
+                        $SHARED_UTILITIES_PATH/backup_tools.sh cloud-backup "$source_path" "$remote_name" "$dest_path" "$operation"
+                    else
+                        echo -e "${RED}All fields are required${NC}"
+                    fi
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== rclone Setup Required ===${NC}"
+                    echo ""
+                    echo "rclone enables powerful cloud storage operations with 40+ providers."
+                    echo ""
+                    echo -e "${CYAN}To install rclone:${NC}"
+                    echo "• Download from: ${WHITE}https://rclone.org/install/${NC}"
+                    echo "• Or via package manager (brew, apt, etc.)"
+                    echo ""
+                    echo -e "${CYAN}Supported Cloud Providers:${NC}"
+                    echo "• Google Drive, Google Cloud Storage"
+                    echo "• Amazon S3, Microsoft OneDrive"
+                    echo "• Dropbox, Box, Azure Blob Storage"
+                    echo "• And 40+ more providers"
+                    echo ""
+                    echo -e "${CYAN}After installation:${NC}"
+                    echo "• Configure remotes: ${WHITE}rclone config${NC}"
+                    echo "• Test connection: ${WHITE}rclone lsd remotename:${NC}"
+                    echo ""
+                    echo -e "${GREEN}Once configured, cloud operations will be available here.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            11)
+                if [[ "$backup_tools_available" == "true" ]]; then
+                    echo -e "${CYAN}Backup User on Suspension${NC}"
+                    read -p "Enter user email to backup: " user_email
+                    if [[ -n "$user_email" ]]; then
+                        echo "Backup options:"
+                        echo "1. Gmail only"
+                        echo "2. Gmail + Drive"
+                        echo "3. Gmail + Drive + Cloud upload"
+                        read -p "Select backup scope (1-3): " backup_scope
+                        
+                        case $backup_scope in
+                            1) gmail=1; drive=0; cloud=0 ;;
+                            2) gmail=1; drive=1; cloud=0 ;;
+                            3) gmail=1; drive=1; cloud=1 ;;
+                            *) gmail=1; drive=0; cloud=0 ;;
+                        esac
+                        
+                        echo -e "${CYAN}Starting comprehensive backup for $user_email...${NC}"
+                        $SHARED_UTILITIES_PATH/backup_tools.sh backup-user "$user_email" "$gmail" "$drive" "$cloud"
+                    else
+                        echo -e "${RED}User email cannot be empty${NC}"
+                    fi
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Automated User Backup Setup Required ===${NC}"
+                    echo ""
+                    echo "This feature provides comprehensive backup workflows when users are suspended."
+                    echo ""
+                    echo -e "${CYAN}Automated Backup Features:${NC}"
+                    echo "• Gmail backup with GYB (full mailbox preservation)"
+                    echo "• Google Drive file backup and organization"
+                    echo "• Cloud storage upload for long-term retention"
+                    echo "• Verification and integrity checking"
+                    echo "• Automated cleanup and organization"
+                    echo ""
+                    echo -e "${CYAN}Requirements:${NC}"
+                    echo "• GYB installed (pip install gyb)"
+                    echo "• rclone configured with cloud storage"
+                    echo "• backup_tools.sh in shared-utilities/"
+                    echo ""
+                    echo -e "${GREEN}Once setup is complete, automated backups will be available here.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            12)
+                # Configuration Management
+                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                    $SHARED_UTILITIES_PATH/config_manager.sh menu
+                else
+                    echo -e "${YELLOW}=== Configuration Management Setup Required ===${NC}"
+                    echo ""
+                    echo "Configuration Management provides centralized control over:"
+                    echo "• Dashboard refresh intervals and caching settings"
+                    echo "• Security scan schedules and alert thresholds"
+                    echo "• Backup automation policies and retention settings"
+                    echo "• Scheduling preferences with user opt-out capabilities"
+                    echo "• System-wide settings and performance tuning"
+                    echo ""
+                    echo -e "${CYAN}Features:${NC}"
+                    echo "• Web-style configuration interface"
+                    echo "• Complete audit trail of all setting changes"
+                    echo "• User preference management with privacy controls"
+                    echo "• Import/export configuration for backup and migration"
+                    echo "• Granular opt-out controls for automated tasks"
+                    echo ""
+                    echo -e "${GREEN}Setup config_manager.sh to enable centralized configuration.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            13)
+                # Scheduler Management
+                if [[ -x "$SHARED_UTILITIES_PATH/scheduler.sh" ]]; then
+                    echo -e "${CYAN}🕐 Scheduler Management${NC}"
+                    echo ""
+                    echo "1. Show scheduler status"
+                    echo "2. Start scheduler daemon"
+                    echo "3. Stop scheduler daemon" 
+                    echo "4. Restart scheduler daemon"
+                    echo "5. Test task execution (run-once)"
+                    echo "6. Return to dashboard menu"
+                    echo ""
+                    read -p "Select option (1-6): " scheduler_choice
+                    
+                    case $scheduler_choice in
+                        1) $SHARED_UTILITIES_PATH/scheduler.sh status ;;
+                        2) $SHARED_UTILITIES_PATH/scheduler.sh start ;;
+                        3) $SHARED_UTILITIES_PATH/scheduler.sh stop ;;
+                        4) $SHARED_UTILITIES_PATH/scheduler.sh restart ;;
+                        5) $SHARED_UTILITIES_PATH/scheduler.sh run-once ;;
+                        6) ;; # Return to menu
+                        *) echo -e "${RED}Invalid option${NC}" ;;
+                    esac
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${YELLOW}=== Background Scheduler Setup Required ===${NC}"
+                    echo ""
+                    echo "The Background Scheduler enables automated execution of:"
+                    echo "• Dashboard statistics refresh (every 30 minutes)"
+                    echo "• Security compliance scans (daily/weekly schedules)"
+                    echo "• Backup operations for suspended users"
+                    echo "• Cleanup tasks for logs and temporary files"
+                    echo "• Custom maintenance and monitoring tasks"
+                    echo ""
+                    echo -e "${CYAN}Key Features:${NC}"
+                    echo "• Complete opt-out capabilities - users can disable any/all tasks"
+                    echo "• Cron-like scheduling with intelligent next-run calculation"
+                    echo "• Concurrent task execution with configurable limits"
+                    echo "• Comprehensive logging and error handling"
+                    echo "• Real-time status monitoring and performance tracking"
+                    echo "• Automatic failure alerts and retry mechanisms"
+                    echo ""
+                    echo -e "${GREEN}⚠️  PRIVACY FOCUS: All scheduling is OPT-IN by default${NC}"
+                    echo "• Master scheduler starts DISABLED"
+                    echo "• Individual task types can be opted out separately"
+                    echo "• Global opt-out overrides all task execution"
+                    echo "• No tasks run without explicit user consent"
+                    echo ""
+                    echo -e "${CYAN}Setup scheduler.sh to enable background automation.${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            14)
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}Initializing dashboard database...${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh init
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            15)
+                if [[ -x "$SHARED_UTILITIES_PATH/backup_tools.sh" ]]; then
+                    echo -e "${CYAN}Initializing backup tools database...${NC}"
+                    $SHARED_UTILITIES_PATH/backup_tools.sh init
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Backup tools not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            16)
+                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
+                    echo -e "${CYAN}Initializing security reports database...${NC}"
+                    $SHARED_UTILITIES_PATH/security_reports.sh init
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Security reports not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            17)
+                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                    echo -e "${CYAN}Initializing configuration management database...${NC}"
+                    $SHARED_UTILITIES_PATH/config_manager.sh init
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Configuration manager not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            18|m|M)
+                return
+                ;;
+            r|R)
+                # Refresh option - force refresh and show dashboard
+                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
+                    echo -e "${CYAN}Refreshing statistics...${NC}"
+                    $SHARED_UTILITIES_PATH/dashboard_functions.sh scan
+                    clear
+                    echo -e "${GREEN}Statistics refreshed!${NC}"
+                    continue
+                else
+                    echo -e "${RED}Dashboard functions not available${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            x|X)
+                echo -e "${BLUE}Goodbye!${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-18, r, m, or x.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
 # Function to display the main menu
 show_main_menu() {
     clear
@@ -1250,18 +1832,19 @@ show_main_menu() {
     echo "5. 📋 Account List Management (11 options)"
     echo ""
     echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
-    echo "6. 📈 Reports & Monitoring (11 options)"
-    echo "7. ⚙️  System Administration (7 options)"
+    echo "6. 🎯 Dashboard & Statistics (Live system overview)"
+    echo "7. 📈 Reports & Monitoring (11 options)"
+    echo "8. ⚙️  System Administration (7 options)"
     echo ""
-    echo "8. ❌ Exit"
+    echo "9. ❌ Exit"
     echo "x. Exit"
     echo ""
-    read -p "Select an option (1-8, x): " choice
+    read -p "Select an option (1-9, x): " choice
     echo ""
     
-    # Convert x to 8 (exit)
+    # Convert x to 9 (exit)
     if [[ "$choice" == "x" || "$choice" == "X" ]]; then
-        choice=8
+        choice=9
     fi
     
     return $choice
@@ -6781,12 +7364,15 @@ main() {
                 list_management_menu
                 ;;
             6)
-                reports_and_cleanup_menu
+                dashboard_menu
                 ;;
             7)
-                system_administration_menu
+                reports_and_cleanup_menu
                 ;;
             8)
+                system_administration_menu
+                ;;
+            9)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -6794,7 +7380,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-8 or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-9 or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
