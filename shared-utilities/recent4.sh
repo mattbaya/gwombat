@@ -22,7 +22,7 @@ OLD_FILES="${USER_EMAIL}_old_files.csv"
 REPORTSFOLDER="1bWL5G_bqjr4n1C8rx_KxuG99AqsgyGcN"
 
 # Run GAM command to get all non-trashed files for user
-GAM_CMD="/root/bin/gamadv-xtd3/gam user \"${USER_EMAIL}\" show filelist query \"trashed=false\" fields \"size,id,name,mimeType,modifiedTime\""
+GAM_CMD="${GAM_PATH:-gam} user \"${USER_EMAIL}\" show filelist query \"trashed=false\" fields \"size,id,name,mimeType,modifiedTime\""
 FILES=$(eval "$GAM_CMD")
 echo "$FILES" | tail -n +2 | grep -v ",application/vnd.google-apps." > "${ALL_FILES}"
 
@@ -61,8 +61,8 @@ sheet_id=$($GAM user $USER_EMAIL create drivefile drivefilename "$USER_EMAIL Sha
 
 $GAM user "$ADMIN_USER_VAR" delete drivefileacl $REPORTSFOLDER "$USER_EMAIL" >/dev/null 2>&1
 
-# Add srogers@your-domain.edu as editor
-$GAM user $USER_EMAIL add drivefileacl $sheet_id user "srogers@your-domain.edu" role writer >/dev/null 2>&1
+# Add your-user@your-domain.edu as editor
+$GAM user $USER_EMAIL add drivefileacl $sheet_id user "your-user@your-domain.edu" role writer >/dev/null 2>&1
 
 $GAM user "$ADMIN_USER_VAR" show fileinfo $sheet_id fields webViewLink
 

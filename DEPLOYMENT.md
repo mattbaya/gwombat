@@ -66,14 +66,14 @@ If you prefer not to use the deployment script:
 ### Initial Setup
 ```bash
 # On production server
-mkdir -p /opt/your-path/gwombat.git
-cd /opt/your-path/gwombat.git  
+mkdir -p ${GWOMBAT_PATH}.git
+cd ${GWOMBAT_PATH}.git  
 git init --bare
 
-git clone /opt/your-path/gwombat.git /opt/your-path/gwombat
+git clone ${GWOMBAT_PATH}.git ${GWOMBAT_PATH}
 
 # On your desktop
-git remote add production username@server:/opt/your-path/gwombat.git
+git remote add production username@server:${GWOMBAT_PATH}.git
 ```
 
 ### Deploy
@@ -82,7 +82,7 @@ git remote add production username@server:/opt/your-path/gwombat.git
 git push production main
 
 # Update working directory on server
-ssh username@server 'cd /opt/your-path/gwombat && git pull origin main'
+ssh username@server 'cd ${GWOMBAT_PATH} && git pull origin main'
 ```
 
 ## Rollback to Previous Version
@@ -91,7 +91,7 @@ If you need to rollback:
 
 ```bash
 # On production server, see available versions
-cd /opt/your-path/gwombat
+cd ${GWOMBAT_PATH}
 git log --oneline
 
 # Rollback to specific commit
@@ -113,7 +113,7 @@ ${GWOMBAT_PATH}/                # Working directory (configurable via .env)
 ├── tmp/                          # Temporary files
 └── backups/                      # Backups
 
-/opt/your-path/gwombat.git/        # Bare repository (for git)
+${GWOMBAT_PATH}.git/               # Bare repository (for git)
 ```
 
 ## Troubleshooting
@@ -134,7 +134,7 @@ git commit -m "Your commit message"
 ### Check deployment status
 ```bash
 # On production server
-cd /opt/your-path/gwombat
+cd ${GWOMBAT_PATH}
 git log --oneline -5  # See recent deployments
 git status            # Check working directory status
 ```

@@ -1,12 +1,17 @@
 #!/bin/bash
 
-GAM="/root/bin/gamadv-x/gam"
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 # Load admin user from .env
 if [[ -f "../.env" ]]; then
     source ../.env
 fi
 ADMINUSER=${ADMIN_USER:-gwombat@your-domain.edu}
-SCRIPTPATH="/opt/your-path/mjb9/misc/"
+# Load configuration from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+SCRIPTPATH="${SCRIPT_TEMP_PATH:-./tmp}/misc"
 earliestDate="2023-05-01T00:00:00Z"
 earliestTimestamp=$(date -d "$earliestDate" +%s)
 

@@ -6,14 +6,15 @@
 # ./fixshared driveid
 #
 # Get the shared drive ID from command line
-GAM="/usr/local/bin/gam"
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 drive_id=$1
 # Load admin user from .env
 if [[ -f "../.env" ]]; then
     source ../.env
 fi
 owner=${ADMIN_USER:-gwombat@your-domain.edu}
-SCRIPTPATH="/opt/your-path/mjb9/suspended/"
+SCRIPTPATH="${SCRIPT_LOGS_PATH:-./logs}/suspended"
 touch $SCRIPTPATH/logs/$drive_id-renames.txt
 
 # Add gwombat as a user;
@@ -62,6 +63,6 @@ fi
 done <<< "$files"
 
 echo "Removing gwombat from the shared drive id $drive_id"
-/root/bin/gamadv-x/gam user ${ADMIN_USER:-gwombat@your-domain.edu} delete drivefileacl $drive_id ${ADMIN_USER:-gwombat@your-domain.edu} asadmin 2>/dev/null
-echo "Log file for this is at /opt/your-path/mjb9/suspended/logs/$drive_id-renames.txt"
+$GAM user ${ADMIN_USER:-gwombat@your-domain.edu} delete drivefileacl $drive_id ${ADMIN_USER:-gwombat@your-domain.edu} asadmin 2>/dev/null
+echo "Log file for this is at ${SCRIPT_LOGS_PATH:-./logs}/suspended/logs/$drive_id-renames.txt"
 echo "--------------------------------------------------"

@@ -128,8 +128,8 @@ create_default_config() {
   "created": "$(date -Iseconds)",
   "settings": {
     "gam_path": "/usr/local/bin/gam",
-    "script_path": "/opt/your-path/mjb9/suspended",
-    "listshared_path": "/opt/your-path/mjb9/listshared",
+    "script_path": "${SCRIPT_TEMP_PATH:-./tmp}/suspended",
+    "listshared_path": "${SCRIPT_TEMP_PATH:-./tmp}/listshared",
     "progress_enabled": "true",
     "confirmation_level": "normal",
     "log_retention_days": "30",
@@ -3737,7 +3737,7 @@ identify_active_recipients() {
         local has_active_share=false
         
         # Extract email addresses from sharing permissions
-        local emails=$(echo "$shared_with" | grep -oE '[a-zA-Z0-9._%+-]+@williams\.edu')
+        local emails=$(echo "$shared_with" | grep -oE '[a-zA-Z0-9._%+-]+@'"${DOMAIN:-your-domain.edu}")
         
         for email in $emails; do
             if [[ "$email" != "$user_email" ]]; then
@@ -5232,7 +5232,7 @@ rename_all_files() {
     # This excludes files shared with external domains or already suspended users
     awk -F, '
     NR==1 {next}  # Skip header
-    $4 ~ /@williams\.edu$/ && $4 !~ /suspended|pending|temporary/ {
+    $4 ~ /@'"${DOMAIN:-your-domain.edu}"'$/ && $4 !~ /suspended|pending|temporary/ {
         print $1","$2","$3
     }' "$INPUT_FILE" | sort | uniq > "$UNIQUE_FILE"
     

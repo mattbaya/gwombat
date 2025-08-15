@@ -151,7 +151,7 @@ ssh-keygen -t ed25519 -C "gwombatgit-key" -f ~/.ssh/gwombatgit-key
 # Domain and Organization Configuration
 DOMAIN="your-domain.edu"
 ADMIN_EMAIL="gwombat@your-domain.edu"
-ADMIN_USER="gamadmin@your-domain.edu"  # Your actual admin user
+ADMIN_USER="your-actual-admin@your-domain.edu"  # Your actual admin user
 
 # Production Server Configuration (for deployment)
 PRODUCTION_SERVER="your-server.edu"

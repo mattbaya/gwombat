@@ -12,7 +12,12 @@ if [ -z "$2" ]; then
   echo "Please provide a username as a command-line argument."
   exit 1
 fi
-GAM="/root/bin/gamadv-xtd3/gam"
+# Load configuration from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 
 # Get the user input from command line
 group=$1

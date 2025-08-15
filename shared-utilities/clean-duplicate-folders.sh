@@ -15,8 +15,13 @@ fi
 
 PARENT_ID="$1"
 FOLDER_NAME="$2"
-GAM_USER="gamadmin@your-domain.edu"
-GAM="/usr/local/bin/gam"
+# Load configuration from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+GAM_USER="${ADMIN_USER:-your-actual-admin@your-domain.edu}"
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 echo "Cleaning up duplicate $FOLDER_NAME folders"
 
 # 1) List only the IDs of matching folders, drop header, extract the ID column

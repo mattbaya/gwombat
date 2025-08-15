@@ -6,8 +6,13 @@ FOLDERID="$1"
 OWNER="$2"
 ADMIN_USER="$3"
 IS_FOLDER="$4"
-SCRIPTPATH="/opt/your-path/mjb9/changeowner"
-GAM="/root/bin/gamadv-x/gam"
+# Load configuration from .env
+if [[ -f "../.env" ]]; then
+    source ../.env
+fi
+SCRIPTPATH="${SCRIPT_TEMP_PATH:-./tmp}/changeowner"
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 TEMP="$SCRIPTPATH/temp/$FOLDERID-unsuspended-temp.csv"
 temp_file="$SCRIPTPATH/temp/$FOLDERID-temp.txt"
 

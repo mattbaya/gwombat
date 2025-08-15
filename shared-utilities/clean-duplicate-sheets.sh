@@ -18,11 +18,12 @@ fi
 
 PARENT_ID="$1"
 SHEET_NAME="$2"
-GAM="/usr/local/bin/gam"
-# Load admin user from .env
+# Load configuration from .env
 if [[ -f "../.env" ]]; then
     source ../.env
 fi
+# GAM path should be set in .env via GAM_PATH
+GAM="${GAM_PATH:-gam}"
 GAM_USER="${ADMIN_USER:-gwombat@your-domain.edu}"
 echo "#################Removing Duplicate Sheets####################"
 #echo "Cleaning duplicate '$SHEET_NAME' sheets"
