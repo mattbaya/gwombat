@@ -1836,15 +1836,18 @@ show_main_menu() {
     echo "7. 📈 Reports & Monitoring (11 options)"
     echo "8. ⚙️  System Administration (7 options)"
     echo ""
-    echo "9. ❌ Exit"
+    echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
+    echo "9. 🔐 SCuBA Compliance Management (CISA security baselines)"
+    echo ""
+    echo "10. ❌ Exit"
     echo "x. Exit"
     echo ""
-    read -p "Select an option (1-9, x): " choice
+    read -p "Select an option (1-10, x): " choice
     echo ""
     
-    # Convert x to 9 (exit)
+    # Convert x to 10 (exit)
     if [[ "$choice" == "x" || "$choice" == "X" ]]; then
-        choice=9
+        choice=10
     fi
     
     return $choice
@@ -7334,6 +7337,50 @@ stage5_deletion_operations_menu() {
     done
 }
 
+# SCuBA Compliance Management Menu
+scuba_compliance_menu() {
+    if [[ -x "$SHARED_UTILITIES_PATH/scuba_compliance_bridge.sh" ]]; then
+        "$SHARED_UTILITIES_PATH/scuba_compliance_bridge.sh" menu
+    else
+        echo -e "${YELLOW}=== SCuBA Compliance Setup Required ===${NC}"
+        echo ""
+        echo "SCuBA (Secure Cloud Business Applications) compliance provides automated"
+        echo "security baseline checking based on CISA guidelines for Google Workspace."
+        echo ""
+        echo -e "${CYAN}Features include:${NC}"
+        echo "• Automated compliance checking for 9 Google Workspace services"
+        echo "• Gap analysis and remediation tracking"
+        echo "• Executive reporting and compliance dashboards"
+        echo "• Integration with GWOMBAT's scheduling system"
+        echo ""
+        echo -e "${CYAN}Services covered:${NC}"
+        echo "• Gmail - Email security settings and policies"
+        echo "• Calendar - Calendar sharing and access controls"
+        echo "• Drive & Docs - File sharing and collaboration settings"
+        echo "• Google Meet - Meeting security and recording controls"
+        echo "• Google Chat - Chat and messaging security"
+        echo "• Groups for Business - Group membership and access"
+        echo "• Google Classroom - Educational environment security"
+        echo "• Google Sites - Website publishing controls"
+        echo "• Common Controls - Cross-service security settings"
+        echo ""
+        echo -e "${GREEN}Setup Instructions:${NC}"
+        echo "1. Install Python 3 and required dependencies:"
+        echo "   pip3 install -r python-modules/requirements.txt"
+        echo ""
+        echo "2. Configure Google Workspace API credentials (optional but recommended):"
+        echo "   - Download OAuth2 credentials from Google Cloud Console"
+        echo "   - Save as ./config/gws_credentials.json"
+        echo ""
+        echo "3. Enable SCuBA compliance in Configuration Management"
+        echo ""
+        echo -e "${YELLOW}Note: SCuBA compliance can work with GAM-only mode but enhanced${NC}"
+        echo -e "${YELLOW}features require Google Workspace API access.${NC}"
+        echo ""
+        read -p "Press Enter to continue..."
+    fi
+}
+
 # Main script execution
 main() {
     # Run dependency check on startup
@@ -7373,6 +7420,9 @@ main() {
                 system_administration_menu
                 ;;
             9)
+                scuba_compliance_menu
+                ;;
+            10)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -7380,7 +7430,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-9 or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-10 or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac

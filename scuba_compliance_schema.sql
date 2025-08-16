@@ -297,6 +297,22 @@ INSERT OR IGNORE INTO scuba_baselines (service_name, baseline_id, baseline_title
 -- Chat Baselines  
 ('chat', 'GWS.CHAT.1.1v1', 'External Chat Restrictions', 'External chat SHALL be restricted', 'Chat with external users SHALL be appropriately restricted', 'medium', 'configuration', 'gam info domain | grep -i "chat.*external"', 'restricted', 'Configure external chat restrictions');
 
+-- Google Workspace API data storage (for Python module integration)
+CREATE TABLE IF NOT EXISTS gws_api_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data_type TEXT NOT NULL, -- 'domain_info', 'org_structure', '2sv_enforcement', 'security_snapshot', etc.
+    data_content TEXT NOT NULL, -- JSON data from API calls
+    retrieved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    session_id TEXT,
+    expires_at TIMESTAMP, -- For caching purposes
+    data_version INTEGER DEFAULT 1
+);
+
+-- Index for API data
+CREATE INDEX IF NOT EXISTS idx_gws_api_data_type ON gws_api_data(data_type);
+CREATE INDEX IF NOT EXISTS idx_gws_api_data_retrieved ON gws_api_data(retrieved_at);
+CREATE INDEX IF NOT EXISTS idx_gws_api_data_expires ON gws_api_data(expires_at);
+
 -- Triggers for maintaining data consistency
 CREATE TRIGGER IF NOT EXISTS update_baseline_timestamp
 AFTER UPDATE ON scuba_baselines
