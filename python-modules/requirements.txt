@@ -13,7 +13,7 @@ jsonschema>=4.19.0
 python-dotenv>=1.0.0
 
 # Database Integration
-sqlite3  # Built-in Python module
+# sqlite3 is built into Python - no installation required
 
 # HTTP and API Integration
 requests>=2.31.0
@@ -38,6 +38,6 @@ tabulate>=0.9.0
 # Date/Time Handling
 python-dateutil>=2.8.2
 
-# Optional: Enhanced reporting capabilities
-# matplotlib>=3.7.2  # For compliance charts/graphs
-# jinja2>=3.1.2     # For HTML report templates
+# Enhanced reporting capabilities
+matplotlib>=3.7.2  # For compliance charts/graphs
+jinja2>=3.1.2     # For HTML report templates

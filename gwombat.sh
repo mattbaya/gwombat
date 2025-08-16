@@ -213,35 +213,67 @@ sanitize_gam_input() {
     echo "$sanitized"
 }
 
-# Dependency check function
+# Enhanced dependency check function with logging and optional tools
 check_dependencies() {
     local missing_deps=()
     local warnings=()
+    local recommendations=()
+    local optional_tools=()
     
+    log_info "Starting GWOMBAT dependency check" "console"
     echo -e "${BLUE}=== GWOMBAT Dependency Check ===${NC}"
     echo ""
     
     # Essential dependencies
+    echo -e "${CYAN}Essential Dependencies:${NC}"
     if ! command -v bash >/dev/null 2>&1; then
         missing_deps+=("bash")
+        log_error "Essential dependency missing: bash"
     else
         local bash_version=$(bash --version | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1)
         echo -e "${GREEN}✓ Bash: $bash_version${NC}"
+        log_info "Bash version: $bash_version"
     fi
     
     if ! command -v sqlite3 >/dev/null 2>&1; then
         missing_deps+=("sqlite3")
+        log_error "Essential dependency missing: sqlite3"
     else
         local sqlite_version=$(sqlite3 --version | cut -d' ' -f1)
         echo -e "${GREEN}✓ SQLite: $sqlite_version${NC}"
+        log_info "SQLite version: $sqlite_version"
     fi
     
     if ! command -v git >/dev/null 2>&1; then
         missing_deps+=("git")
+        log_error "Essential dependency missing: git"
     else
         local git_version=$(git --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
         echo -e "${GREEN}✓ Git: $git_version${NC}"
+        log_info "Git version: $git_version"
     fi
+    
+    # Check Python
+    if ! command -v python3 >/dev/null 2>&1; then
+        missing_deps+=("python3")
+        log_error "Essential dependency missing: python3"
+    else
+        local python_version=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        echo -e "${GREEN}✓ Python: $python_version${NC}"
+        log_info "Python version: $python_version"
+        
+        # Check Python packages for SCuBA compliance
+        if python3 -c "import google.api_core" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Google API packages available${NC}"
+            log_info "Python Google API packages detected"
+        else
+            recommendations+=("Install Python Google API packages for SCuBA compliance: pip3 install -r python-modules/requirements.txt")
+            log_info "Python Google API packages missing - SCuBA compliance will need setup"
+        fi
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Google Workspace Integration:${NC}"
     
     # Check GAM
     local gam_path="${GAM_PATH:-/usr/local/bin/gam}"
@@ -249,42 +281,136 @@ check_dependencies() {
         local gam_version=$($gam_path version 2>/dev/null | head -n1 || echo "unknown")
         echo -e "${GREEN}✓ GAM: $gam_version${NC}"
         echo -e "${GREEN}  Path: $gam_path${NC}"
+        log_info "GAM found: $gam_version at $gam_path"
+        
+        # Check if GAM is configured
+        if $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
+            echo -e "${GREEN}  ✓ GAM is configured${NC}"
+            log_info "GAM is configured and working"
+        else
+            recommendations+=("GAM needs configuration: Run 'gam info domain' to verify setup")
+            log_info "GAM found but not configured"
+        fi
     else
         missing_deps+=("GAM (Google Apps Manager)")
         echo -e "${RED}✗ GAM not found at: $gam_path${NC}"
+        log_error "GAM not found at: $gam_path"
     fi
+    
+    echo ""
+    echo -e "${CYAN}Backup & Cloud Tools:${NC}"
+    
+    # Check GYB (Got Your Back)
+    if command -v gyb >/dev/null 2>&1; then
+        local gyb_version=$(gyb --version 2>/dev/null | head -n1 || echo "unknown")
+        echo -e "${GREEN}✓ GYB (Got Your Back): $gyb_version${NC}"
+        optional_tools+=("GYB for Gmail backups")
+        log_info "GYB found: $gyb_version"
+    else
+        recommendations+=("Install GYB for Gmail backups: https://github.com/GAM-team/got-your-back")
+        echo -e "${YELLOW}○ GYB not found - install for Gmail backup capabilities${NC}"
+        log_info "GYB not found - Gmail backup capabilities limited"
+    fi
+    
+    # Check rclone
+    if command -v rclone >/dev/null 2>&1; then
+        local rclone_version=$(rclone version 2>/dev/null | head -n1 | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${GREEN}✓ rclone: $rclone_version${NC}"
+        optional_tools+=("rclone for cloud storage")
+        log_info "rclone found: $rclone_version"
+        
+        # Check if rclone has any remotes configured
+        if rclone listremotes 2>/dev/null | grep -q ":"; then
+            echo -e "${GREEN}  ✓ rclone has configured remotes${NC}"
+            log_info "rclone has configured remotes"
+        else
+            recommendations+=("Configure rclone remotes for cloud backup: rclone config")
+            log_info "rclone found but no remotes configured"
+        fi
+    else
+        recommendations+=("Install rclone for cloud storage integration: https://rclone.org/install/")
+        echo -e "${YELLOW}○ rclone not found - install for cloud backup capabilities${NC}"
+        log_info "rclone not found - cloud backup capabilities limited"
+    fi
+    
+    # Check restic
+    if command -v restic >/dev/null 2>&1; then
+        local restic_version=$(restic version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        echo -e "${GREEN}✓ restic: $restic_version${NC}"
+        optional_tools+=("restic for encrypted backups")
+        log_info "restic found: $restic_version"
+    else
+        recommendations+=("Install restic for encrypted incremental backups: https://restic.net/")
+        echo -e "${YELLOW}○ restic not found - install for encrypted backup capabilities${NC}"
+        log_info "restic not found - encrypted backup capabilities limited"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}System Tools:${NC}"
     
     # Optional dependencies
     if command -v expect >/dev/null 2>&1; then
         echo -e "${GREEN}✓ expect (deployment automation)${NC}"
+        log_info "expect found - deployment automation available"
     else
         warnings+=("expect - needed for automated deployment")
+        log_info "expect not found - manual deployment required"
     fi
     
     if command -v curl >/dev/null 2>&1; then
         echo -e "${GREEN}✓ curl${NC}"
+        log_info "curl found"
     else
         warnings+=("curl - useful for web requests")
+        log_info "curl not found"
+    fi
+    
+    if command -v jq >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ jq (JSON processing)${NC}"
+        log_info "jq found - JSON processing available"
+    else
+        recommendations+=("Install jq for enhanced JSON processing: apt install jq / brew install jq")
+        echo -e "${YELLOW}○ jq not found - install for enhanced JSON processing${NC}"
+        log_info "jq not found - JSON processing limited"
     fi
     
     # Display results
     echo ""
+    echo -e "${BLUE}=== Dependency Check Results ===${NC}"
+    
     if [[ ${#missing_deps[@]} -eq 0 ]]; then
         echo -e "${GREEN}✓ All essential dependencies satisfied${NC}"
+        log_info "All essential dependencies satisfied"
     else
         echo -e "${RED}✗ Missing essential dependencies:${NC}"
         printf '  - %s\n' "${missing_deps[@]}"
         echo ""
         echo -e "${YELLOW}See REQUIREMENTS.md for installation instructions${NC}"
+        log_error "Missing essential dependencies: ${missing_deps[*]}"
         return 1
     fi
     
     if [[ ${#warnings[@]} -gt 0 ]]; then
         echo -e "${YELLOW}⚠ Optional dependencies missing:${NC}"
         printf '  - %s\n' "${warnings[@]}"
+        log_info "Optional dependencies missing: ${warnings[*]}"
+    fi
+    
+    if [[ ${#optional_tools[@]} -gt 0 ]]; then
+        echo -e "${GREEN}✓ Available optional tools:${NC}"
+        printf '  - %s\n' "${optional_tools[@]}"
+        log_info "Available optional tools: ${optional_tools[*]}"
+    fi
+    
+    if [[ ${#recommendations[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${CYAN}💡 Recommendations for enhanced functionality:${NC}"
+        printf '  - %s\n' "${recommendations[@]}"
+        log_info "Recommendations provided: ${#recommendations[@]} items"
     fi
     
     echo ""
+    log_info "Dependency check completed successfully"
     return 0
 }
 
@@ -860,23 +986,49 @@ configuration_menu() {
         echo "Operation Timeout: $OPERATION_TIMEOUT seconds"
         echo ""
         echo "Configuration Options:"
-        echo "1. View full configuration file"
-        echo "2. Create default configuration file"
-        echo "3. Edit GAM path"
-        echo "4. Edit script paths"
-        echo "5. Toggle progress display"
-        echo "6. Change confirmation level"
-        echo "7. Set log retention"
-        echo "8. Set backup retention"
-        echo "9. Test configuration"
-        echo "10. Reset to defaults"
-        echo "11. Return to previous menu"
+        echo "1. 🧙 Setup Wizard (First-time or reconfiguration)"
+        echo "2. 🐍 Setup Python Environment"
+        echo "3. View full configuration file"
+        echo "4. Create default configuration file"
+        echo "5. Edit GAM path"
+        echo "6. Edit script paths"
+        echo "7. Toggle progress display"
+        echo "8. Change confirmation level"
+        echo "9. Set log retention"
+        echo "10. Set backup retention"
+        echo "11. Test configuration"
+        echo "12. Reset to defaults"
+        echo "13. Return to previous menu"
         echo ""
-        read -p "Select an option (1-11): " config_choice
+        read -p "Select an option (1-13): " config_choice
         echo ""
         
         case $config_choice in
             1)
+                # Setup Wizard
+                echo -e "${CYAN}Running Setup Wizard...${NC}"
+                if [[ -x "./setup_wizard.sh" ]]; then
+                    ./setup_wizard.sh
+                else
+                    echo -e "${RED}Setup wizard not found at ./setup_wizard.sh${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            2)
+                # Python Environment Setup
+                echo -e "${CYAN}Setting up Python Environment...${NC}"
+                if [[ -x "./setup_wizard.sh" ]]; then
+                    ./setup_wizard.sh python
+                else
+                    echo -e "${RED}Setup wizard not found at ./setup_wizard.sh${NC}"
+                    echo "You can install Python packages manually with:"
+                    echo "pip3 install -r python-modules/requirements.txt"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
                 echo -e "${CYAN}Configuration file contents:${NC}"
                 if [[ -f "$CONFIG_FILE" ]]; then
                     cat "$CONFIG_FILE"
@@ -886,13 +1038,13 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            2)
+            4)
                 echo -e "${CYAN}Creating default configuration file...${NC}"
                 create_default_config
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            3)
+            5)
                 echo "Current GAM path: $GAM"
                 read -p "Enter new GAM path: " new_gam_path
                 if [[ -x "$new_gam_path" ]]; then
@@ -912,7 +1064,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            4)
+            5)
                 echo "Current script path: $SCRIPTPATH"
                 read -p "Enter new script path: " new_script_path
                 if [[ -d "$new_script_path" ]]; then
@@ -932,7 +1084,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            5)
+            6)
                 echo "Current progress setting: $PROGRESS_ENABLED"
                 if [[ "$PROGRESS_ENABLED" == "true" ]]; then
                     PROGRESS_ENABLED="false"
@@ -945,7 +1097,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            7)
                 echo "Current confirmation level: $CONFIRMATION_LEVEL"
                 echo "Available levels: normal, high, minimal"
                 read -p "Enter new confirmation level: " new_level
@@ -962,7 +1114,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7)
+            8)
                 echo "Current log retention: $LOG_RETENTION_DAYS days"
                 read -p "Enter new log retention (days): " new_retention
                 if [[ "$new_retention" =~ ^[0-9]+$ ]]; then
@@ -975,7 +1127,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            8)
+            9)
                 echo "Current backup retention: $BACKUP_RETENTION_DAYS days"
                 read -p "Enter new backup retention (days): " new_backup_retention
                 if [[ "$new_backup_retention" =~ ^[0-9]+$ ]]; then
@@ -988,7 +1140,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            9)
+            10)
                 echo -e "${CYAN}Testing configuration...${NC}"
                 echo ""
                 
@@ -1030,7 +1182,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            10)
+            11)
                 echo -e "${YELLOW}This will reset all configuration to defaults. Continue? (y/n)${NC}"
                 read -p "> " confirm
                 if [[ "$confirm" =~ ^[Yy] ]]; then
@@ -1043,11 +1195,11 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            11)
+            13)
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-11.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-13.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -1839,15 +1991,19 @@ show_main_menu() {
     echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
     echo "9. 🔐 SCuBA Compliance Management (CISA security baselines)"
     echo ""
-    echo "10. ❌ Exit"
-    echo "x. Exit"
+    echo -e "${CYAN}=== CONFIGURATION ===${NC}"
+    echo "c. ⚙️  Configuration Management (Setup & Settings)"
     echo ""
-    read -p "Select an option (1-10, x): " choice
+    echo "x. ❌ Exit"
+    echo ""
+    read -p "Select an option (1-9, c, x): " choice
     echo ""
     
-    # Convert x to 10 (exit)
+    # Convert letters to numbers for case handling
     if [[ "$choice" == "x" || "$choice" == "X" ]]; then
-        choice=10
+        choice=10  # Exit
+    elif [[ "$choice" == "c" || "$choice" == "C" ]]; then
+        choice=99  # Configuration
     fi
     
     return $choice
@@ -2682,10 +2838,10 @@ get_shared_drive_id() {
                 if [[ -n "$search_name" ]]; then
                     echo -e "${CYAN}Searching for drives containing '$search_name'...${NC}"
                     # Show GAM command being executed
-                    echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print teamdrives name query name contains '$search_name'${NC}"
+                    echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print shareddrives name query name contains '$search_name'${NC}"
                     
                     local search_results
-                    search_results=$($GAM user "${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}" print teamdrives name query "name contains '$search_name'" 2>/dev/null | tail -n +2)
+                    search_results=$($GAM user "${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}}" print shareddrives name query "name contains '$search_name'" 2>/dev/null | tail -n +2)
                     
                     if [[ -n "$search_results" ]]; then
                         echo -e "${GREEN}Found drives:${NC}"
@@ -7381,8 +7537,79 @@ scuba_compliance_menu() {
     fi
 }
 
+# Check if first time setup is needed
+check_first_time_setup() {
+    # Check if .env file exists
+    if [[ ! -f "./.env" ]]; then
+        return 0  # First time setup needed
+    fi
+    
+    # Check if setup was completed
+    if [[ -f "./.env" ]] && grep -q "SETUP_COMPLETED=.*true" "./.env"; then
+        return 1  # Setup already completed
+    fi
+    
+    return 0  # Setup needed
+}
+
 # Main script execution
 main() {
+    # Check for first-time setup
+    if check_first_time_setup; then
+        echo -e "${BLUE}=== GWOMBAT First-Time Setup ===${NC}"
+        echo ""
+        echo "Welcome to GWOMBAT! It looks like this is your first time running the application."
+        echo ""
+        echo "Would you like to run the setup wizard to configure GWOMBAT for your environment?"
+        echo "The wizard will help you configure:"
+        echo ""
+        echo "• Google Workspace domain and admin settings"
+        echo "• GAM (Google Apps Manager) configuration"
+        echo "• Organizational unit structure"
+        echo "• Python environment and dependencies"
+        echo "• Optional tools (GYB, rclone, restic)"
+        echo "• Initial system scans and statistics"
+        echo ""
+        echo "1. Yes - Run setup wizard (recommended)"
+        echo "2. No - Continue to main menu"
+        echo "3. Exit"
+        echo ""
+        
+        while true; do
+            read -p "Select option (1-3): " setup_choice
+            case "$setup_choice" in
+                1)
+                    echo ""
+                    echo -e "${CYAN}Starting setup wizard...${NC}"
+                    if [[ -x "./setup_wizard.sh" ]]; then
+                        ./setup_wizard.sh
+                        # After setup wizard completes, continue to main menu
+                        break
+                    else
+                        echo -e "${RED}Setup wizard not found. Continuing to main menu.${NC}"
+                        break
+                    fi
+                    ;;
+                2)
+                    echo ""
+                    echo -e "${YELLOW}Skipping setup wizard. You can run it later with: ./setup_wizard.sh${NC}"
+                    echo ""
+                    break
+                    ;;
+                3)
+                    echo "Goodbye!"
+                    exit 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid choice. Please select 1, 2, or 3.${NC}"
+                    ;;
+            esac
+        done
+        
+        echo ""
+        read -p "Press Enter to continue to GWOMBAT main menu..."
+    fi
+    
     # Run dependency check on startup
     if ! check_dependencies; then
         echo -e "${RED}Dependency check failed. Please install missing dependencies before continuing.${NC}"
@@ -7422,6 +7649,14 @@ main() {
             9)
                 scuba_compliance_menu
                 ;;
+            99)
+                # Configuration Management
+                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                    $SHARED_UTILITIES_PATH/config_manager.sh menu
+                else
+                    configuration_menu
+                fi
+                ;;
             10)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
@@ -7430,7 +7665,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-10 or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-9, c, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac

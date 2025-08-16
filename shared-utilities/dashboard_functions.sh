@@ -143,7 +143,7 @@ scan_extended_statistics() {
     local shared_drives_count=0
     
     # Use GAM to count team drives (shared drives)
-    if shared_drives_count=$($GAM print teamdrives 2>/dev/null | tail -n +2 | wc -l); then
+    if shared_drives_count=$($GAM print shareddrives 2>/dev/null | tail -n +2 | wc -l); then
         log_dashboard "Found $shared_drives_count shared drives" "INFO" "extended_scan"
     else
         log_dashboard "Failed to scan shared drives" "WARNING" "extended_scan"

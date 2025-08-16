@@ -67,24 +67,82 @@ CREATE TABLE IF NOT EXISTS backup_policies (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Backup storage locations and cloud remotes
+-- Backup storage locations and cloud remotes (enhanced for S3-compatible providers)
 CREATE TABLE IF NOT EXISTS backup_storage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     storage_name TEXT UNIQUE NOT NULL,
-    storage_type TEXT NOT NULL CHECK(storage_type IN ('local', 'gdrive', 's3', 'azure', 'dropbox', 'onedrive')),
+    storage_type TEXT NOT NULL CHECK(storage_type IN ('local', 'gdrive', 's3', 'wasabi', 'b2', 'storj', 'spaces', 'r2', 'azure', 'dropbox', 'onedrive', 'restic')),
+    provider_type TEXT, -- Specific provider: 's3', 'wasabi', 'b2', 'storj', 'spaces', 'r2'
     rclone_remote_name TEXT, -- Corresponding rclone remote
     base_path TEXT,
+    bucket_name TEXT, -- For S3-compatible providers
+    region TEXT, -- Storage region
+    endpoint_url TEXT, -- Custom S3 endpoint (for Wasabi, Backblaze, etc.)
+    access_key_id TEXT, -- S3 access key (encrypted storage recommended)
+    secret_access_key_hash TEXT, -- Hash of secret key for verification
     total_capacity_gb INTEGER,
     used_space_gb INTEGER DEFAULT 0,
     available_space_gb INTEGER,
     last_checked TIMESTAMP,
     connection_status TEXT DEFAULT 'unknown' CHECK(connection_status IN ('connected', 'disconnected', 'error', 'unknown')),
     bandwidth_limit TEXT,
-    cost_per_gb_month REAL, -- For cost tracking
+    cost_per_gb_month REAL DEFAULT 0.0, -- Monthly storage cost per GB
+    egress_cost_per_gb REAL DEFAULT 0.0, -- Egress/download cost per GB
     is_primary INTEGER DEFAULT 0, -- Primary backup destination
     is_active INTEGER DEFAULT 1,
     credentials_path TEXT, -- Path to credentials file
-    encryption_enabled INTEGER DEFAULT 0
+    encryption_enabled INTEGER DEFAULT 1, -- Enable encryption by default
+    restic_repo_url TEXT, -- Full restic repository URL
+    restic_password_hash TEXT, -- Hash of restic encryption password
+    retention_policy TEXT, -- JSON: retention rules (daily, weekly, monthly, yearly)
+    last_cost_calculation TIMESTAMP
+);
+
+-- Restic snapshot tracking for incremental backups
+CREATE TABLE IF NOT EXISTS restic_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_id TEXT UNIQUE NOT NULL, -- Restic snapshot ID
+    repository_url TEXT NOT NULL,
+    user_email TEXT, -- Associated user (if applicable)
+    backup_type TEXT NOT NULL CHECK(backup_type IN ('gmail', 'drive', 'full', 'config')),
+    snapshot_date TIMESTAMP NOT NULL,
+    parent_snapshot_id TEXT, -- Parent snapshot for incremental
+    data_size_bytes INTEGER DEFAULT 0,
+    compressed_size_bytes INTEGER DEFAULT 0,
+    file_count INTEGER DEFAULT 0,
+    directory_count INTEGER DEFAULT 0,
+    tags TEXT, -- JSON array of restic tags
+    hostname TEXT,
+    username TEXT,
+    paths TEXT, -- JSON array of backup paths
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    verification_status TEXT CHECK(verification_status IN ('pending', 'verified', 'failed', 'skipped')),
+    verification_date TIMESTAMP,
+    retention_eligible INTEGER DEFAULT 1, -- 0 = protected from retention cleanup
+    session_id TEXT
+);
+
+-- Drive file tracking for incremental backups
+CREATE TABLE IF NOT EXISTS drive_backup_tracking (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL,
+    file_id TEXT NOT NULL, -- Google Drive file ID
+    file_name TEXT,
+    file_path TEXT, -- Path in Drive
+    file_size_bytes INTEGER DEFAULT 0,
+    modified_time TIMESTAMP,
+    mime_type TEXT,
+    checksum_md5 TEXT,
+    checksum_sha1 TEXT,
+    last_backed_up TIMESTAMP,
+    backup_status TEXT CHECK(backup_status IN ('pending', 'backed_up', 'failed', 'deleted')),
+    restic_snapshot_id TEXT,
+    local_path TEXT, -- Path in local staging area
+    is_shared INTEGER DEFAULT 0,
+    sharing_permissions TEXT, -- JSON of sharing info
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restic_snapshot_id) REFERENCES restic_snapshots(snapshot_id)
 );
 
 -- Backup verification and integrity checks
@@ -138,6 +196,13 @@ CREATE INDEX IF NOT EXISTS idx_backup_storage_active ON backup_storage(is_active
 CREATE INDEX IF NOT EXISTS idx_backup_verification_status ON backup_verification(status);
 CREATE INDEX IF NOT EXISTS idx_backup_alerts_type ON backup_alerts(alert_type);
 CREATE INDEX IF NOT EXISTS idx_backup_alerts_severity ON backup_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_restic_snapshots_repo ON restic_snapshots(repository_url);
+CREATE INDEX IF NOT EXISTS idx_restic_snapshots_user ON restic_snapshots(user_email);
+CREATE INDEX IF NOT EXISTS idx_restic_snapshots_type ON restic_snapshots(backup_type);
+CREATE INDEX IF NOT EXISTS idx_restic_snapshots_date ON restic_snapshots(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_drive_backup_user ON drive_backup_tracking(user_email);
+CREATE INDEX IF NOT EXISTS idx_drive_backup_status ON drive_backup_tracking(backup_status);
+CREATE INDEX IF NOT EXISTS idx_drive_backup_modified ON drive_backup_tracking(modified_time);
 
 -- Views for backup dashboard and reporting
 CREATE VIEW IF NOT EXISTS backup_summary AS
@@ -238,11 +303,24 @@ INSERT OR IGNORE INTO backup_policies (policy_name, policy_type, trigger_event, 
 ('Pending Deletion Full Backup', 'full', 'deletion', 2555, '/backups/full', 1),
 ('Weekly Admin Backup', 'gmail', 'scheduled', 365, '/backups/weekly', 1);
 
--- Insert default storage locations
-INSERT OR IGNORE INTO backup_storage (storage_name, storage_type, base_path, is_primary, is_active) VALUES 
-('Local Primary', 'local', '/opt/gwombat/backups', 1, 1),
-('Google Drive Archive', 'gdrive', '/GWOMBAT_Backups', 0, 0),
-('AWS S3 Archive', 's3', 'gwombat-backups', 0, 0);
+-- Insert default storage locations (updated for S3-compatible providers)
+INSERT OR IGNORE INTO backup_storage (
+    storage_name, storage_type, provider_type, base_path, bucket_name, 
+    cost_per_gb_month, egress_cost_per_gb, encryption_enabled, is_primary, is_active, 
+    retention_policy
+) VALUES 
+('Local Primary', 'local', NULL, './backups', NULL, 0.0, 0.0, 1, 1, 1, 
+ '{"daily": 7, "weekly": 4, "monthly": 12, "yearly": 2}'),
+('Wasabi S3 Archive', 'wasabi', 'wasabi', 'gwombat-backups', 'gwombat-backups', 5.99, 0.0, 1, 0, 0,
+ '{"daily": 30, "weekly": 12, "monthly": 24, "yearly": 5}'),
+('Backblaze B2 Archive', 'b2', 'b2', 'gwombat-backups', 'gwombat-backups', 5.0, 10.0, 1, 0, 0,
+ '{"daily": 30, "weekly": 12, "monthly": 24, "yearly": 5}'),
+('Storj Archive', 'storj', 'storj', 'gwombat-backups', 'gwombat-backups', 4.0, 7.0, 1, 0, 0,
+ '{"daily": 30, "weekly": 12, "monthly": 24, "yearly": 5}'),
+('AWS S3 IA Archive', 's3', 's3', 'gwombat-backups', 'gwombat-backups', 12.5, 90.0, 1, 0, 0,
+ '{"daily": 14, "weekly": 8, "monthly": 12, "yearly": 3}'),
+('Google Drive Archive', 'gdrive', NULL, '/GWOMBAT_Backups', NULL, 0.0, 0.0, 0, 0, 0,
+ '{"daily": 7, "weekly": 4, "monthly": 6, "yearly": 1}');
 
 -- Triggers for automatic alerts
 CREATE TRIGGER IF NOT EXISTS backup_failure_alert
