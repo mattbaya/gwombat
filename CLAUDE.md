@@ -1,226 +1,124 @@
 # CLAUDE.md - AI Development Context
 
 ## Project Overview
-**GWOMBAT** (Google Workspace Optimization, Management, Backups And Taskrunner) is a comprehensive suspended account lifecycle management system with database tracking, verification, and automated workflows. This system manages Google Workspace accounts through their complete lifecycle from suspension to deletion, with persistent state tracking and verification capabilities.
+**GWOMBAT** (Google Workspace Optimization, Management, Backups And Taskrunner) is an enterprise-grade Google Workspace account lifecycle management system with SQLite-driven dynamic interfaces, automated workflows, and comprehensive security features.
 
-## Current State (August 2025)
-- **Primary Script**: `gwombat.sh` - Master lifecycle management script (6500+ lines)
-- **Architecture**: Menu-driven interactive system with database integration and automated workflows
-- **Database System**: SQLite-based persistent state tracking with verification
-- **Deployment**: Git-based with secure SSH key deployment to production servers
-- **Configuration**: Fully environment-configurable via .env files
+## Current Architecture (August 2025)
+- **Primary Script**: `gwombat.sh` (9000+ lines) - Main application with SQLite-driven dynamic menu system
+- **Database System**: Multi-schema SQLite architecture with persistent state tracking and menu management
+- **Menu System**: Revolutionary database-driven menus with intelligent search and zero maintenance overhead
+- **Python Integration**: Advanced compliance modules with dashboard capabilities
+- **Deployment**: Git-based secure deployment with SSH key automation and domain verification
+- **Configuration**: Environment-configurable via .env files with external tools synchronization
 
 ## Key Components
 
-### 1. Core Lifecycle Management (`gwombat.sh`)
-**Main Menu Structure** (reorganized for logical grouping):
-- **Account Management**:
-  - Suspended Account Lifecycle Management (8 options)
-  - User & Group Management (2 options)
-- **Data & File Operations**:
-  - File & Drive Operations (13 options)
-  - Analysis & Discovery (11 options)  
-  - Account List Management (11 options)
-- **Monitoring & System**:
-  - Reports & Monitoring (11 options)
-  - System Administration (6 options)
+### 1. Dynamic Menu System (`gwombat.sh`)
+**SQLite-Driven Architecture**:
+- **User & Group Management** (20 options): Account lifecycle, scanning, management, groups, licenses
+- **Data & File Operations** (11 options): File management, analysis, list operations
+- **System & Monitoring** (9 options): Dashboard, reports, administration
+- **Security & Compliance** (3 options): SCuBA compliance management
+- **Configuration Management**: External tools (GAM, GYB, rclone) domain synchronization
 
-**Recent Major Enhancements**:
-- Complete application rename to GWOMBAT
-- Database-driven account lifecycle tracking
-- Account scanning and stage discovery
-- List-based batch operations with verification
-- Secure deployment system with SSH key automation
+**Menu Features**:
+- **Dynamic Generation**: All menus generated from database tables
+- **Intelligent Search**: Keyword search across 43+ options with contextual results
+- **Alphabetical Index**: Complete menu catalog with navigation paths
+- **Self-Maintaining**: Zero hardcoded structures - automatically current
 
-### 2. Database System (`database_functions.sh`, `database_schema.sql`)
-**Core Features**:
-- **Account Tracking**: Persistent state management across lifecycle stages
-- **List Management**: Tag-based grouping for batch operations
-- **Verification System**: Automated checking of account states vs expected stages
-- **Audit Logging**: Complete operation history with session tracking
-- **Progress Tracking**: List-based completion monitoring
+### 2. Database Architecture (`shared-utilities/database_functions.sh`)
+**Multi-Schema Design**:
+- **Primary Schema**: Account lifecycle tracking, list management, verification, audit logging
+- **Menu Schema**: Dynamic menu system with search optimization
+- **Specialized Schemas**: SCuBA compliance, configuration management, security reports, backup tracking
 
-**Database Schema** (7 main tables):
-- `accounts` - Core account information and current stage
-- `account_lists` - List/tag definitions for grouping accounts
-- `account_list_memberships` - Many-to-many account-list relationships
-- `stage_history` - Complete lifecycle change history
-- `verification_status` - Stage-specific verification results
-- `operation_log` - Audit trail for all operations
-- `config` - System configuration storage
+**Core Functions**:
+- `generate_main_menu()`, `generate_submenu()` - Dynamic menu generation
+- `search_menu_database()`, `show_menu_database_index()` - Advanced search and indexing
+- `get_menu_function()` - Dynamic function resolution from database
 
-### 3. Deployment System (`deploy.sh`, `.env`, `server.env`)
-**Secure Git-Based Deployment**:
-- Password-protected SSH key with automated entry
-- Environment-specific configuration via .env files
-- Server-specific paths via server.env configuration
-- Deployment logging with complete audit trail
-- Atomic deployments with easy rollback capability
+### 3. Configuration & External Tools (`shared-utilities/config_manager.sh`)
+**External Tools Integration**:
+- **GAM Configuration**: OAuth setup, domain verification, GAM7 compatibility
+- **GYB Integration**: Gmail backup with domain synchronization
+- **rclone Configuration**: Cloud storage with multi-provider support
+- **Domain Synchronization**: Ensures all tools point to same Google Workspace domain
 
-### 4. Account Discovery & Scanning
-**Automated Discovery**:
-- Scan all suspended accounts in Google Workspace
-- Determine current lifecycle stage based on OU placement
-- Auto-create lists based on discovered account stages
-- Database integration for persistent tracking
-- Bulk verification of account states
-
-## Technical Architecture
-
-### Menu System Evolution
-- **Logical Grouping**: Reorganized from 9 to 8 main categories by function type
-- **Enhanced Navigation**: Universal 'm' (main menu) and 'x' (exit) options
-- **Option Counts**: All menu entries show submenu option counts
-- **Database Integration**: List management seamlessly integrated
-- **Context-Aware**: Menus adapt based on available data and operations
-
-### Database Integration
-- **SQLite Backend**: Lightweight, serverless database for persistence
-- **Verification Engine**: Automated checking of account states vs GAM reality
-- **Batch Operations**: List-based processing with progress tracking
-- **Session Management**: Complete audit trail with session correlation
-- **Import/Export**: CSV import with automatic list creation
-
-### Configuration Management
-**Multi-Level Configuration**:
-- **Local (.env)**: Deployment credentials and server details
-- **Server (server.env)**: Production paths and GAM configuration  
-- **Application**: Dynamic configuration with environment variable overrides
-- **Database**: Runtime configuration storage
-
-### Deployment Architecture
-**Git-Based Workflow**:
-- **Bare Repository**: Production server hosts bare git repository
-- **Working Directory**: Separate directory for running application
-- **SSH Config**: Dedicated deployment key with automatic authentication
-- **Environment Separation**: Configurable paths for different servers
-
-## Development Context for Claude
+## Development Context
 
 ### ⚠️ CRITICAL NAMING CONVENTION ⚠️
 **ALWAYS use "GWOMBAT" (Google Workspace Optimization, Management, Backups And Taskrunner)**
 - ✅ Correct: GWOMBAT, gwombat, gwombatgit-key
 - ❌ Wrong: GAMladmin, gamladmin, gamladmingit-key
-- This is a persistent typo issue - always double-check spelling
-- Search and replace any instances of "gamadmin" or "GAMadmin" with "gwombat" or "GWOMBAT"
 
-### Current Integration Status
-✅ **Application Renamed**: Complete rename to GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) with updated branding
-✅ **Database System**: Full SQLite integration with comprehensive schema
-✅ **Account Discovery**: Automated scanning and stage detection
-✅ **Deployment System**: Secure, automated deployment with SSH key management
-✅ **Configuration Management**: Fully environment-configurable system
-✅ **List Management**: Complete batch operation system with verification
-
-### Key Development Patterns
-1. **Database-First Architecture**: Persistent state drives all operations
-2. **Environment Configuration**: No hardcoded paths or server-specific values
-3. **Verification-Driven Operations**: Automated checking of account states
-4. **Git-Based Deployment**: Version-controlled, auditable deployments
-5. **Menu-Driven UX**: Consistent interactive experience
-6. **Comprehensive Logging**: Multi-level logging for operations and deployments
-
-### Recent Major Changes (August 2025)
-- **Complete Rename**: GAMadmin → GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner)
-- **Database Integration**: Added SQLite for persistent state management
-- **Account Scanning**: Automated discovery of account stages via OU placement
-- **List Management**: Tag-based batch operations with verification
-- **Deployment Automation**: SSH key-based secure deployment system
-- **Configuration Externalization**: All paths and settings moved to .env files
-- **Admin User Configuration**: Added ADMIN_USER variable to .env for configurable admin accounts
-- **URL Parsing & Search**: Smart drive ID input with URL parsing and name search
-- **Command Transparency**: Display all GAM commands before execution for full visibility
-- **Enhanced Navigation**: Universal x/m menu options across all interfaces
-- **Security Hardening**: Complete removal of sensitive files from git history
+### Key Technical Patterns
+1. **Database-First Architecture**: All interfaces and state driven by SQLite
+2. **Dynamic Menu Generation**: No hardcoded menu structures
+3. **Domain Security Verification**: Automatic verification GAM domain matches .env DOMAIN
+4. **Environment Configuration**: No hardcoded paths or server-specific values
+5. **Comprehensive Logging**: Multi-level logging for operations and deployments
 
 ### Dependencies
-- **GAM (Google Apps Manager)**: Primary interface to Google Workspace  
-- **SQLite**: Database backend for persistent state
+- **GAM (Google Apps Manager)**: Primary Google Workspace interface (GAM7 compatible)
+- **SQLite**: Multi-schema database backend for all persistence and menu management
+- **Python 3.12+**: Advanced compliance modules and dashboard capabilities
+- **GYB (Got Your Back)**: Gmail backup integration
+- **rclone**: Cloud storage synchronization
 - **SSH/Git**: Secure deployment infrastructure
-- **expect**: Password automation for SSH keys
-- **Standard Unix Tools**: bash, grep, sed, awk for text processing
+- **expect**: Password automation for interactive prompts
 
 ### Testing Commands
 ```bash
-# Test database initialization
-./gwombat.sh # Select Account List Management → Database maintenance
+# Test SQLite menu system
+./gwombat.sh # Use 's' for search, 'i' for index
 
-# Test account scanning  
-./gwombat.sh # Select Account List Management → Scan suspended accounts
+# Test menu database population
+./shared-utilities/menu_data_loader.sh
 
-# Test deployment
-./deploy.sh
+# Test search functionality
+source shared-utilities/database_functions.sh && search_menu_database "user"
 
-# Verify script syntax
-bash -n gwombat.sh
-bash -n database_functions.sh
+# Verify syntax
+bash -n gwombat.sh && bash -n shared-utilities/database_functions.sh
 ```
 
 ### Environment Configuration
-**Local Development (.env)**:
+**Required .env variables**:
 ```bash
-# Domain and Organization Configuration
-DOMAIN="your-domain.edu"
-ADMIN_EMAIL="gwombat@your-domain.edu"
-ADMIN_USER="your-actual-admin@your-domain.edu"  # Your real admin user
-
-# Production Server Configuration
-PRODUCTION_SERVER="your-server.edu"
-PRODUCTION_USER="your-user"
-GWOMBAT_PATH="/opt/path/to/gwombat"
-
-# SSH Configuration  
-SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"
-SSH_KEY_PASSWORD="secure-password"
-
-# GAM Configuration
-GAM_PATH="/usr/local/bin/gam"
-GAM_CONFIG_PATH="/home/your-user/.gam"
-
-# Organizational Unit Paths
-SUSPENDED_OU="/Suspended Users"
+DOMAIN="your-domain.edu"                    # Google Workspace domain
+ADMIN_USER="admin@your-domain.edu"          # Actual admin user
+GAM_PATH="/usr/local/bin/gam"               # GAM executable path
+SUSPENDED_OU="/Suspended Users"             # Suspended accounts OU
 PENDING_DELETION_OU="/Suspended Users/Pending Deletion"
-TEMPORARY_HOLD_OU="/Suspended Users/Temporary Hold"
-EXIT_ROW_OU="/Suspended Users/Exit Row"
-
-# Google Drive Configuration
-DRIVE_LABEL_ID="your-drive-label-id"
-```
-
-**Production Server (server.env)**:
-```bash
-GWOMBAT_PATH="/opt/production/path/gwombat"
-GAM_PATH="/usr/local/bin/gam"
-DOMAIN="your-domain.edu"
-ADMIN_USER="your-actual-admin@your-domain.edu"
-SUSPENDED_OU="/Suspended Users"
-# ... additional server-specific settings
+PRODUCTION_SERVER="your-server.edu"        # Deployment target
+SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"    # Deployment SSH key
 ```
 
 ## File Organization
 ```
 gwombat/
-├── gwombat.sh                     # Main application (6500+ lines)
-├── database_functions.sh          # Database operations (688 lines)
-├── database_schema.sql            # SQLite schema definition
-├── deploy.sh                      # Secure deployment script
-├── .env.template                  # Local configuration template
-├── server.env.template            # Server configuration template
-├── DEPLOYMENT.md                  # Deployment documentation
-├── shared-utilities/              # Essential standalone utilities
-├── old-scripts-replaced-by-master/# Archived script collections  
-├── config/                       # Runtime configuration files
-├── logs/                         # Session and operation logs
-├── reports/                      # Generated reports and summaries
-├── backups/                      # Configuration and data backups
-└── tmp/                         # Temporary processing files
+├── gwombat.sh                           # Main application (9000+ lines)
+├── CLAUDE.md                            # AI development context
+├── shared-utilities/
+│   ├── database_functions.sh            # Database operations (1000+ lines)
+│   ├── menu_data_loader.sh             # Menu database population
+│   ├── config_manager.sh               # Configuration management
+│   └── [30+ utility scripts]           # Specialized operations
+├── local-config/
+│   ├── account_lifecycle.db            # Main SQLite database
+│   ├── menu_schema.sql                 # Menu management schema
+│   └── [multiple specialized schemas]   # Domain-specific schemas
+├── python-modules/                     # Advanced Python integrations
+└── docs/                              # Documentation
 ```
 
-## Future Development Considerations
-- **Enhanced Verification**: More sophisticated account state checking
-- **Workflow Automation**: Scheduled batch operations
-- **Reporting Dashboard**: Web-based status monitoring
-- **Integration APIs**: Hooks for external systems
-- **Multi-Server Management**: Deploy to multiple environments
+## Current Integration Status
+✅ **SQLite Menu System**: Dynamic database-driven interfaces with intelligent search
+✅ **External Tools Configuration**: Centralized GAM/GYB/rclone domain synchronization  
+✅ **Database Architecture**: Multi-schema design with comprehensive functionality
+✅ **Security Verification**: Domain mismatch protection and automated verification
+✅ **Python Integration**: Advanced compliance modules and dashboard capabilities
+✅ **Deployment Automation**: Secure SSH key-based deployment with environment configuration
 
-This project represents a comprehensive evolution from simple script collection to enterprise-grade account lifecycle management system with database persistence, automated verification, and secure deployment capabilities.
+**GWOMBAT** is a comprehensive, enterprise-ready Google Workspace management platform with cutting-edge database-driven interfaces, intelligent automation, and robust security features.

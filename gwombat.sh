@@ -25,21 +25,21 @@
 
 # Variables now loaded via load_configuration() function
 
-# Organizational Unit paths (configurable via server.env)
+# Organizational Unit paths (configurable via local-config/server.env)
 OU_TEMPHOLD="${TEMPORARY_HOLD_OU:-/Suspended Accounts/Suspended - Temporary Hold}"
 OU_PENDING_DELETION="${PENDING_DELETION_OU:-/Suspended Accounts/Suspended - Pending Deletion}"  
 OU_SUSPENDED="${SUSPENDED_OU:-/Suspended Accounts}"
 OU_ACTIVE="${DOMAIN:-yourdomain.edu}"
 
-# Google Drive Label IDs (configurable via server.env)
+# Google Drive Label IDs (configurable via local-config/server.env)
 LABEL_ID="${DRIVE_LABEL_ID:-default-label-id}"
 
 # Load server-specific configuration
-if [[ -f "server.env" ]]; then
-    source server.env
-    echo "Loaded server configuration from server.env"
+if [[ -f "local-config/server.env" ]]; then
+    source local-config/server.env
+    echo "Loaded server configuration from local-config/server.env"
 else
-    echo "Warning: server.env not found, using default paths"
+    echo "Warning: local-config/server.env not found, using default paths"
 fi
 
 # Advanced Logging and Reporting Configuration
@@ -214,6 +214,207 @@ sanitize_gam_input() {
 }
 
 # Enhanced dependency check function with logging and optional tools
+store_domain_in_database() {
+    local domain="$1"
+    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    
+    if [[ -f "$db_file" && -n "$domain" ]]; then
+        sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$domain');" 2>/dev/null
+        sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('domain_set_at', datetime('now'));" 2>/dev/null
+    fi
+}
+
+reset_database_for_domain_change() {
+    local new_domain="$1"
+    local old_domain="$2"
+    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    
+    echo -e "${YELLOW}⚠️  Domain change detected!${NC}"
+    echo -e "${YELLOW}   Old domain: $old_domain${NC}"
+    echo -e "${YELLOW}   New domain: $new_domain${NC}"
+    echo ""
+    echo -e "${YELLOW}Database contains data for the old domain and must be reset.${NC}"
+    echo -e "${YELLOW}This will clear all account data, lists, and history.${NC}"
+    echo ""
+    
+    if [[ -f "$db_file" ]]; then
+        local account_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+        local list_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM account_lists;" 2>/dev/null || echo "0")
+        
+        if [[ "$account_count" -gt 0 || "$list_count" -gt 0 ]]; then
+            echo -e "${CYAN}Current database contains:${NC}"
+            echo "  • $account_count accounts"
+            echo "  • $list_count account lists"
+            echo ""
+            
+            # Create backup before reset
+            local backup_file="${db_file}.backup-${old_domain}-$(date +%Y%m%d_%H%M%S)"
+            echo -e "${CYAN}Creating backup: ${backup_file}${NC}"
+            cp "$db_file" "$backup_file"
+            echo -e "${GREEN}✓ Backup created${NC}"
+            echo ""
+        fi
+    fi
+    
+    echo -e "${RED}Reset database for domain change? (y/N)${NC}"
+    read -p "> " confirm
+    if [[ "$confirm" =~ ^[Yy] ]]; then
+        if [[ -f "$db_file" ]]; then
+            rm "$db_file"
+            echo -e "${GREEN}✓ Database reset for new domain: $new_domain${NC}"
+        fi
+        
+        # Initialize fresh database with new domain
+        if [[ -f "${SCRIPTPATH}/local-config/database_schema.sql" ]]; then
+            echo -e "${CYAN}Initializing fresh database...${NC}"
+            sqlite3 "$db_file" < "${SCRIPTPATH}/local-config/database_schema.sql"
+            sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$new_domain');"
+            sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('domain_changed_at', datetime('now'));"
+            echo -e "${GREEN}✓ Fresh database initialized for: $new_domain${NC}"
+        fi
+        return 0
+    else
+        echo -e "${YELLOW}Database reset cancelled. GWOMBAT cannot proceed with mixed domain data.${NC}"
+        return 1
+    fi
+}
+
+show_gam_info() {
+    local gam_path="${GAM_PATH:-gam}"
+    
+    echo -e "${BLUE}=== GAM Configuration Information ===${NC}"
+    echo ""
+    echo -e "${CYAN}GAM Path:${NC} $gam_path"
+    echo -e "${CYAN}GAM Config Path:${NC} ${GAM_CONFIG_PATH:-~/.gam}"
+    echo ""
+    
+    if ! command -v "$gam_path" >/dev/null 2>&1; then
+        echo -e "${RED}❌ GAM not found at: $gam_path${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}GAM Domain Information:${NC}"
+    local gam_domain_info
+    if command -v timeout >/dev/null 2>&1; then
+        gam_domain_info=$(timeout 15 "$gam_path" info domain 2>/dev/null)
+    else
+        gam_domain_info=$("$gam_path" info domain 2>/dev/null)
+    fi
+    
+    if [[ -n "$gam_domain_info" ]]; then
+        echo "$gam_domain_info"
+    else
+        echo -e "${YELLOW}⚠️  GAM not configured or cannot access domain${NC}"
+        echo "Run: $gam_path oauth create"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}OAuth Token Location:${NC}"
+    if [[ -n "${GAM_CONFIG_PATH}" ]]; then
+        local token_path="${GAM_CONFIG_PATH}/oauth2.txt"
+        if [[ -f "$token_path" ]]; then
+            echo -e "${GREEN}✓ Found: $token_path${NC}"
+            echo -e "${GRAY}Created: $(stat -f "%Sm" "$token_path" 2>/dev/null || stat -c "%y" "$token_path" 2>/dev/null)${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Not found: $token_path${NC}"
+        fi
+    else
+        echo -e "${YELLOW}No GAM_CONFIG_PATH set${NC}"
+    fi
+    
+    echo ""
+    echo -e "${CYAN}Current GWOMBAT Configuration:${NC}"
+    echo -e "Domain: ${DOMAIN:-not set}"
+    echo -e "Admin User: ${ADMIN_USER:-not set}"
+    echo ""
+}
+
+verify_gam_domain() {
+    local gam_path="${GAM:-gam}"
+    local configured_domain="${DOMAIN}"
+    local db_file="${SCRIPTPATH}/local-config/account_lifecycle.db"
+    
+    if [[ -z "$configured_domain" ]]; then
+        echo -e "${RED}❌ CRITICAL: No DOMAIN configured in .env file${NC}"
+        echo -e "${YELLOW}Please set DOMAIN in your .env file${NC}"
+        return 1
+    fi
+    
+    if ! command -v "$gam_path" >/dev/null 2>&1; then
+        echo -e "${RED}❌ CRITICAL: GAM not found at: $gam_path${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}🔒 Verifying GAM domain matches configuration...${NC}"
+    
+    # Get domain from GAM
+    local gam_domain_info
+    if command -v timeout >/dev/null 2>&1; then
+        gam_domain_info=$(timeout 15 "$gam_path" info domain 2>/dev/null)
+    else
+        gam_domain_info=$("$gam_path" info domain 2>/dev/null)
+    fi
+    
+    if [[ -z "$gam_domain_info" ]]; then
+        echo -e "${RED}❌ CRITICAL: GAM is not configured or cannot access domain information${NC}"
+        echo -e "${YELLOW}Please run: $gam_path oauth create${NC}"
+        echo -e "${YELLOW}Or check GAM configuration with: $gam_path info domain${NC}"
+        return 1
+    fi
+    
+    # Extract primary domain from GAM output (handle various formats)
+    local gam_primary_domain=$(echo "$gam_domain_info" | grep -i "Primary Domain" | awk '{print $3}' | cut -d':' -f1 | sed 's/Verified.*$//' | tr -d '[:space:]')
+    
+    if [[ -z "$gam_primary_domain" ]]; then
+        echo -e "${RED}❌ CRITICAL: Cannot determine primary domain from GAM${NC}"
+        echo -e "${GRAY}GAM Output:${NC}"
+        echo "$gam_domain_info" | head -10
+        echo ""
+        echo -e "${CYAN}For detailed GAM info, run: show_gam_info${NC}"
+        return 1
+    fi
+    
+    # Compare domains (case-insensitive)
+    local gam_domain_lower=$(echo "$gam_primary_domain" | tr '[:upper:]' '[:lower:]')
+    local config_domain_lower=$(echo "$configured_domain" | tr '[:upper:]' '[:lower:]')
+    if [[ "$gam_domain_lower" == "$config_domain_lower" ]]; then
+        echo -e "${GREEN}✅ VERIFIED: GAM domain matches configuration${NC}"
+        echo -e "${GREEN}   Configured: $configured_domain${NC}"
+        echo -e "${GREEN}   GAM Domain: $gam_primary_domain${NC}"
+        
+        # Check if database has different domain data
+        if [[ -f "$db_file" ]]; then
+            local db_domain=$(sqlite3 "$db_file" "SELECT value FROM config WHERE key='configured_domain';" 2>/dev/null)
+            if [[ -n "$db_domain" && "$db_domain" != "$configured_domain" ]]; then
+                echo ""
+                if ! reset_database_for_domain_change "$configured_domain" "$db_domain"; then
+                    return 1
+                fi
+            else
+                # Store/update domain in database if not already set
+                store_domain_in_database "$configured_domain"
+            fi
+        fi
+        
+        return 0
+    else
+        echo -e "${RED}❌ CRITICAL SECURITY ISSUE: Domain mismatch!${NC}"
+        echo -e "${RED}   .env DOMAIN: $configured_domain${NC}"
+        echo -e "${RED}   GAM Domain:  $gam_primary_domain${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠️  This is a security risk - GAM commands will run against: $gam_primary_domain${NC}"
+        echo -e "${YELLOW}⚠️  But GWOMBAT is configured for: $configured_domain${NC}"
+        echo ""
+        echo -e "${CYAN}To fix this issue:${NC}"
+        echo "1. Update DOMAIN in .env to: $gam_primary_domain"
+        echo "2. OR reconfigure GAM for domain: $configured_domain"
+        echo "3. OR use a different GAM config path for $configured_domain"
+        echo ""
+        echo -e "${CYAN}For detailed GAM info, run: show_gam_info${NC}"
+        return 1
+    fi
+}
+
 check_dependencies() {
     local missing_deps=()
     local warnings=()
@@ -222,6 +423,14 @@ check_dependencies() {
     
     log_info "Starting GWOMBAT dependency check" "console"
     echo -e "${BLUE}=== GWOMBAT Dependency Check ===${NC}"
+    echo ""
+    
+    # Critical domain verification first
+    if ! verify_gam_domain; then
+        echo -e "${RED}❌ CRITICAL: Domain verification failed - stopping dependency check${NC}"
+        echo -e "${YELLOW}Fix the domain configuration before proceeding${NC}"
+        return 1
+    fi
     echo ""
     
     # Essential dependencies
@@ -276,20 +485,30 @@ check_dependencies() {
     echo -e "${CYAN}Google Workspace Integration:${NC}"
     
     # Check GAM
-    local gam_path="${GAM_PATH:-/usr/local/bin/gam}"
+    local gam_path="${GAM:-${GAM_PATH:-/usr/local/bin/gam}}"
     if [[ -x "$gam_path" ]]; then
         local gam_version=$($gam_path version 2>/dev/null | head -n1 || echo "unknown")
         echo -e "${GREEN}✓ GAM: $gam_version${NC}"
         echo -e "${GREEN}  Path: $gam_path${NC}"
         log_info "GAM found: $gam_version at $gam_path"
         
-        # Check if GAM is configured
-        if $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
-            echo -e "${GREEN}  ✓ GAM is configured${NC}"
-            log_info "GAM is configured and working"
+        # Check if GAM is configured (with timeout handling)
+        echo -e "${YELLOW}  Checking GAM configuration...${NC}"
+        if command -v timeout >/dev/null 2>&1; then
+            # Use timeout if available (Linux)
+            if timeout 10 $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
+                echo -e "${GREEN}  ✓ GAM is configured${NC}"
+                log_info "GAM is configured and working"
+            else
+                recommendations+=("GAM needs configuration: Run 'gam info domain' to verify setup")
+                echo -e "${YELLOW}  ○ GAM found but not configured or timed out${NC}"
+                log_info "GAM found but not configured or configuration check timed out"
+            fi
         else
-            recommendations+=("GAM needs configuration: Run 'gam info domain' to verify setup")
-            log_info "GAM found but not configured"
+            # Fallback for macOS - skip configuration check to avoid hang
+            echo -e "${YELLOW}  ○ GAM found - configuration check skipped (run 'gam info domain' to verify)${NC}"
+            recommendations+=("Verify GAM configuration: Run 'gam info domain' manually")
+            log_info "GAM found but configuration check skipped (timeout not available)"
         fi
     else
         missing_deps+=("GAM (Google Apps Manager)")
@@ -319,13 +538,19 @@ check_dependencies() {
         optional_tools+=("rclone for cloud storage")
         log_info "rclone found: $rclone_version"
         
-        # Check if rclone has any remotes configured
-        if rclone listremotes 2>/dev/null | grep -q ":"; then
-            echo -e "${GREEN}  ✓ rclone has configured remotes${NC}"
-            log_info "rclone has configured remotes"
+        # Check if rclone has any remotes configured (with timeout handling)
+        if command -v timeout >/dev/null 2>&1; then
+            if timeout 5 rclone listremotes 2>/dev/null | grep -q ":"; then
+                echo -e "${GREEN}  ✓ rclone has configured remotes${NC}"
+                log_info "rclone has configured remotes"
+            else
+                recommendations+=("Configure rclone remotes for cloud backup: rclone config")
+                log_info "rclone found but no remotes configured or check timed out"
+            fi
         else
+            echo -e "${YELLOW}  ○ rclone found - remote check skipped${NC}"
             recommendations+=("Configure rclone remotes for cloud backup: rclone config")
-            log_info "rclone found but no remotes configured"
+            log_info "rclone found but remote check skipped (timeout not available)"
         fi
     else
         recommendations+=("Install rclone for cloud storage integration: https://rclone.org/install/")
@@ -422,6 +647,8 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 PURPLE='\033[0;35m'
+BOLD='\033[1m'
+GRAY='\033[0;37m'
 NC='\033[0m' # No Color
 
 # Advanced Logging Functions
@@ -640,7 +867,7 @@ cleanup_logs() {
 create_database_backup() {
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local backup_file="${BACKUP_DIR}/account_lifecycle_${timestamp}.db.gz"
-    local db_file="${SCRIPTPATH}/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
     
     echo -e "${CYAN}Creating database backup...${NC}"
     
@@ -762,7 +989,7 @@ restore_database_backup() {
     fi
     
     local selected_backup="${backups[$((backup_choice-1))]}"
-    local db_file="${SCRIPTPATH}/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
     local backup_of_current="${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
     
     echo ""
@@ -819,11 +1046,11 @@ reports_and_cleanup_menu() {
         echo "9. Configuration management"
         echo "10. Audit file ownership locations"
         echo ""
-        echo "11. Return to main menu"
+        echo "p. Previous menu (Main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-11, m, x): " report_choice
+        read -p "Select an option (1-10, p, m, x): " report_choice
         echo ""
         
         case $report_choice in
@@ -886,14 +1113,14 @@ reports_and_cleanup_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            15)
                 echo -e "${CYAN}Cleaning up logs older than 30 days...${NC}"
                 cleanup_logs 30
                 echo -e "${GREEN}Cleanup completed${NC}"
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7)
+            15)
                 read -p "Enter number of days to keep: " custom_days
                 if [[ "$custom_days" =~ ^[0-9]+$ ]]; then
                     echo -e "${CYAN}Cleaning up logs older than $custom_days days...${NC}"
@@ -905,7 +1132,7 @@ reports_and_cleanup_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            8)
+            14)
                 echo -e "${CYAN}Database Backup Management${NC}"
                 echo ""
                 echo "1. Create database backup now"
@@ -946,23 +1173,23 @@ reports_and_cleanup_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            9)
+            15)
                 configuration_menu
                 ;;
-            10)
+            16)
                 audit_file_ownership_menu
                 ;;
-            11)
-                break
+            p|P)
+                return  # Previous menu
                 ;;
             m|M)
-                break
+                return  # Main menu (since this is called from main)
                 ;;
             x|X)
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-11, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-10, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -975,32 +1202,53 @@ configuration_menu() {
         clear
         echo -e "${BLUE}=== Configuration Management ===${NC}"
         echo ""
-        echo -e "${CYAN}Current Configuration:${NC}"
-        echo "GAM Path: $GAM"
-        echo "Script Path: $SCRIPTPATH"
-        echo "Shared Utilities Path: $SHARED_UTILITIES_PATH"
-        echo "Progress Enabled: $PROGRESS_ENABLED"
-        echo "Confirmation Level: $CONFIRMATION_LEVEL"
-        echo "Log Retention: $LOG_RETENTION_DAYS days"
-        echo "Backup Retention: $BACKUP_RETENTION_DAYS days"
-        echo "Operation Timeout: $OPERATION_TIMEOUT seconds"
+        
+        # Show domain configuration prominently
+        echo -e "${CYAN}🌐 Domain Configuration:${NC}"
+        if [[ -n "$DOMAIN" ]]; then
+            echo -e "${GREEN}  Domain: ${BOLD}$DOMAIN${NC}"
+            if [[ -n "$ADMIN_USER" ]]; then
+                echo -e "${GREEN}  Admin User: $ADMIN_USER${NC}"
+            fi
+            if [[ -n "$ADMIN_EMAIL" ]]; then
+                echo -e "${GREEN}  Admin Email: $ADMIN_EMAIL${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠️ No domain configured${NC}"
+        fi
         echo ""
-        echo "Configuration Options:"
+        
+        echo -e "${CYAN}System Configuration:${NC}"
+        echo "  GAM Path: $GAM"
+        echo "  Script Path: $SCRIPTPATH"
+        echo "  Progress Enabled: $PROGRESS_ENABLED"
+        echo "  Confirmation Level: $CONFIRMATION_LEVEL"
+        echo "  Log Retention: $LOG_RETENTION_DAYS days"
+        echo "  Operation Timeout: $OPERATION_TIMEOUT seconds"
+        echo ""
+        
+        echo -e "${CYAN}Configuration Options:${NC}"
         echo "1. 🧙 Setup Wizard (First-time or reconfiguration)"
-        echo "2. 🐍 Setup Python Environment"
-        echo "3. View full configuration file"
-        echo "4. Create default configuration file"
-        echo "5. Edit GAM path"
-        echo "6. Edit script paths"
-        echo "7. Toggle progress display"
-        echo "8. Change confirmation level"
-        echo "9. Set log retention"
-        echo "10. Set backup retention"
-        echo "11. Test configuration"
-        echo "12. Reset to defaults"
-        echo "13. Return to previous menu"
+        echo "2. 🔄 Configure New Domain (backup current config)"
+        echo "3. 🐍 Setup Python Environment"
+        echo "4. 💾 Backup Current Configuration"
+        echo "5. 📁 Restore Configuration from Backup"
+        echo "6. View full configuration file"
+        echo "7. Create default configuration file"
+        echo "8. Edit GAM path"
+        echo "9. Edit script paths"
+        echo "10. Toggle progress display"
+        echo "11. Change confirmation level"
+        echo "12. Set log retention"
+        echo "13. Test configuration"
+        echo "14. 🔒 Show GAM configuration and domain info"
+        echo "15. Reset to defaults"
         echo ""
-        read -p "Select an option (1-13): " config_choice
+        echo "p. Previous menu"
+        echo "m. Main menu"
+        echo "x. Exit"
+        echo ""
+        read -p "Select an option (1-15, p, m, x): " config_choice
         echo ""
         
         case $config_choice in
@@ -1016,6 +1264,63 @@ configuration_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             2)
+                # Configure New Domain with Backup
+                echo -e "${CYAN}Configure New Domain${NC}"
+                echo ""
+                if [[ -n "$DOMAIN" ]]; then
+                    echo -e "${YELLOW}⚠️ Current domain: $DOMAIN${NC}"
+                    echo ""
+                    echo "Configuring a new domain will:"
+                    echo "• Backup current configuration and database"
+                    echo "• Reset GWOMBAT for the new domain"
+                    echo "• Preserve all existing data safely"
+                    echo ""
+                    read -p "Continue with domain change? (y/N): " confirm_domain_change
+                    if [[ "$confirm_domain_change" =~ ^[Yy]$ ]]; then
+                        # Create backup
+                        local backup_timestamp=$(date +%Y%m%d-%H%M%S)
+                        local backup_dir="./backups/domain-backup-${DOMAIN}-${backup_timestamp}"
+                        mkdir -p "$backup_dir"
+                        
+                        echo "Creating backup in $backup_dir..."
+                        
+                        # Backup configuration files
+                        [[ -f ".env" ]] && cp ".env" "$backup_dir/"
+                        [[ -f "local-config/server.env" ]] && cp "local-config/server.env" "$backup_dir/"
+                        [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$backup_dir/"
+                        
+                        # Backup database
+                        [[ -f "local-config/account_lifecycle.db" ]] && cp "local-config/account_lifecycle.db" "$backup_dir/"
+                        
+                        # Backup any local-config/reports/logs
+                        [[ -d "reports" ]] && cp -r "reports" "$backup_dir/"
+                        [[ -d "logs" ]] && cp -r "logs" "$backup_dir/" 2>/dev/null || true
+                        
+                        echo -e "${GREEN}✓ Backup created: $backup_dir${NC}"
+                        echo ""
+                        
+                        # Run setup wizard for new domain
+                        echo "Starting setup wizard for new domain..."
+                        if [[ -x "./setup_wizard.sh" ]]; then
+                            ./setup_wizard.sh
+                        else
+                            echo -e "${RED}Setup wizard not found${NC}"
+                        fi
+                    else
+                        echo "Domain change cancelled."
+                    fi
+                else
+                    echo "No current domain configured. Running setup wizard..."
+                    if [[ -x "./setup_wizard.sh" ]]; then
+                        ./setup_wizard.sh
+                    else
+                        echo -e "${RED}Setup wizard not found${NC}"
+                    fi
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            3)
                 # Python Environment Setup
                 echo -e "${CYAN}Setting up Python Environment...${NC}"
                 if [[ -x "./setup_wizard.sh" ]]; then
@@ -1028,7 +1333,99 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            3)
+            4)
+                # Backup Current Configuration
+                echo -e "${CYAN}Backup Current Configuration${NC}"
+                echo ""
+                local backup_timestamp=$(date +%Y%m%d-%H%M%S)
+                local backup_dir="./backups/config-backup-${backup_timestamp}"
+                mkdir -p "$backup_dir"
+                
+                echo "Creating configuration backup..."
+                echo "Backup location: $backup_dir"
+                echo ""
+                
+                # Backup configuration files
+                local files_backed_up=0
+                if [[ -f ".env" ]]; then
+                    cp ".env" "$backup_dir/"
+                    echo "  ✓ .env"
+                    ((files_backed_up++))
+                fi
+                if [[ -f "local-config/server.env" ]]; then
+                    cp "local-config/server.env" "$backup_dir/"
+                    echo "  ✓ local-config/server.env"
+                    ((files_backed_up++))
+                fi
+                if [[ -f "$CONFIG_FILE" ]]; then
+                    cp "$CONFIG_FILE" "$backup_dir/"
+                    echo "  ✓ gwombat-config.json"
+                    ((files_backed_up++))
+                fi
+                if [[ -f "local-config/account_lifecycle.db" ]]; then
+                    cp "local-config/account_lifecycle.db" "$backup_dir/"
+                    echo "  ✓ local-config/account_lifecycle.db"
+                    ((files_backed_up++))
+                fi
+                
+                echo ""
+                echo -e "${GREEN}✓ Backup completed: $files_backed_up files saved${NC}"
+                echo "Backup location: $backup_dir"
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            5)
+                # Restore Configuration from Backup
+                echo -e "${CYAN}Restore Configuration from Backup${NC}"
+                echo ""
+                
+                if [[ -d "./backups" ]]; then
+                    echo "Available backups:"
+                    local backup_dirs=(./backups/*/)
+                    if [[ ${#backup_dirs[@]} -gt 0 && -d "${backup_dirs[0]}" ]]; then
+                        local i=1
+                        for backup_dir in "${backup_dirs[@]}"; do
+                            local backup_name=$(basename "$backup_dir")
+                            echo "$i. $backup_name"
+                            ((i++))
+                        done
+                        echo ""
+                        read -p "Select backup to restore (1-$((i-1)), or Enter to cancel): " backup_choice
+                        
+                        if [[ "$backup_choice" =~ ^[0-9]+$ ]] && [[ "$backup_choice" -ge 1 ]] && [[ "$backup_choice" -lt "$i" ]]; then
+                            local selected_backup="${backup_dirs[$((backup_choice-1))]}"
+                            echo ""
+                            echo -e "${YELLOW}⚠️ This will overwrite current configuration${NC}"
+                            read -p "Continue with restore? (y/N): " confirm_restore
+                            
+                            if [[ "$confirm_restore" =~ ^[Yy]$ ]]; then
+                                echo "Restoring from $selected_backup..."
+                                
+                                # Restore files
+                                [[ -f "$selected_backup/.env" ]] && cp "$selected_backup/.env" "./" && echo "  ✓ .env restored"
+                                [[ -f "$selected_backup/local-config/server.env" ]] && cp "$selected_backup/local-config/server.env" "./" && echo "  ✓ local-config/server.env restored"
+                                [[ -f "$selected_backup/gwombat-config.json" ]] && cp "$selected_backup/gwombat-config.json" "$CONFIG_FILE" && echo "  ✓ config restored"
+                                [[ -f "$selected_backup/local-config/account_lifecycle.db" ]] && cp "$selected_backup/local-config/account_lifecycle.db" "./" && echo "  ✓ database restored"
+                                
+                                echo ""
+                                echo -e "${GREEN}✓ Configuration restored successfully${NC}"
+                                echo -e "${YELLOW}Please restart GWOMBAT to reload configuration${NC}"
+                            else
+                                echo "Restore cancelled."
+                            fi
+                        else
+                            echo "Invalid selection or cancelled."
+                        fi
+                    else
+                        echo "No backups found in ./backups/"
+                    fi
+                else
+                    echo "No backups directory found."
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            15)
                 echo -e "${CYAN}Configuration file contents:${NC}"
                 if [[ -f "$CONFIG_FILE" ]]; then
                     cat "$CONFIG_FILE"
@@ -1038,13 +1435,13 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            4)
+            16)
                 echo -e "${CYAN}Creating default configuration file...${NC}"
                 create_default_config
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            5)
+            14)
                 echo "Current GAM path: $GAM"
                 read -p "Enter new GAM path: " new_gam_path
                 if [[ -x "$new_gam_path" ]]; then
@@ -1084,7 +1481,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            15)
                 echo "Current progress setting: $PROGRESS_ENABLED"
                 if [[ "$PROGRESS_ENABLED" == "true" ]]; then
                     PROGRESS_ENABLED="false"
@@ -1097,7 +1494,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7)
+            16)
                 echo "Current confirmation level: $CONFIRMATION_LEVEL"
                 echo "Available levels: normal, high, minimal"
                 read -p "Enter new confirmation level: " new_level
@@ -1114,7 +1511,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            8)
+            14)
                 echo "Current log retention: $LOG_RETENTION_DAYS days"
                 read -p "Enter new log retention (days): " new_retention
                 if [[ "$new_retention" =~ ^[0-9]+$ ]]; then
@@ -1127,7 +1524,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            9)
+            15)
                 echo "Current backup retention: $BACKUP_RETENTION_DAYS days"
                 read -p "Enter new backup retention (days): " new_backup_retention
                 if [[ "$new_backup_retention" =~ ^[0-9]+$ ]]; then
@@ -1140,7 +1537,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            10)
+            16)
                 echo -e "${CYAN}Testing configuration...${NC}"
                 echo ""
                 
@@ -1182,7 +1579,12 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            11)
+            14)
+                show_gam_info
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            15)
                 echo -e "${YELLOW}This will reset all configuration to defaults. Continue? (y/n)${NC}"
                 read -p "> " confirm
                 if [[ "$confirm" =~ ^[Yy] ]]; then
@@ -1195,11 +1597,17 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            13)
-                break
+            p|P)
+                return
+                ;;
+            m|M)
+                return
+                ;;
+            x|X)
+                exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-13.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-15, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -1477,13 +1885,15 @@ dashboard_menu() {
         echo "17. 🗄️  Initialize Configuration Management Database"
         echo ""
         echo "18. ↩️  Return to main menu"
+        echo ""
+        echo "p. Previous menu (main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
         
         # Check for 'r' to refresh
         echo -e "${GRAY}Tip: Press 'r' to refresh statistics${NC}"
-        read -p "Select an option (1-18, r, m, x): " dashboard_choice
+        read -p "Select an option (1-18, r, p, m, x): " dashboard_choice
         echo ""
         
         case $dashboard_choice in
@@ -1560,7 +1970,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            6)
+            15)
                 # Security Scans
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Scans Menu${NC}"
@@ -1591,7 +2001,7 @@ dashboard_menu() {
                             days="${days:-7}"
                             $SHARED_UTILITIES_PATH/security_reports.sh scan-all "$days"
                             ;;
-                        6) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
+                        15) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
                         *) echo -e "${RED}Invalid option${NC}" ;;
                     esac
                     echo ""
@@ -1615,7 +2025,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            7)
+            16)
                 # Generate Security Report
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Report Generation${NC}"
@@ -1650,7 +2060,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            8)
+            14)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     $SHARED_UTILITIES_PATH/backup_tools.sh status
                     echo ""
@@ -1674,7 +2084,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            9)
+            15)
                 if [[ "$gyb_available" == "true" ]]; then
                     echo -e "${CYAN}Gmail Backup Operations${NC}"
                     read -p "Enter user email for Gmail backup: " user_email
@@ -1717,7 +2127,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            10)
+            16)
                 if [[ "$rclone_available" == "true" ]]; then
                     echo -e "${CYAN}Cloud Storage Operations${NC}"
                     read -p "Enter source path: " source_path
@@ -1768,7 +2178,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            11)
+            14)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     echo -e "${CYAN}Backup User on Suspension${NC}"
                     read -p "Enter user email to backup: " user_email
@@ -1815,10 +2225,11 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            12)
+            15)
                 # Configuration Management
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    $SHARED_UTILITIES_PATH/config_manager.sh menu
+                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                    show_config_menu
                 else
                     echo -e "${YELLOW}=== Configuration Management Setup Required ===${NC}"
                     echo ""
@@ -1841,7 +2252,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            13)
+            16)
                 # Scheduler Management
                 if [[ -x "$SHARED_UTILITIES_PATH/scheduler.sh" ]]; then
                     echo -e "${CYAN}🕐 Scheduler Management${NC}"
@@ -1861,7 +2272,7 @@ dashboard_menu() {
                         3) $SHARED_UTILITIES_PATH/scheduler.sh stop ;;
                         4) $SHARED_UTILITIES_PATH/scheduler.sh restart ;;
                         5) $SHARED_UTILITIES_PATH/scheduler.sh run-once ;;
-                        6) ;; # Return to menu
+                        15) ;; # Return to menu
                         *) echo -e "${RED}Invalid option${NC}" ;;
                     esac
                     echo ""
@@ -1939,7 +2350,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            18|m|M)
+            18|p|P|m|M)
                 return
                 ;;
             r|R)
@@ -1967,36 +2378,286 @@ dashboard_menu() {
     done
 }
 
+# Function to let user choose between database or fresh GAM data
+choose_data_source() {
+    local operation_name="$1"
+    
+    # Check when domain data was last synced
+    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    local db_user_count=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    
+    if [[ -n "$last_sync" && "$db_user_count" -gt 0 ]]; then
+        echo ""
+        echo -e "${CYAN}📊 Database contains $db_user_count accounts${NC}"
+        echo -e "${CYAN}🕐 Last synced: $last_sync${NC}"
+        echo ""
+        echo "Data source for $operation_name:"
+        echo "1. Use database data (faster, from $last_sync)"
+        echo "2. Get fresh data from GAM (slower, current)"
+        echo ""
+        read -p "Select data source (1-2): " data_source_choice
+        
+        case $data_source_choice in
+            1)
+                echo -e "${CYAN}Using database data from $last_sync${NC}"
+                return 1  # Use database
+                ;;
+            2)
+                echo -e "${CYAN}Getting fresh data from GAM...${NC}"
+                return 0  # Use GAM
+                ;;
+            *)
+                echo -e "${RED}Invalid choice. Using fresh GAM data.${NC}"
+                return 0  # Default to GAM
+                ;;
+        esac
+    else
+        echo -e "${YELLOW}No database data available. Getting fresh data from GAM...${NC}"
+        return 0  # Use GAM
+    fi
+}
+
+# Function to mark stats as dirty (needs recalculation)
+# Call this function whenever you perform operations that could affect user/group/drive counts:
+# - Creating/deleting users or groups
+# - Suspending/unsuspending users  
+# - Moving users between OUs
+# - Creating/deleting shared drives
+# - Importing account data from CSV
+# - Any operation that changes domain membership
+mark_stats_dirty() {
+    sqlite3 local-config/account_lifecycle.db "
+        INSERT OR REPLACE INTO config (key, value) VALUES ('stats_dirty', 'true');
+    " 2>/dev/null
+}
+
+# Function to force refresh of stats (useful for manual operations)
+refresh_stats() {
+    mark_stats_dirty
+    echo "Stats marked for refresh. They will be recalculated on next main menu display."
+}
+
+# Function to sync domain users to database
+sync_domain_to_database() {
+    if [[ ! -x "$GAM" ]]; then
+        echo "  ⚠️  GAM not available - cannot sync domain data"
+        return 1
+    fi
+    
+    echo "  📥 Syncing domain users to database..."
+    
+    # Get all users from domain with key fields
+    local temp_users=$(mktemp)
+    $GAM print users fields primaryemail,suspended,orgunitpath 2>/dev/null > "$temp_users"
+    
+    if [[ ! -s "$temp_users" ]]; then
+        echo "  ❌ Failed to retrieve domain users"
+        rm -f "$temp_users"
+        return 1
+    fi
+    
+    # Process each user and update database
+    local processed=0
+    local updated=0
+    
+    tail -n +2 "$temp_users" | while IFS=',' read -r email suspended orgunit; do
+        # Clean up fields (remove quotes if present)
+        email=$(echo "$email" | tr -d '"')
+        suspended=$(echo "$suspended" | tr -d '"')
+        orgunit=$(echo "$orgunit" | tr -d '"')
+        
+        # Determine current stage based on OU and suspension status
+        local stage="active"  # Default to active
+        
+        # Only change stage if user is actually suspended
+        if [[ "$suspended" == "True" || "$suspended" == "true" ]]; then
+            # User is suspended - determine which stage based on OU
+            case "$orgunit" in
+                *"Pending Deletion"*) stage="pending_deletion" ;;
+                *"Temporary Hold"*) stage="temporary_hold" ;;
+                *"Exit Row"*) stage="exit_row" ;;
+                *"Suspended"*) stage="recently_suspended" ;;
+                *) stage="recently_suspended" ;;  # Default for suspended users
+            esac
+        else
+            # User is not suspended - they are active regardless of OU
+            stage="active"
+        fi
+        
+        # Insert or update user in database
+        sqlite3 local-config/account_lifecycle.db "
+            INSERT OR REPLACE INTO accounts (
+                email, 
+                current_stage, 
+                updated_at, 
+                ou_path
+            ) VALUES (
+                '$email', 
+                '$stage', 
+                datetime('now'), 
+                '$orgunit'
+            );
+        " 2>/dev/null
+        
+        ((processed++))
+        if [[ $? -eq 0 ]]; then
+            ((updated++))
+        fi
+    done
+    
+    rm -f "$temp_users"
+    echo "  ✅ Synced $processed users to database"
+    
+    # Update last sync timestamp and mark stats as dirty since we've changed account data
+    sqlite3 local-config/account_lifecycle.db "
+        INSERT OR REPLACE INTO config (key, value) VALUES ('last_domain_sync', datetime('now'));
+    " 2>/dev/null
+    
+    # Mark stats as dirty since we've just updated account data
+    mark_stats_dirty
+}
+
+# Function to show quick domain statistics
+show_quick_stats() {
+    echo -e "${CYAN}📊 Quick Stats:${NC}"
+    echo -e "${GRAY}   Generated: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
+    
+    # Check if database exists
+    if [[ ! -f "local-config/account_lifecycle.db" ]]; then
+        echo "  🔍 Database not initialized - run setup first"
+        echo ""
+        return
+    fi
+    
+    # Get database-based statistics (fast and reliable)
+    local db_accounts
+    local db_suspended
+    local db_active
+    db_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    db_suspended=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+    db_active=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+    
+    # Try to get cached domain stats from database (GAM-based stats)
+    local cached_stats
+    cached_stats=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='domain_stats_cache'" 2>/dev/null || echo "")
+    local cache_timestamp
+    cache_timestamp=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='domain_stats_timestamp'" 2>/dev/null || echo "0")
+    local current_time=$(date +%s)
+    
+    # Initialize domain counters
+    local total_users="?"
+    local total_groups="?"
+    local shared_drives="?"
+    
+    # Check if stats need recalculation (dirty flag, no cache, or empty database)
+    local stats_dirty
+    stats_dirty=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='stats_dirty'" 2>/dev/null || echo "true")
+    
+    # Use cached stats if they exist, stats are not dirty, AND database has data
+    if [[ -n "$cached_stats" && "$stats_dirty" != "true" && "$db_accounts" -gt 0 ]]; then
+        # Parse cached domain stats
+        IFS=',' read -r total_users total_groups shared_drives <<< "$cached_stats"
+    else
+        # Get fresh domain stats if GAM is available and we don't have recent cache
+        if [[ -x "$GAM" ]]; then
+            echo "  🔍 Updating domain statistics..."
+            
+            # Sync domain data to database (this populates/updates the accounts table)
+            sync_domain_to_database
+            
+            # Now get counts from database (more reliable than GAM direct counts)
+            total_users=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "?")
+            db_active=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+            db_suspended=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+            db_accounts="$total_users"
+            
+            # Get groups and shared drives counts (these don't change often, so direct GAM is OK)
+            total_groups=$($GAM print groups fields email 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+            if [[ -z "$total_groups" || "$total_groups" == "0" ]]; then
+                total_groups="?"
+            fi
+            
+            shared_drives=$($GAM print teamdrives fields id 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+            if [[ -z "$shared_drives" || "$shared_drives" == "0" ]]; then
+                shared_drives="0"
+            fi
+            
+            # Cache the results and clear dirty flag (only if we got valid data)
+            if [[ "$total_users" != "?" ]]; then
+                local cache_data="$total_users,$total_groups,$shared_drives"
+                sqlite3 local-config/account_lifecycle.db "
+                    INSERT OR REPLACE INTO config (key, value) VALUES ('domain_stats_cache', '$cache_data');
+                    INSERT OR REPLACE INTO config (key, value) VALUES ('domain_stats_timestamp', '$current_time');
+                    INSERT OR REPLACE INTO config (key, value) VALUES ('stats_dirty', 'false');
+                " 2>/dev/null
+            fi
+        fi
+    fi
+    
+    # Display stats using database counts for accuracy
+    echo -e "  👥 Users: ${BOLD}$total_users${NC} total, ${GREEN}$db_active${NC} active, ${YELLOW}$db_suspended${NC} suspended"
+    echo -e "  👬 Groups: ${BOLD}$total_groups${NC}  |  📁 Shared Drives: ${BOLD}$shared_drives${NC}"
+    echo -e "  🗄️  Database: ${BOLD}$db_accounts${NC} accounts tracked"
+    
+    # Show when database was last synced
+    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    if [[ -n "$last_sync" ]]; then
+        echo -e "${GRAY}   Database synced: $last_sync${NC}"
+    fi
+    echo ""
+}
+
+
 # Function to display the main menu
 show_main_menu() {
     clear
     echo -e "${BLUE}=== GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner ===${NC}"
     echo ""
+    
+    # Show domain configuration
+    if [[ -n "$DOMAIN" ]]; then
+        echo -e "${GREEN}🌐 Domain: ${BOLD}$DOMAIN${NC}"
+        if [[ -n "$ADMIN_USER" ]]; then
+            echo -e "${GREEN}👤 Admin: $ADMIN_USER${NC}"
+        fi
+        echo ""
+        
+        # Show quick stats if GAM is available
+        show_quick_stats
+        
+    else
+        echo -e "${YELLOW}⚠️  No domain configured - run Configuration Management to set up${NC}"
+        echo ""
+    fi
+    
     echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
     echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
-    echo "1. 🔄 Suspended Account Lifecycle Management (8 options)"
-    echo "2. 👥 User & Group Management (2 options)"
+    echo "1. 👥 User & Group Management"
     echo ""
     echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
-    echo "3. 💾 File & Drive Operations (13 options)"
-    echo "4. 🔍 Analysis & Discovery (11 options)"
-    echo "5. 📋 Account List Management (11 options)"
+    echo "2. 💾 File & Drive Operations"
+    echo "3. 🔍 Analysis & Discovery"
+    echo "4. 📋 Account List Management"
     echo ""
     echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
-    echo "6. 🎯 Dashboard & Statistics (Live system overview)"
-    echo "7. 📈 Reports & Monitoring (11 options)"
-    echo "8. ⚙️  System Administration (7 options)"
+    echo "5. 🎯 Dashboard & Statistics"
+    echo "6. 📈 Reports & Monitoring"
+    echo "7. ⚙️  System Administration"
     echo ""
     echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
-    echo "9. 🔐 SCuBA Compliance Management (CISA security baselines)"
+    echo "8. 🔐 SCuBA Compliance Management"
     echo ""
     echo -e "${CYAN}=== CONFIGURATION ===${NC}"
     echo "c. ⚙️  Configuration Management (Setup & Settings)"
     echo ""
+    echo -e "${GRAY}=== NAVIGATION ===${NC}"
+    echo "s. 🔍 Search Menu Options"
+    echo "i. 📋 Menu Index (Alphabetical)"
+    echo ""
     echo "x. ❌ Exit"
     echo ""
-    read -p "Select an option (1-9, c, x): " choice
+    read -p "Select an option (1-9, c, s, i, x): " choice
     echo ""
     
     # Convert letters to numbers for case handling
@@ -2004,6 +2665,10 @@ show_main_menu() {
         choice=10  # Exit
     elif [[ "$choice" == "c" || "$choice" == "C" ]]; then
         choice=99  # Configuration
+    elif [[ "$choice" == "s" || "$choice" == "S" ]]; then
+        choice=98  # Search
+    elif [[ "$choice" == "i" || "$choice" == "I" ]]; then
+        choice=97  # Index
     fi
     
     return $choice
@@ -2621,7 +3286,7 @@ cleanup_shared_drive() {
     
     # Create temporary file for file list
     local tempfile=$(mktemp)
-    local logfile="logs/${drive_id}-cleanup.txt"
+    local logfile="local-config/logs/${drive_id}-cleanup.txt"
     
     echo -e "${CYAN}Scanning shared drive for files with pending deletion markers...${NC}"
     
@@ -2994,7 +3659,7 @@ shared_drive_cleanup_menu() {
                 esac
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            15)
                 read -p "Enter user email: " user_email
                 read -p "Enter days threshold (default 90): " days_threshold
                 days_threshold="${days_threshold:-90}"
@@ -3006,7 +3671,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            7)
+            16)
                 read -p "Enter user email: " user_email
                 if [[ -n "$user_email" ]]; then
                     echo -e "${YELLOW}This will transfer ALL files from $user_email to gwombat${NC}"
@@ -3022,7 +3687,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            8)
+            14)
                 read -p "Enter user email: " user_email
                 echo -e "${CYAN}Select operation:${NC}"
                 echo "1. Backup and remove group memberships"
@@ -3040,7 +3705,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            9)
+            15)
                 read -p "Enter group name: " group_name
                 read -p "Enter path to file containing member emails (one per line): " members_file
                 if [[ -n "$group_name" && -n "$members_file" ]]; then
@@ -3056,7 +3721,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            10)
+            16)
                 read -p "Enter user email: " user_email
                 if [[ -n "$user_email" ]]; then
                     echo -e "${YELLOW}This will remove $user_email from ALL groups${NC}"
@@ -3072,7 +3737,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            11)
+            14)
                 read -p "Enter user email: " user_email
                 read -p "Enter target date (YYYY-MM-DD, default 2023-05-01): " target_date
                 target_date="${target_date:-2023-05-01}"
@@ -3084,7 +3749,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            12)
+            15)
                 drive_id=$(get_shared_drive_id "Enter shared drive ID or URL for preview")
                 if [[ $? -eq 0 && -n "$drive_id" ]]; then
                     echo ""
@@ -3110,7 +3775,7 @@ shared_drive_cleanup_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            13)
+            16)
                 return
                 ;;
             m|M)
@@ -3582,6 +4247,9 @@ analyze_user_file_sharing() {
     
     mkdir -p "$cache_dir" "$temp_dir"
     
+    # Also ensure reports directory exists for output
+    mkdir -p "reports"
+    
     echo -e "${CYAN}Step 1: Analyzing all files for $username...${NC}"
     
     # Get all files for the user
@@ -3645,6 +4313,39 @@ analyze_user_file_sharing() {
         fi
     fi
     
+    # Store analysis results in database for future reference
+    if [[ -f "$active_shares_csv" ]]; then
+        local analysis_id="${username}_$(date +%Y%m%d_%H%M%S)"
+        echo -e "${CYAN}Storing analysis results in database...${NC}"
+        
+        # Create table if it doesn't exist
+        sqlite3 local-config/account_lifecycle.db "
+            CREATE TABLE IF NOT EXISTS sharing_analysis_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                analysis_id TEXT,
+                email TEXT,
+                total_files INTEGER,
+                shared_files INTEGER,
+                active_recipients INTEGER,
+                csv_files_path TEXT,
+                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        " 2>/dev/null
+        
+        # Store summary
+        sqlite3 local-config/account_lifecycle.db "
+            INSERT INTO sharing_analysis_results (
+                analysis_id, email, total_files, shared_files, active_recipients, csv_files_path
+            ) VALUES (
+                '$analysis_id', '$username', 
+                $(tail -n +2 "$all_files_csv" 2>/dev/null | wc -l || echo "0"),
+                $shared_count, $active_count, '$analysis_dir'
+            );
+        " 2>/dev/null
+        
+        echo -e "${GREEN}Analysis results stored in database (ID: $analysis_id)${NC}"
+    fi
+    
     echo ""
     echo -e "${GREEN}File sharing analysis completed for $username${NC}"
     echo -e "${CYAN}Results saved in: $analysis_dir/${NC}"
@@ -3656,6 +4357,82 @@ analyze_user_file_sharing() {
     fi
     
     log_info "File sharing analysis completed for $username: $shared_count shared files, $active_count active recipients"
+}
+
+# Function to export database analysis results to CSV
+export_analysis_to_csv() {
+    local analysis_id="$1"
+    local output_dir="${2:-exports}"
+    
+    mkdir -p "$output_dir"
+    
+    if [[ -z "$analysis_id" ]]; then
+        echo -e "${RED}Error: Analysis ID required${NC}"
+        echo "Available analyses:"
+        sqlite3 local-config/account_lifecycle.db "SELECT analysis_id, email, analyzed_at FROM sharing_analysis_results ORDER BY analyzed_at DESC LIMIT 10;" 2>/dev/null
+        return 1
+    fi
+    
+    local export_file="$output_dir/analysis_${analysis_id}.csv"
+    
+    echo -e "${CYAN}Exporting analysis $analysis_id to CSV...${NC}"
+    
+    sqlite3 local-config/account_lifecycle.db -header -csv "
+        SELECT 
+            analysis_id,
+            email,
+            total_files,
+            shared_files,
+            active_recipients,
+            analyzed_at
+        FROM sharing_analysis_results 
+        WHERE analysis_id='$analysis_id';
+    " > "$export_file" 2>/dev/null
+    
+    if [[ -f "$export_file" && -s "$export_file" ]]; then
+        echo -e "${GREEN}Analysis exported to: $export_file${NC}"
+        return 0
+    else
+        echo -e "${RED}Failed to export analysis or no data found${NC}"
+        return 1
+    fi
+}
+
+# Function to import CSV data into database
+import_csv_to_database() {
+    local csv_file="$1"
+    local import_type="${2:-analysis}"  # analysis, accounts, etc.
+    
+    if [[ ! -f "$csv_file" ]]; then
+        echo -e "${RED}Error: CSV file not found: $csv_file${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Importing $csv_file into database...${NC}"
+    
+    case "$import_type" in
+        "analysis")
+            # Import sharing analysis results
+            local import_id="import_$(date +%Y%m%d_%H%M%S)"
+            local imported=0
+            
+            tail -n +2 "$csv_file" | while IFS=',' read -r analysis_id email total_files shared_files active_recipients analyzed_at; do
+                sqlite3 local-config/account_lifecycle.db "
+                    INSERT INTO sharing_analysis_results (
+                        analysis_id, email, total_files, shared_files, active_recipients, analyzed_at
+                    ) VALUES (
+                        '$analysis_id', '$email', '$total_files', '$shared_files', '$active_recipients', '$analyzed_at'
+                    );
+                " 2>/dev/null && ((imported++))
+            done
+            
+            echo -e "${GREEN}Imported $imported records into database${NC}"
+            ;;
+        *)
+            echo -e "${RED}Unknown import type: $import_type${NC}"
+            return 1
+            ;;
+    esac
 }
 
 analyze_file_permissions() {
@@ -3972,7 +4749,7 @@ generate_recipient_report() {
     
     # Search through existing analysis files
     local report_files=()
-    for report in reports/*_files_from_*.csv; do
+    for report in local-config/reports/*_files_from_*.csv; do
         if [[ -f "$report" ]] && [[ "$report" == *"${recipient_email}_files_from_"* ]]; then
             report_files+=("$report")
         fi
@@ -3985,7 +4762,7 @@ generate_recipient_report() {
     fi
     
     # Combine all reports for this recipient
-    local combined_report="reports/${recipient_email}_combined_pending_files.csv"
+    local combined_report="local-config/reports/${recipient_email}_combined_pending_files.csv"
     local temp_combined=$(mktemp)
     
     echo "sharerFirstName,sharerLastName,filename,mimeType,size,webViewLink,modifiedTime,sharedwith,path" > "$combined_report"
@@ -4011,7 +4788,7 @@ generate_recipient_report() {
     echo -e "${CYAN}Number of different sharers: $total_sharers${NC}"
     
     # Generate summary
-    local summary_file="reports/${recipient_email}_summary.txt"
+    local summary_file="local-config/reports/${recipient_email}_summary.txt"
     {
         echo "=== PENDING DELETION FILES SHARED WITH $recipient_email ==="
         echo "Generated: $(date)"
@@ -4194,7 +4971,7 @@ file_sharing_analysis_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            6)
+            15)
                 echo -e "${CYAN}Clean Up Analysis Files${NC}"
                 echo ""
                 echo "This will clean up temporary and cache files from analysis."
@@ -4216,7 +4993,7 @@ file_sharing_analysis_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            7)
+            16)
                 echo -e "${CYAN}File Sharing Analysis Statistics${NC}"
                 echo ""
                 
@@ -4224,7 +5001,7 @@ file_sharing_analysis_menu() {
                 local user_analyses=$(ls listshared/*_all_files.csv 2>/dev/null | wc -l)
                 local sharing_analyses=$(ls listshared/*_shared_files.csv 2>/dev/null | wc -l)
                 local active_analyses=$(ls listshared/*_active-shares.csv 2>/dev/null | wc -l)
-                local recipient_reports=$(ls reports/*_files_from_*.csv 2>/dev/null | wc -l)
+                local recipient_reports=$(ls local-config/reports/*_files_from_*.csv 2>/dev/null | wc -l)
                 
                 echo "Analysis Files:"
                 echo "- User file analyses: $user_analyses"
@@ -4248,7 +5025,7 @@ file_sharing_analysis_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            8)
+            14)
                 return
                 ;;
             *)
@@ -4592,46 +5369,138 @@ transfer_ownership_to_gwombat() {
 # Function to analyze accounts with no sharing
 analyze_accounts_no_sharing() {
     local scope="$1"  # "suspended" or "ou"
-    local csv_output="${SCRIPTPATH}/csv-files/accounts_no_sharing_$(date +%Y%m%d_%H%M).csv"
     
     echo -e "${GREEN}Analyzing accounts with no file sharing...${NC}"
-    echo "owner,hasSharingFiles,totalFiles,totalStorage" > "$csv_output"
+    
+    # Check when domain data was last synced
+    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    local db_user_count=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
     
     local user_list=""
-    case $scope in
-        "suspended")
-            user_list=$($GAM print users query "isSuspended=true" fields email | tail -n +2 | cut -d',' -f1)
+    local data_source=""
+    
+    if [[ -n "$last_sync" && "$db_user_count" -gt 0 ]]; then
+        echo ""
+        echo -e "${CYAN}📊 Database contains $db_user_count accounts${NC}"
+        echo -e "${CYAN}🕐 Last synced: $last_sync${NC}"
+        echo ""
+        echo "Data source options:"
+        echo "1. Use database data (faster, may be outdated)"
+        echo "2. Get fresh data from GAM (slower, current)"
+        echo "3. Sync database with GAM first, then use database"
+        echo ""
+        read -p "Select data source (1-3): " data_source_choice
+        
+        case $data_source_choice in
+            1)
+                data_source="database"
+                echo -e "${CYAN}Using database data from $last_sync${NC}"
+                ;;
+            2)
+                data_source="gam"
+                echo -e "${CYAN}Getting fresh data from GAM...${NC}"
+                ;;
+            3)
+                echo -e "${CYAN}Syncing database with GAM first...${NC}"
+                sync_domain_to_database
+                data_source="database"
+                echo -e "${CYAN}Using freshly synced database data${NC}"
+                ;;
+            *)
+                echo -e "${RED}Invalid choice. Using fresh GAM data.${NC}"
+                data_source="gam"
+                ;;
+        esac
+    else
+        echo -e "${YELLOW}No database data available. Getting fresh data from GAM...${NC}"
+        data_source="gam"
+    fi
+    
+    # Get user list based on chosen data source
+    case $data_source in
+        "database")
+            case $scope in
+                "suspended")
+                    user_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null)
+                    ;;
+                "ou")
+                    user_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts WHERE ou_path LIKE '%Suspended%';" 2>/dev/null)
+                    ;;
+            esac
             ;;
-        "ou")
-            user_list=$($GAM print users query "orgUnitPath='/Suspended Accounts'" fields email | tail -n +2 | cut -d',' -f1)
+        "gam")
+            case $scope in
+                "suspended")
+                    user_list=$($GAM print users query "isSuspended=true" fields email 2>/dev/null | tail -n +2 | cut -d',' -f1)
+                    ;;
+                "ou")
+                    user_list=$($GAM print users query "orgUnitPath='/Suspended Accounts'" fields email 2>/dev/null | tail -n +2 | cut -d',' -f1)
+                    ;;
+            esac
             ;;
     esac
     
+    if [[ -z "$user_list" ]]; then
+        echo -e "${YELLOW}No suspended accounts found with the selected data source.${NC}"
+        if [[ "$data_source" == "database" ]]; then
+            echo -e "${CYAN}Try running a fresh GAM sync or use option 2 for fresh data.${NC}"
+        fi
+        return 1
+    fi
+    
     local counter=0
     local total_users=$(echo "$user_list" | wc -l)
+    local analysis_id=$(date +%Y%m%d_%H%M)
+    
+    # Create analysis session in database
+    sqlite3 local-config/account_lifecycle.db "
+        CREATE TABLE IF NOT EXISTS file_sharing_analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            analysis_id TEXT,
+            email TEXT,
+            has_shared_files BOOLEAN,
+            total_files INTEGER,
+            storage_used TEXT,
+            analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    " 2>/dev/null
     
     echo "$user_list" | while read user_email; do
+        [[ -z "$user_email" ]] && continue
+        
         ((counter++))
         show_progress $counter $total_users "Analyzing: $user_email"
         
         # Check if user has any shared files
-        local shared_files=$($GAM user "$user_email" print filelist query "shared=true" fields id | tail -n +2 | wc -l)
-        local total_files=$($GAM user "$user_email" print filelist fields id | tail -n +2 | wc -l)
+        local shared_files=$($GAM user "$user_email" print filelist query "shared=true" fields id 2>/dev/null | tail -n +2 | wc -l)
+        local total_files=$($GAM user "$user_email" print filelist fields id 2>/dev/null | tail -n +2 | wc -l)
         local storage_used=$($GAM info user "$user_email" 2>/dev/null | grep "Storage Used:" | cut -d' ' -f3 || echo "0")
         
-        local has_sharing="No"
-        [[ $shared_files -gt 0 ]] && has_sharing="Yes"
+        local has_sharing=0
+        [[ $shared_files -gt 0 ]] && has_sharing=1
         
-        echo "$user_email,$has_sharing,$total_files,$storage_used" >> "$csv_output"
-        
-        if [[ $shared_files -eq 0 ]]; then
-            echo "$user_email" >> "${SCRIPTPATH}/csv-files/candidates_for_deletion.txt"
-        fi
+        # Store results in database
+        sqlite3 local-config/account_lifecycle.db "
+            INSERT INTO file_sharing_analysis (
+                analysis_id, email, has_shared_files, total_files, storage_used
+            ) VALUES (
+                '$analysis_id', '$user_email', $has_sharing, $total_files, '$storage_used'
+            );
+        " 2>/dev/null
     done
     
-    echo -e "${GREEN}Analysis complete. Results saved to:${NC}"
-    echo "- $csv_output"
-    echo "- ${SCRIPTPATH}/csv-files/candidates_for_deletion.txt"
+    # Show summary results
+    local total_analyzed=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id';" 2>/dev/null)
+    local no_sharing=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=0;" 2>/dev/null)
+    local with_sharing=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=1;" 2>/dev/null)
+    
+    echo ""
+    echo -e "${GREEN}Analysis complete (ID: $analysis_id):${NC}"
+    echo "  📊 Total accounts analyzed: $total_analyzed"
+    echo "  📁 Accounts with shared files: $with_sharing"
+    echo "  🗑️  Candidates for deletion: $no_sharing"
+    echo ""
+    echo "View detailed results: select * from file_sharing_analysis where analysis_id='$analysis_id';"
 }
 
 # Function to perform file activity analysis
@@ -5352,7 +6221,7 @@ bulk_cleanup_orphaned_files() {
                     # Remove drive label
                     execute_command "$GAM user \"$username\" process filedrivelabels \"$fileid\" deletelabelfield \"$LABEL_ID\" \"$FIELD_ID\"" "Remove drive label"
                     
-                    echo "Cleaned: $fileid" >> "${SCRIPTPATH}/logs/orphaned-files-cleaned.txt"
+                    echo "Cleaned: $fileid" >> "${SCRIPTPATH}/local-config/logs/orphaned-files-cleaned.txt"
                 fi
             done < "$scan_file"
         fi
@@ -5362,7 +6231,7 @@ bulk_cleanup_orphaned_files() {
     echo -e "${GREEN}Bulk cleanup complete!${NC}"
     echo "Users processed: $users_processed"
     echo "Files cleaned: $files_processed"
-    echo "Log saved to: ${SCRIPTPATH}/logs/orphaned-files-cleaned.txt"
+    echo "Log saved to: ${SCRIPTPATH}/local-config/logs/orphaned-files-cleaned.txt"
 }
 
 # Function to offer bulk operations on query results
@@ -5397,7 +6266,7 @@ offer_bulk_operations() {
             3) bulk_process_users "$result_file" "add_pending" ;;
             4) bulk_process_users "$result_file" "remove_pending" ;;
             5) bulk_diagnose_users "$result_file" ;;
-            6) echo "Bulk operation cancelled." ;;
+            15) echo "Bulk operation cancelled." ;;
         esac
     fi
 }
@@ -5462,7 +6331,7 @@ bulk_diagnose_users() {
             ((consistent_users++))
         else
             ((inconsistent_users++))
-            echo "$user" >> "${SCRIPTPATH}/logs/inconsistent-users.txt"
+            echo "$user" >> "${SCRIPTPATH}/local-config/logs/inconsistent-users.txt"
         fi
         rm -f /tmp/diagnosis_$user.txt
     done < "$user_file"
@@ -5474,7 +6343,7 @@ bulk_diagnose_users() {
     echo "Inconsistent accounts: $inconsistent_users"
     
     if [[ $inconsistent_users -gt 0 ]]; then
-        echo "Inconsistent users logged to: ${SCRIPTPATH}/logs/inconsistent-users.txt"
+        echo "Inconsistent users logged to: ${SCRIPTPATH}/local-config/logs/inconsistent-users.txt"
     fi
 }
 
@@ -5677,7 +6546,7 @@ add_drive_labels() {
     
     CSV_DIR="${SCRIPTPATH}/csv-files"
     UNIQUE_FILE="${CSV_DIR}/${user_email}_unique_files.csv"
-    LOG_FILE="${SCRIPTPATH}/logs/${user_email}_drive-labels.txt"
+    LOG_FILE="${SCRIPTPATH}/local-config/logs/${user_email}_drive-labels.txt"
     
     if [[ ! -f "$UNIQUE_FILE" ]]; then
         echo "No unique files CSV found, skipping drive labels"
@@ -6386,10 +7255,12 @@ lifecycle_management_menu() {
         echo "8. 🔍 Quick Account Status Checker"
         echo ""
         echo "9. Return to main menu"
+        echo ""
+        echo "p. Previous menu (main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-9, m, x): " lifecycle_choice
+        read -p "Select an option (1-9, p, m, x): " lifecycle_choice
         echo ""
         
         case $lifecycle_choice in
@@ -6407,10 +7278,15 @@ lifecycle_management_menu() {
                 ;;
             3) stage1_recently_suspended_menu ;;
             4) stage2_pending_deletion_menu ;;
-            5) stage3_sharing_analysis_menu ;;
-            6) stage4_final_decisions_menu ;;
-            7) stage5_deletion_operations_menu ;;
-            8) 
+            5) 
+                stage3_sharing_analysis_menu
+                if [[ $? -eq 99 ]]; then
+                    return 99  # Pass through the main menu return code
+                fi
+                ;;
+            15) stage4_final_decisions_menu ;;
+            16) stage5_deletion_operations_menu ;;
+            14) 
                 read -p "Enter username to check: " username
                 if [[ -n "$username" ]]; then
                     diagnose_account "$username"
@@ -6420,15 +7296,295 @@ lifecycle_management_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            9) return ;;
-            m|M) return ;;
+            9|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-9, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-9, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
     done
+}
+
+# Function to re-scan all domain accounts
+rescan_all_accounts() {
+    clear
+    echo -e "${GREEN}=== Re-scan All Domain Accounts ===${NC}"
+    echo ""
+    echo -e "${CYAN}This will sync the database with current Google Workspace accounts.${NC}"
+    echo -e "${YELLOW}This may take a few minutes for large domains.${NC}"
+    echo ""
+    
+    read -p "Continue with account re-scan? (y/n): " confirm_scan
+    if [[ "$confirm_scan" != "y" && "$confirm_scan" != "Y" ]]; then
+        echo "Scan cancelled."
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo ""
+    sync_domain_to_database
+    mark_stats_dirty  # Force stats refresh
+    
+    echo ""
+    echo -e "${GREEN}✅ Account re-scan completed!${NC}"
+    
+    # Show summary
+    local total_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    local active_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+    local suspended_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+    
+    echo ""
+    echo -e "${CYAN}📊 Updated Account Summary:${NC}"
+    echo "  Total accounts: $total_accounts"
+    echo "  Active accounts: $active_accounts"
+    echo "  Suspended accounts: $suspended_accounts"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to list all accounts with filtering
+list_all_accounts_menu() {
+    while true; do
+        clear
+        echo -e "${GREEN}=== List All Accounts ===${NC}"
+        echo ""
+        echo "Filter options:"
+        echo "1. All accounts"
+        echo "2. Active accounts only"
+        echo "3. Suspended accounts only"
+        echo "4. Accounts by OU (organizational unit)"
+        echo "5. Search accounts by email/name"
+        echo ""
+        echo "6. Return to previous menu"
+        echo ""
+        read -p "Select filter option (1-6): " filter_choice
+        echo ""
+        
+        case $filter_choice in
+            1) list_accounts_filtered "all" ;;
+            2) list_accounts_filtered "active" ;;
+            3) list_accounts_filtered "suspended" ;;
+            4) list_accounts_by_ou ;;
+            5) search_accounts ;;
+            6) return ;;
+            *) 
+                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Function to list accounts with filters
+list_accounts_filtered() {
+    local filter_type="$1"
+    
+    echo -e "${CYAN}=== Listing $filter_type accounts ===${NC}"
+    echo ""
+    
+    # Check if we should use database or fresh GAM data
+    if choose_data_source "account listing"; then
+        # Use database
+        case $filter_type in
+            "all")
+                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts ORDER BY email;"
+                ;;
+            "active")
+                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage = 'active' ORDER BY email;"
+                ;;
+            "suspended")
+                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row') ORDER BY email;"
+                ;;
+        esac
+    else
+        # Use fresh GAM data
+        case $filter_type in
+            "all")
+                echo "Getting fresh account list from GAM..."
+                $GAM print users fields primaryemail,suspended,orgunitpath
+                ;;
+            "active")
+                echo "Getting active accounts from GAM..."
+                $GAM print users query "isSuspended=false" fields primaryemail,suspended,orgunitpath
+                ;;
+            "suspended")
+                echo "Getting suspended accounts from GAM..."
+                $GAM print users query "isSuspended=true" fields primaryemail,suspended,orgunitpath
+                ;;
+        esac
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to calculate account storage sizes
+calculate_account_sizes_menu() {
+    clear
+    echo -e "${GREEN}=== Calculate Account Storage Sizes ===${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  This operation queries storage for each account and may take considerable time.${NC}"
+    echo ""
+    echo "Scope options:"
+    echo "1. All accounts"
+    echo "2. Suspended accounts only"
+    echo "3. Specific account"
+    echo "4. Accounts from list/CSV"
+    echo ""
+    read -p "Select scope (1-4): " scope_choice
+    echo ""
+    
+    case $scope_choice in
+        1) calculate_all_account_sizes ;;
+        2) calculate_suspended_account_sizes ;;
+        3) calculate_single_account_size ;;
+        4) calculate_account_sizes_from_list ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Function to calculate storage for all accounts
+calculate_all_account_sizes() {
+    echo -e "${CYAN}Calculating storage sizes for all accounts...${NC}"
+    echo ""
+    
+    # Choose data source for account list
+    if choose_data_source "storage calculation"; then
+        # Use database
+        local account_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts ORDER BY email;" 2>/dev/null)
+    else
+        # Use fresh GAM data
+        local account_list=$($GAM print users fields primaryemail 2>/dev/null | tail -n +2 | cut -d',' -f1)
+    fi
+    
+    if [[ -z "$account_list" ]]; then
+        echo -e "${RED}No accounts found.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Create storage analysis table
+    sqlite3 local-config/account_lifecycle.db "
+        CREATE TABLE IF NOT EXISTS account_storage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            storage_used_bytes INTEGER,
+            storage_used_display TEXT,
+            analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    " 2>/dev/null
+    
+    local counter=0
+    local total_accounts=$(echo "$account_list" | wc -l)
+    
+    echo "Processing $total_accounts accounts..."
+    echo ""
+    
+    echo "$account_list" | while read email; do
+        [[ -z "$email" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $total_accounts "Analyzing: $email"
+        
+        # Get storage info from GAM
+        local storage_info=$($GAM info user "$email" 2>/dev/null | grep "Storage Used:")
+        local storage_bytes="0"
+        local storage_display="0 MB"
+        
+        if [[ -n "$storage_info" ]]; then
+            storage_display=$(echo "$storage_info" | cut -d':' -f2 | xargs)
+            # Try to extract bytes (this is approximate)
+            if [[ "$storage_display" =~ GB ]]; then
+                local gb_value=$(echo "$storage_display" | grep -o '[0-9.]*' | head -1)
+                storage_bytes=$(echo "$gb_value * 1073741824" | bc 2>/dev/null || echo "0")
+            elif [[ "$storage_display" =~ MB ]]; then
+                local mb_value=$(echo "$storage_display" | grep -o '[0-9.]*' | head -1)
+                storage_bytes=$(echo "$mb_value * 1048576" | bc 2>/dev/null || echo "0")
+            fi
+        fi
+        
+        # Store in database
+        sqlite3 local-config/account_lifecycle.db "
+            INSERT OR REPLACE INTO account_storage (email, storage_used_bytes, storage_used_display)
+            VALUES ('$email', '$storage_bytes', '$storage_display');
+        " 2>/dev/null
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ Storage analysis completed!${NC}"
+    echo ""
+    echo "View results:"
+    echo "  sqlite3 local-config/account_lifecycle.db 'SELECT email, storage_used_display FROM account_storage ORDER BY storage_used_bytes DESC LIMIT 10;'"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Stub functions for menu items (to be implemented)
+account_search_diagnostics_menu() {
+    echo -e "${YELLOW}Account Search & Diagnostics - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Search accounts by email, name, or OU"
+    echo "• Account diagnostics and health checks" 
+    echo "• Detailed account information display"
+    read -p "Press Enter to continue..."
+}
+
+individual_user_management_menu() {
+    echo -e "${YELLOW}Individual User Management - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Modify user details and settings"
+    echo "• Reset passwords and 2FA"
+    echo "• Change organizational units"
+    read -p "Press Enter to continue..."
+}
+
+bulk_user_operations_menu() {
+    echo -e "${YELLOW}Bulk User Operations - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Bulk user creation from CSV"
+    echo "• Bulk organizational unit moves"
+    echo "• Batch user setting changes"
+    read -p "Press Enter to continue..."
+}
+
+account_status_operations_menu() {
+    echo -e "${YELLOW}Account Status Operations - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Bulk suspend/restore operations"
+    echo "• Account status verification"
+    echo "• Suspension reason management"
+    read -p "Press Enter to continue..."
+}
+
+user_statistics_menu() {
+    echo -e "${YELLOW}User Statistics - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Account creation trends"
+    echo "• Login statistics and patterns"
+    echo "• Storage usage analytics"
+    read -p "Press Enter to continue..."
+}
+
+account_lifecycle_reports_menu() {
+    echo -e "${YELLOW}Account Lifecycle Reports - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Lifecycle stage distribution"
+    echo "• Account age and tenure analysis"
+    echo "• Suspension/deletion timeline reports"
+    read -p "Press Enter to continue..."
+}
+
+export_account_data_menu() {
+    echo -e "${YELLOW}Export Account Data - Coming Soon${NC}"
+    echo "This will include:"
+    echo "• Export accounts to CSV with filters"
+    echo "• Custom field selection"
+    echo "• Scheduled export capabilities"
+    read -p "Press Enter to continue..."
 }
 
 # User & Group Management Menu  
@@ -6437,32 +7593,86 @@ user_group_management_menu() {
         clear
         echo -e "${GREEN}=== User & Group Management ===${NC}"
         echo ""
-        echo -e "${CYAN}Core user and group administration tools${NC}"
+        echo -e "${CYAN}Comprehensive user and group administration tools${NC}"
         echo ""
-        echo "1. 👥 Group Operations (add/remove members, bulk operations)"
-        echo "2. 📄 License Management (assign/remove/audit licenses)"
+        echo -e "${BLUE}=== ACCOUNT DISCOVERY & SCANNING ===${NC}"
+        echo "1. 🔄 Re-scan all domain accounts (sync database)"
+        echo "2. 📊 List all accounts (with filtering options)"
+        echo "3. 📏 Calculate account storage sizes"
+        echo "4. 🔍 Account search and diagnostics"
         echo ""
-        echo -e "${YELLOW}Additional user management features available in:${NC}"
-        echo -e "${CYAN}• User profile changes: Lifecycle Management menu${NC}"
-        echo -e "${CYAN}• Batch operations: Stage 2 (Pending Deletion) menu${NC}"
-        echo -e "${CYAN}• Account diagnostics: Lifecycle → Quick Status Checker${NC}"
-        echo -e "${CYAN}• Account reactivation: Stage 2 and Stage 4 menus${NC}"
+        echo -e "${PURPLE}=== ACCOUNT MANAGEMENT ===${NC}"
+        echo "5. 👤 Individual user management"
+        echo "6. 📋 Bulk user operations"
+        echo "7. 🔐 Account status operations (suspend/restore)"
         echo ""
-        echo "3. Return to main menu"
+        echo -e "${GREEN}=== GROUP & LICENSE MANAGEMENT ===${NC}"
+        echo "8. 👥 Group operations (add/remove members, bulk operations)"
+        echo "9. 📄 License management (assign/remove/audit licenses)"
+        echo ""
+        echo -e "${ORANGE}=== SUSPENDED ACCOUNT LIFECYCLE ===${NC}"
+        echo "10. 🔍 Scan All Suspended Accounts (Discover & Categorize)"
+        echo "11. 📝 Auto-Create Stage Lists from Current Accounts"
+        echo "12. 📋 Manage Recently Suspended Accounts"
+        echo "13. 🔄 Process Accounts for Pending Deletion"
+        echo "14. 📊 File Sharing Analysis & Reports"
+        echo "15. 🎯 Final Decisions (Temporary Hold / Exit Row)"
+        echo "16. 🗑️  Account Deletion Operations"
+        echo "17. 🔍 Quick Account Status Checker"
+        echo ""
+        echo -e "${CYAN}=== REPORTS & ANALYTICS ===${NC}"
+        echo "18. 📈 User statistics and summaries"
+        echo "19. 📋 Account lifecycle reports"
+        echo "20. 💾 Export account data to CSV"
+        echo ""
+        echo "p. Previous menu (Main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-3, m, x): " user_group_choice
+        read -p "Select an option (1-20, p, m, x): " user_group_choice
         echo ""
         
         case $user_group_choice in
-            1) group_operations_menu ;;
-            2) license_management_menu ;;
-            3) return ;;
+            1) rescan_all_accounts ;;
+            2) list_all_accounts_menu ;;
+            3) calculate_account_sizes_menu ;;
+            4) account_search_diagnostics_menu ;;
+            5) individual_user_management_menu ;;
+            6) bulk_user_operations_menu ;;
+            7) account_status_operations_menu ;;
+            8) group_operations_menu ;;
+            9) license_management_menu ;;
+            10) 
+                echo -e "${CYAN}Scanning all suspended accounts...${NC}"
+                scan_suspended_accounts
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            11)
+                echo -e "${CYAN}Auto-creating stage lists...${NC}"
+                auto_create_stage_lists
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            12) stage1_recently_suspended_menu ;;
+            13) stage2_pending_deletion_menu ;;
+            14) 
+                stage3_sharing_analysis_menu
+                if [[ $? -eq 99 ]]; then
+                    return 99  # Pass through the main menu return code
+                fi
+                ;;
+            15) stage4_final_decisions_menu ;;
+            16) stage5_deletion_menu ;;
+            17) quick_account_status_checker ;;
+            18) user_statistics_menu ;;
+            19) account_lifecycle_reports_menu ;;
+            20) export_account_data_menu ;;
+            p|P) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-3, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-20, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6553,14 +7763,14 @@ group_operations_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            6)
+            15)
                 echo -e "${CYAN}All groups in domain:${NC}"
                 $GAM print groups 2>/dev/null | head -20
                 echo ""
                 echo -e "${YELLOW}(Showing first 20 groups)${NC}"
                 read -p "Press Enter to continue..."
                 ;;
-            7) return ;;
+            16) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
@@ -6596,10 +7806,12 @@ list_management_menu() {
         echo "10. 🗃️  Database maintenance"
         echo ""
         echo "11. Return to main menu"
+        echo ""
+        echo "p. Previous menu (main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-11, m, x): " list_choice
+        read -p "Select an option (1-11, p, m, x): " list_choice
         echo ""
         
         case $list_choice in
@@ -6706,7 +7918,7 @@ list_management_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            15)
                 read -p "Enter list name: " list_name
                 if [[ -n "$list_name" ]]; then
                     bulk_verify_list "$list_name"
@@ -6715,7 +7927,7 @@ list_management_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            7)
+            16)
                 echo -e "${CYAN}Account List Progress Summary:${NC}"
                 echo ""
                 if db_list_account_lists; then
@@ -6727,7 +7939,7 @@ list_management_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            8)
+            14)
                 echo -e "${CYAN}Scanning all suspended accounts for current stage discovery...${NC}"
                 echo ""
                 read -p "Update database with discovered accounts? (yes/no): " update_choice
@@ -6738,7 +7950,7 @@ list_management_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            9)
+            15)
                 echo -e "${CYAN}Auto-creating lists from current account scan...${NC}"
                 echo ""
                 read -p "Enter list prefix (default: scan_$(date +%Y%m%d_%H%M)): " list_prefix
@@ -6749,7 +7961,7 @@ list_management_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            10)
+            16)
                 echo -e "${CYAN}Database Maintenance${NC}"
                 echo ""
                 echo "1. Initialize/recreate database"
@@ -6799,11 +8011,10 @@ list_management_menu() {
                 esac
                 read -p "Press Enter to continue..."
                 ;;
-            11) return ;;
-            m|M) return ;;
+            11|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-11, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-11, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6835,10 +8046,12 @@ system_administration_menu() {
         echo "6. 🔧 Check System Dependencies"
         echo ""
         echo "7. Return to main menu"
+        echo ""
+        echo "p. Previous menu (main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-7, m, x): " admin_choice
+        read -p "Select an option (1-7, p, m, x): " admin_choice
         echo ""
         
         case $admin_choice in
@@ -6861,11 +8074,10 @@ system_administration_menu() {
                 check_dependencies
                 read -p "Press Enter to continue..."
                 ;;
-            7) return ;;
-            m|M) return ;;
+            7|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6887,11 +8099,13 @@ stage1_recently_suspended_menu() {
         echo "4. View suspended account statistics"
         echo "5. Export suspended account list"
         echo ""
-        echo "6. Return to main menu"
+        echo "6. Return to lifecycle management menu"
+        echo ""
+        echo "p. Previous menu (lifecycle management)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-6, m, x): " stage1_choice
+        read -p "Select an option (1-6, p, m, x): " stage1_choice
         echo ""
         
         case $stage1_choice in
@@ -6915,18 +8129,17 @@ stage1_recently_suspended_menu() {
                 ;;
             5)
                 echo -e "${CYAN}Exporting suspended account list...${NC}"
-                local export_file="reports/suspended_accounts_$(date +%Y%m%d_%H%M%S).csv"
+                local export_file="local-config/reports/suspended_accounts_$(date +%Y%m%d_%H%M%S).csv"
                 mkdir -p reports
                 query_all_suspended_users > "$export_file"
                 echo -e "${GREEN}Exported to: $export_file${NC}"
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6) return ;;
-            m|M) return ;;
+            6|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *) 
-                echo -e "${RED}Invalid option. Please select 1-6, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-6, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -6951,11 +8164,13 @@ stage2_pending_deletion_menu() {
         echo "5. Query users in Pending Deletion OU"
         echo "6. Dry-run mode (preview changes)"
         echo ""
-        echo "7. Return to main menu"
+        echo "7. Return to lifecycle management menu"
+        echo ""
+        echo "p. Previous menu (lifecycle management)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-7, m, x): " stage2_choice
+        read -p "Select an option (1-7, p, m, x): " stage2_choice
         echo ""
         
         case $stage2_choice in
@@ -7025,7 +8240,7 @@ stage2_pending_deletion_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6) 
+            15) 
                 DRY_RUN=true
                 echo -e "${YELLOW}Dry-run mode enabled. No actual changes will be made.${NC}"
                 echo ""
@@ -7036,11 +8251,10 @@ stage2_pending_deletion_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7) return ;;
-            m|M) return ;;
+            7|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-7, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -7064,11 +8278,11 @@ stage3_sharing_analysis_menu() {
         echo "6. View analysis statistics"
         echo "7. Clean up analysis files"
         echo ""
-        echo "8. Return to main menu"
+        echo "p. Previous menu (Lifecycle Management)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-8, m, x): " stage3_choice
+        read -p "Select an option (1-7, p, m, x): " stage3_choice
         echo ""
         
         case $stage3_choice in
@@ -7208,7 +8422,7 @@ stage3_sharing_analysis_menu() {
                 local user_analyses=$(ls listshared/*_all_files.csv 2>/dev/null | wc -l)
                 local sharing_analyses=$(ls listshared/*_shared_files.csv 2>/dev/null | wc -l)
                 local active_analyses=$(ls listshared/*_active-shares.csv 2>/dev/null | wc -l)
-                local recipient_reports=$(ls reports/*_files_from_*.csv 2>/dev/null | wc -l)
+                local recipient_reports=$(ls local-config/reports/*_files_from_*.csv 2>/dev/null | wc -l)
                 
                 echo "Analysis Files:"
                 echo "- User file analyses: $user_analyses"
@@ -7250,11 +8464,11 @@ stage3_sharing_analysis_menu() {
                 fi
                 read -p "Press Enter to continue..."
                 ;;
-            8) return ;;
-            m|M) return ;;
+            p|P) return ;;
+            m|M) return 99 ;;  # Special code to return to main menu
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-8, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-7, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -7335,7 +8549,7 @@ stage4_final_decisions_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6)
+            15)
                 read -p "Enter username to move to Exit Row: " username
                 if [[ -n "$username" ]]; then
                     echo -e "${RED}WARNING: Moving to Exit Row means this account will be deleted soon!${NC}"
@@ -7352,7 +8566,7 @@ stage4_final_decisions_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            7) return ;;
+            16) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
@@ -7403,7 +8617,7 @@ stage5_deletion_operations_menu() {
                 if [[ -n "$username" ]]; then
                     echo -e "${CYAN}Generating pre-deletion audit for $username...${NC}"
                     
-                    local audit_file="reports/${username}_pre_deletion_audit_$(date +%Y%m%d_%H%M%S).txt"
+                    local audit_file="local-config/reports/${username}_pre_deletion_audit_$(date +%Y%m%d_%H%M%S).txt"
                     mkdir -p reports
                     
                     {
@@ -7482,7 +8696,7 @@ stage5_deletion_operations_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            6) return ;;
+            15) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
@@ -7552,8 +8766,60 @@ check_first_time_setup() {
     return 0  # Setup needed
 }
 
+# Menu navigation functions
+show_menu_index() {
+    clear
+    # Use database-driven index
+    show_menu_database_index
+    
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+search_menu_options() {
+    while true; do
+        clear
+        echo -e "${BLUE}=== GWOMBAT Menu Search ===${NC}"
+        echo ""
+        echo -e "${CYAN}Search for menu options by keyword${NC}"
+        echo ""
+        read -p "Enter search term (or 'back' to return): " search_term
+        
+        if [[ "$search_term" == "back" || "$search_term" == "b" ]]; then
+            break
+        fi
+        
+        if [[ -z "$search_term" ]]; then
+            echo -e "${RED}Please enter a search term${NC}"
+            read -p "Press Enter to continue..."
+            continue
+        fi
+        
+        echo ""
+        
+        # Use database-driven search
+        search_menu_database "$search_term"
+        
+        echo ""
+        echo -e "${GRAY}Tip: Use short keywords for better results${NC}"
+        echo ""
+        read -p "Press Enter to search again (or type 'back' to return)..."
+    done
+}
 # Main script execution
 main() {
+    # Critical security check: Verify GAM domain matches configuration
+    echo -e "${BLUE}=== GWOMBAT Security Verification ===${NC}"
+    if ! verify_gam_domain; then
+        echo ""
+        echo -e "${RED}❌ CRITICAL SECURITY ERROR: Cannot proceed with domain mismatch${NC}"
+        echo ""
+        echo "This prevents potential data operations on the wrong domain."
+        echo "Please fix the domain configuration and try again."
+        echo ""
+        exit 1
+    fi
+    echo ""
+    
     # Check for first-time setup
     if check_first_time_setup; then
         echo -e "${BLUE}=== GWOMBAT First-Time Setup ===${NC}"
@@ -7623,36 +8889,42 @@ main() {
         
         case $choice in
             1)
-                lifecycle_management_menu
-                ;;
-            2)
                 user_group_management_menu
                 ;;
-            3)
+            2)
                 file_drive_operations_menu
                 ;;
-            4)
+            3)
                 analysis_discovery_menu
                 ;;
-            5)
+            4)
                 list_management_menu
                 ;;
-            6)
+            5)
                 dashboard_menu
                 ;;
-            7)
+            6)
                 reports_and_cleanup_menu
                 ;;
-            8)
+            7)
                 system_administration_menu
                 ;;
-            9)
+            8)
                 scuba_compliance_menu
+                ;;
+            97)
+                # Menu Index (Alphabetical)
+                show_menu_index
+                ;;
+            98)
+                # Search Menu Options
+                search_menu_options
                 ;;
             99)
                 # Configuration Management
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    $SHARED_UTILITIES_PATH/config_manager.sh menu
+                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                    show_config_menu
                 else
                     configuration_menu
                 fi
@@ -7665,7 +8937,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-9, c, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-8, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac

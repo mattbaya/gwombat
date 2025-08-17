@@ -4,8 +4,28 @@
 # SQLite-based persistent state tracking for account management
 
 # Database configuration
-DB_FILE="${SCRIPTPATH}/account_lifecycle.db"
-DB_SCHEMA_FILE="${SCRIPTPATH}/database_schema.sql"
+SCRIPTPATH="${SCRIPTPATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+DB_FILE="${SCRIPTPATH}/local-config/account_lifecycle.db"
+DB_SCHEMA_FILE="${SCRIPTPATH}/local-config/database_schema.sql"
+
+# Color definitions (fallback if not defined elsewhere)
+if [[ -z "$RED" ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    PURPLE='\033[0;35m'
+    CYAN='\033[0;36m'
+    GRAY='\033[0;37m'
+    NC='\033[0m' # No Color
+fi
+
+# Logging function (fallback if not defined elsewhere)
+if ! command -v log_info >/dev/null 2>&1; then
+    log_info() {
+        echo "[INFO] $1" >&2
+    }
+fi
 
 # Initialize database
 init_database() {
@@ -752,4 +772,277 @@ EOF
     echo ""
     echo -e "${BLUE}Auto-list creation completed${NC}"
     return 0
+}
+
+# =============================================
+# MENU MANAGEMENT FUNCTIONS
+# =============================================
+
+# Initialize menu database schema
+init_menu_database() {
+    local menu_schema_file="${SCRIPTPATH}/local-config/menu_schema.sql"
+    
+    if [[ ! -f "$menu_schema_file" ]]; then
+        echo -e "${RED}Error: Menu schema file not found: $menu_schema_file${NC}"
+        return 1
+    fi
+    
+    sqlite3 "$DB_FILE" < "$menu_schema_file"
+    
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}Menu database schema initialized${NC}"
+        return 0
+    else
+        echo -e "${RED}Failed to initialize menu database schema${NC}"
+        return 1
+    fi
+}
+
+# Generate main menu from database
+generate_main_menu() {
+    local menu_html=""
+    
+    # Get sections in order
+    while IFS='|' read -r section_id section_name display_name description icon color_code; do
+        [[ -z "$section_id" ]] && continue
+        
+        # Display section header
+        echo -e "${!color_code}=== ${display_name^^} ===${NC}"
+        echo "$section_id. $icon $display_name"
+        echo ""
+    done < <(sqlite3 "$DB_FILE" "
+        SELECT id, name, display_name, description, icon, color_code 
+        FROM menu_sections 
+        WHERE is_active = 1 
+        ORDER BY section_order;
+    ")
+    
+    # Display navigation options
+    echo -e "${GRAY}=== NAVIGATION ===${NC}"
+    while IFS='|' read -r key_char display_name icon; do
+        [[ -z "$key_char" ]] && continue
+        echo "$key_char. $icon $display_name"
+    done < <(sqlite3 "$DB_FILE" "
+        SELECT key_char, display_name, icon 
+        FROM menu_navigation 
+        WHERE is_active = 1 
+        ORDER BY nav_order;
+    ")
+}
+
+# Generate submenu from database
+generate_submenu() {
+    local section_name="$1"
+    
+    if [[ -z "$section_name" ]]; then
+        echo -e "${RED}Error: Section name required${NC}"
+        return 1
+    fi
+    
+    # Get section info
+    local section_info=$(sqlite3 "$DB_FILE" "
+        SELECT display_name, description, icon, color_code 
+        FROM menu_sections 
+        WHERE name = '$section_name' AND is_active = 1;
+    ")
+    
+    if [[ -z "$section_info" ]]; then
+        echo -e "${RED}Error: Section '$section_name' not found${NC}"
+        return 1
+    fi
+    
+    IFS='|' read -r display_name description icon color_code <<< "$section_info"
+    
+    # Display section header
+    echo -e "${!color_code}=== $display_name ===${NC}"
+    echo ""
+    echo -e "${CYAN}$description${NC}"
+    echo ""
+    
+    # Group items by their prefixes for better organization
+    local current_group=""
+    local item_count=0
+    
+    while IFS='|' read -r item_order display_name description icon keywords; do
+        [[ -z "$item_order" ]] && continue
+        
+        # Detect group changes based on keywords or patterns
+        local new_group=""
+        if [[ "$keywords" =~ "lifecycle" ]]; then
+            new_group="SUSPENDED ACCOUNT LIFECYCLE"
+        elif [[ "$keywords" =~ "scan|search|discover" ]]; then
+            new_group="ACCOUNT DISCOVERY & SCANNING"
+        elif [[ "$keywords" =~ "bulk|individual|status" ]]; then
+            new_group="ACCOUNT MANAGEMENT"
+        elif [[ "$keywords" =~ "group|license" ]]; then
+            new_group="GROUP & LICENSE MANAGEMENT"
+        elif [[ "$keywords" =~ "statistics|reports|export" ]]; then
+            new_group="REPORTS & ANALYTICS"
+        fi
+        
+        # Display group header if changed
+        if [[ -n "$new_group" && "$new_group" != "$current_group" ]]; then
+            if [[ $item_count -gt 0 ]]; then
+                echo ""
+            fi
+            echo -e "${BLUE}=== $new_group ===${NC}"
+            current_group="$new_group"
+        fi
+        
+        echo "$item_order. $icon $display_name"
+        ((item_count++))
+        
+    done < <(sqlite3 "$DB_FILE" "
+        SELECT item_order, display_name, description, icon, keywords
+        FROM menu_items 
+        WHERE section_id = (SELECT id FROM menu_sections WHERE name = '$section_name')
+        AND is_active = 1 
+        ORDER BY item_order;
+    ")
+    
+    # Display navigation options
+    echo ""
+    echo "p. Previous menu (Main menu)"
+    echo "m. Main menu"
+    echo "x. Exit"
+}
+
+# Get function name for menu choice
+get_menu_function() {
+    local section_name="$1"
+    local choice="$2"
+    
+    if [[ -z "$section_name" || -z "$choice" ]]; then
+        echo -e "${RED}Error: Section name and choice required${NC}" >&2
+        return 1
+    fi
+    
+    # Check if it's a navigation option first
+    local nav_function=$(sqlite3 "$DB_FILE" "
+        SELECT function_name 
+        FROM menu_navigation 
+        WHERE key_char = '$choice' AND is_active = 1;
+    ")
+    
+    if [[ -n "$nav_function" ]]; then
+        echo "$nav_function"
+        return 0
+    fi
+    
+    # Check if it's a menu item
+    local item_function=$(sqlite3 "$DB_FILE" "
+        SELECT function_name 
+        FROM menu_items 
+        WHERE section_id = (SELECT id FROM menu_sections WHERE name = '$section_name')
+        AND item_order = '$choice' 
+        AND is_active = 1;
+    ")
+    
+    if [[ -n "$item_function" ]]; then
+        echo "$item_function"
+        return 0
+    fi
+    
+    # Not found
+    return 1
+}
+
+# Database-driven search function
+search_menu_database() {
+    local search_term="$1"
+    
+    if [[ -z "$search_term" ]]; then
+        echo -e "${RED}Please enter a search term${NC}"
+        return 1
+    fi
+    
+    local search_lower=$(echo "$search_term" | tr '[:upper:]' '[:lower:]')
+    local found=false
+    
+    echo -e "${CYAN}Search results for: '$search_term'${NC}"
+    echo ""
+    
+    # Search through menu items and sections  
+    while IFS='|' read -r result_type result_id title description sort_order icon color_code function_name keywords searchable_text; do
+        [[ -z "$result_type" ]] && continue
+        
+        # Check if search term matches
+        if [[ "$searchable_text" =~ .*$search_lower.* ]]; then
+            found=true
+            
+            if [[ "$result_type" == "section" ]]; then
+                local color_var="${color_code:-GREEN}"
+                echo -e "${!color_var}$sort_order. $title${NC}"
+                if [[ -n "$description" ]]; then
+                    echo "   • $description"
+                fi
+            else
+                # Get section info for context
+                local section_info=$(sqlite3 "$DB_FILE" "
+                    SELECT ms.display_name, ms.id
+                    FROM menu_sections ms
+                    JOIN menu_items mi ON ms.id = mi.section_id
+                    WHERE mi.function_name = '$function_name';
+                ")
+                IFS='|' read -r section_name section_id <<< "$section_info"
+                
+                echo -e "${CYAN}$icon $title${NC}"
+                echo "   → $section_name"
+                if [[ -n "$description" ]]; then
+                    echo "   • $description"
+                fi
+            fi
+            echo ""
+        fi
+    done < <(sqlite3 "$DB_FILE" "SELECT * FROM menu_search ORDER BY sort_order;")
+    
+    if [[ "$found" != "true" ]]; then
+        echo -e "${YELLOW}No menu options found matching '$search_term'${NC}"
+        echo ""
+        echo -e "${CYAN}Try searching for:${NC}"
+        echo "• Feature names: user, file, backup, report, security"
+        echo "• Tool names: gam, gyb, rclone, scuba"
+        echo "• Actions: analyze, cleanup, configure, export"
+        echo "• Data types: account, drive, log, database"
+    fi
+}
+
+# Database-driven index function
+show_menu_database_index() {
+    echo -e "${BLUE}=== GWOMBAT Menu Index (Alphabetical) ===${NC}"
+    echo ""
+    echo -e "${CYAN}Complete listing of all menu options${NC}"
+    echo ""
+    
+    # Get all menu items sorted alphabetically
+    while IFS='|' read -r title section_name icon description; do
+        [[ -z "$title" ]] && continue
+        
+        echo -e "${GREEN}$icon $title${NC}"
+        echo "   → $section_name"
+        if [[ -n "$description" ]]; then
+            echo -e "${GRAY}   $description${NC}"
+        fi
+        echo ""
+    done < <(sqlite3 "$DB_FILE" "
+        SELECT mi.display_name, ms.display_name, mi.icon, mi.description
+        FROM menu_items mi
+        JOIN menu_sections ms ON mi.section_id = ms.id
+        WHERE mi.is_active = 1 AND ms.is_active = 1
+        ORDER BY mi.display_name;
+    ")
+    
+    echo -e "${GRAY}Navigation Options:${NC}"
+    while IFS='|' read -r key_char display_name icon description; do
+        [[ -z "$key_char" ]] && continue
+        echo -e "${BLUE}$key_char. $icon $display_name${NC}"
+        if [[ -n "$description" ]]; then
+            echo -e "${GRAY}   $description${NC}"
+        fi
+    done < <(sqlite3 "$DB_FILE" "
+        SELECT key_char, display_name, icon, description
+        FROM menu_navigation
+        WHERE is_active = 1
+        ORDER BY display_name;
+    ")
 }

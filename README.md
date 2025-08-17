@@ -2,63 +2,81 @@
 
 # GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner
 
-A comprehensive Google Workspace administration system providing enterprise-grade account lifecycle management, file operations, and automated workflows with database tracking and verification.
+A comprehensive Google Workspace administration system with revolutionary SQLite-driven dynamic interfaces, enterprise-grade account lifecycle management, and advanced automation capabilities.
 
-## 🚀 Key Features
+## 🚀 Revolutionary Features
 
-- **🔄 Account Lifecycle Management** - Complete suspended account processing with database tracking
-- **💾 File & Drive Operations** - Bulk operations, shared drive cleanup, ownership management  
-- **🔍 Analysis & Discovery** - File sharing analysis, license management, compliance reporting
-- **📋 List Management** - Database-driven batch operations with progress tracking
-- **📈 Reports & Monitoring** - Comprehensive logging, audit trails, and analytics
-- **⚙️ System Administration** - Automated backups, deployment, and configuration management
+- **🔄 Dynamic Menu System** - SQLite-driven interfaces with intelligent search across 43+ operations
+- **👥 Comprehensive User Management** - Complete lifecycle from creation to deletion with database tracking
+- **🔍 Intelligent Search** - Real-time keyword search across all menu options with contextual results
+- **📋 Alphabetical Index** - Complete operation catalog with navigation paths
+- **⚙️ External Tools Integration** - Synchronized GAM, GYB, and rclone domain configuration
+- **🔐 Advanced Security** - Domain verification, audit trails, and secure deployment
+- **📊 Python Integration** - Compliance dashboards and API interfaces
+- **🏗️ Multi-Schema Database** - Specialized schemas for different functional domains
 
-## 🏗️ Architecture
+## 🎯 Core Menu Categories
 
-- **Database-Driven**: SQLite backend with 7-table schema for persistent state tracking
-- **Menu-Driven Interface**: Intuitive navigation with 8 main functional categories
-- **Security-First**: Environment-based configuration, audit logging, SSH key deployment
-- **Modular Design**: 60+ individual operations organized by function type
-- **Command Transparency**: All GAM commands displayed before execution
+### 👥 User & Group Management (20 operations)
+- **Account Discovery & Scanning** - Automated domain account scanning and categorization
+- **Account Management** - Individual and bulk user operations
+- **Group & License Management** - Comprehensive group membership and license administration
+- **Suspended Account Lifecycle** - Complete 8-stage workflow from suspension to deletion
+- **Reports & Analytics** - User statistics and lifecycle reporting
 
-## 📊 Core Functionality
+### 💾 Data & File Operations (11 operations)
+- **File & Drive Operations** - Bulk operations, shared drive management, permissions
+- **Analysis & Discovery** - File sharing analysis, account discovery, diagnostics
+- **Account List Management** - Database-driven batch operations with progress tracking
 
-### Account Management (10 operations)
-- Suspended account lifecycle processing
-- Temporary hold and pending deletion management
-- Batch operations with CSV import/export
-- Automated account discovery and staging
+### 📊 System & Monitoring (9 operations)
+- **Dashboard & Statistics** - Real-time system overview and metrics
+- **Reports & Monitoring** - Activity reports, log management, performance analysis
+- **System Administration** - Configuration, maintenance, and backup operations
 
-### File Operations (13 operations)
-- Shared drive cleanup and administration
-- Bulk file ownership transfer
-- URL parsing and drive search
-- File activity analysis and archiving
+### 🔐 Security & Compliance (3 operations)
+- **SCuBA Compliance Management** - CISA security baseline monitoring and reporting
 
-### Analysis Tools (11 operations)
-- Cross-domain sharing detection
-- License auditing and management
-- Storage usage analysis
-- Compliance reporting
+### ⚙️ Configuration Management
+- **External Tools Configuration** - GAM, GYB, rclone domain synchronization
+- **System Setup & Settings** - Environment configuration and deployment management
 
-### Database Management (11 operations)
-- Account list creation and management
-- Progress tracking and verification
-- Import/export capabilities
-- Automated backup and recovery
+## 🏗️ Revolutionary Architecture
+
+### SQLite-Driven Dynamic Interfaces
+- **Zero Hardcoded Menus** - All interfaces generated from database tables
+- **Self-Maintaining** - Menus automatically reflect database changes
+- **Intelligent Search** - Advanced keyword matching with relevance scoring
+- **Database Integration** - Menu choices resolved via database queries
+- **Performance Optimized** - Cached search results and indexed lookups
+
+### Multi-Schema Database Design
+- **Primary Schema** - Account lifecycle, lists, verification, audit logging
+- **Menu Schema** - Dynamic menu system with search optimization  
+- **Specialized Schemas** - SCuBA compliance, configuration, security, backups
+- **View-Based Search** - Optimized search interface across all data
+
+### Enterprise Security Features
+- **Domain Verification** - Automatic verification GAM domain matches configuration
+- **Environment Isolation** - All secrets in .env files, nothing hardcoded
+- **Complete Audit Trail** - Every operation logged with session correlation
+- **SSH Key Deployment** - Secure automated deployment with key management
+- **Clean Git History** - No sensitive data in version control
 
 ## 📋 Requirements
 
 ### Required
 - **Linux/macOS** - Primary platforms
-- **Bash 4.0+** - Shell environment
-- **GAM** - Google Apps Manager ([installation guide](https://github.com/GAM-team/GAM))
-- **SQLite** - Database backend
-- **Git** - Version control
+- **Bash 4.0+** - Shell environment  
+- **GAM** - Google Apps Manager ([GAM7 compatible](https://github.com/GAM-team/GAM))
+- **SQLite** - Multi-schema database backend
+- **Git** - Version control and deployment
 
-### Optional
-- **SSH/expect** - For deployment automation
-- **Google Drive API** - For backup uploads
+### Optional Advanced Features
+- **Python 3.12+** - Compliance modules and dashboard capabilities
+- **GYB** - Gmail backup with domain synchronization
+- **rclone** - Cloud storage synchronization
+- **SSH/expect** - Automated deployment and interactive prompts
 
 ## 🚀 Quick Start
 
@@ -66,64 +84,100 @@ A comprehensive Google Workspace administration system providing enterprise-grad
 # Clone and setup
 git clone git@github.com:mattbaya/gwombat.git
 cd gwombat
+
+# Initialize environment
 cp .env.template .env
+nano .env  # Configure DOMAIN, ADMIN_USER, GAM_PATH, etc.
 
-# Configure your environment
-nano .env  # Set DOMAIN, ADMIN_USER, GAM_PATH, etc.
+# Initialize menu database
+./shared-utilities/menu_data_loader.sh
 
-# Run GWOMBAT
+# Launch GWOMBAT
 ./gwombat.sh
+
+# Try the new features:
+# - Press 's' for intelligent search
+# - Press 'i' for alphabetical index
+# - Navigate to User & Group Management for integrated lifecycle
 ```
+
+## 🔍 Advanced Menu Features
+
+### Intelligent Search System
+```bash
+# Search examples
+s → "user"      # Find all user-related operations
+s → "lifecycle" # Find suspended account workflow options
+s → "backup"    # Find backup and archival operations
+s → "security"  # Find compliance and security features
+```
+
+### Menu Database Integration
+- **43+ Operations** - Searchable with contextual descriptions
+- **Navigation Paths** - Shows exactly how to reach each operation
+- **Keyword Optimization** - Smart matching across titles, descriptions, and tags
+- **Real-time Results** - Instant search with highlighted matches
 
 ## 📚 Documentation
 
-- **[INSTALLATION.md](INSTALLATION.md)** - Detailed setup and configuration guide
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment instructions  
-- **[CLAUDE.md](CLAUDE.md)** - Development context and architecture notes
+- **[INSTALLATION.md](docs/INSTALLATION.md)** - Comprehensive setup and configuration
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment procedures
+- **[REQUIREMENTS.md](docs/REQUIREMENTS.md)** - System requirements and dependencies
+- **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Testing procedures and validation
+- **[CLAUDE.md](CLAUDE.md)** - AI development context and architecture
 
-## 🔐 Security Features
+## 🌟 Latest Enhancements (v4.0 - August 2025)
 
-- **Environment Isolation** - All secrets in .env files, nothing hardcoded
-- **Complete Audit Trail** - Every operation logged with session correlation
-- **Automated Backups** - Database and configuration backup to Google Drive
-- **SSH Key Authentication** - Secure deployment with automated key management
-- **Clean Git History** - No sensitive data in version control
+### SQLite Menu Revolution
+- **Dynamic Menu Generation** - Complete replacement of hardcoded interfaces
+- **Intelligent Search** - Advanced keyword matching across all operations
+- **Alphabetical Index** - Complete operation catalog with descriptions
+- **Self-Maintaining** - Zero maintenance overhead for menu changes
 
-## 🌟 Recent Enhancements (v3.0)
+### Enhanced User Management
+- **Integrated Lifecycle** - Suspended account management in User & Group Management
+- **20 User Operations** - Comprehensive account, group, and license management
+- **Advanced Scanning** - Automated account discovery and categorization
 
-- **History Sanitization** - Removed all institutional references from git history
-- **Configurable Paths** - Local directory usage, no system path assumptions
-- **Enhanced Security** - Environment-based configuration, no hardcoded credentials
-- **Command Transparency** - Display all GAM commands before execution
-- **URL Intelligence** - Smart drive URL parsing and name-based search
+### External Tools Integration
+- **Domain Synchronization** - GAM, GYB, rclone all point to same domain
+- **Configuration Management** - Centralized external tool setup
+- **Verification System** - Automated domain verification and tool status
 
-## 🎯 Why GWOMBAT?
+### Advanced Security
+- **Domain Security Verification** - Prevents operations on wrong domains
+- **Multi-Schema Architecture** - Specialized databases for different functions
+- **Python Integration** - Compliance dashboards and API interfaces
 
-1. **Enterprise Scale** - Handles large Google Workspace environments
-2. **Database Persistence** - Reliable state tracking across all operations  
-3. **Security First** - Clean audit trails and secure configuration
-4. **User Friendly** - Intuitive menus with real-time progress tracking
-5. **Transparent** - See exactly what commands are executed
-6. **Extensible** - Modular design for easy feature additions
+## 📊 Project Statistics
 
-## 📊 Project Stats
+- **9000+ lines** - Main application with dynamic menu system
+- **1000+ lines** - Database functions with menu management
+- **30+ utility scripts** - Specialized operations and integrations
+- **Multi-schema database** - 4+ specialized schemas with 15+ tables
+- **43+ operations** - Across 8 functional categories with intelligent search
 
-- **6800+ lines** - Main application
-- **700+ lines** - Database functions
-- **11 utility scripts** - Specialized operations
-- **7 database tables** - Comprehensive data model
-- **60+ operations** - Across 8 functional categories
+## 🎯 Why GWOMBAT v4.0?
+
+1. **Revolutionary Interface** - SQLite-driven menus with zero maintenance overhead
+2. **Enterprise Scale** - Handles large Google Workspace environments with database persistence
+3. **Intelligent Discovery** - Advanced search finds operations instantly
+4. **Security First** - Domain verification and comprehensive audit trails
+5. **Self-Maintaining** - Database-driven architecture stays current automatically
+6. **Integration Ready** - External tools synchronization and Python module support
 
 ## 🚀 Future Roadmap
 
-- Web-based dashboard interface
-- RESTful API for integration
-- Multi-domain management
-- Advanced analytics and ML insights
-- Mobile monitoring interface
+- **Web Dashboard** - Browser interface leveraging Python modules
+- **API Integration** - RESTful endpoints for external system integration
+- **Workflow Automation** - Scheduled batch operations with cron integration
+- **Mobile Interface** - Responsive design for mobile device management
+- **AI-Powered Insights** - Machine learning for account lifecycle optimization
 
 ---
 
-**GWOMBAT** transforms Google Workspace administration from script collections into a comprehensive, enterprise-grade platform with database persistence, security-first design, and transparent operations.
+**GWOMBAT** represents a revolutionary evolution in Google Workspace administration - from simple script collections to enterprise-grade platform with cutting-edge database-driven interfaces, intelligent automation, and robust security features.
 
-*For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)*
+The SQLite menu system sets a new standard for admin tool interfaces, providing intelligent search, self-maintaining menus, and zero maintenance overhead.
+
+*For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md)*
