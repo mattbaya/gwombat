@@ -7,15 +7,16 @@
 source "$(dirname "$0")/database_functions.sh"
 
 DB_PATH="local-config/account_lifecycle.db"
+MENU_DB_PATH="local-config/menu.db"
 
-# Initialize menu database schema
+# Initialize standalone menu database schema
 initialize_menu_database() {
-    echo "Initializing menu database schema..."
+    echo "Initializing standalone menu database schema..."
     
-    # Apply menu schema
+    # Apply menu schema to standalone database
     if [[ -f "local-config/menu_schema.sql" ]]; then
-        sqlite3 "$DB_PATH" < "local-config/menu_schema.sql"
-        echo "✓ Menu schema applied"
+        sqlite3 "$MENU_DB_PATH" < "local-config/menu_schema.sql"
+        echo "✓ Menu schema applied to $MENU_DB_PATH"
     else
         echo "❌ Menu schema file not found"
         return 1
@@ -25,7 +26,7 @@ initialize_menu_database() {
 # Clear existing menu data
 clear_menu_data() {
     echo "Clearing existing menu data..."
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         DELETE FROM menu_hierarchy;
         DELETE FROM menu_items;
         DELETE FROM menu_sections;
@@ -39,7 +40,7 @@ clear_menu_data() {
 populate_menu_sections() {
     echo "Populating menu sections..."
     
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_sections (name, display_name, description, section_order, icon, color_code) VALUES
         ('user_group_management', 'User & Group Management', 'User management, groups, suspended account lifecycle', 1, '👥', 'GREEN'),
         ('file_drive_operations', 'File & Drive Operations', 'File management, shared drives, backups', 2, '💾', 'BLUE'),
@@ -59,7 +60,7 @@ populate_menu_sections() {
 populate_menu_navigation() {
     echo "Populating menu navigation options..."
     
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_navigation (key_char, display_name, description, function_name, icon, nav_order) VALUES
         ('c', 'Configuration Management', 'Setup & Settings', 'configuration_management_menu', '⚙️', 1),
         ('s', 'Search Menu Options', 'Search for menu options by keyword', 'search_menu_options', '🔍', 2),
@@ -76,9 +77,9 @@ populate_menu_navigation() {
 populate_user_group_items() {
     echo "Populating User & Group Management items..."
     
-    local section_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'user_group_management';")
+    local section_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'user_group_management';")
     
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($section_id, 'rescan_accounts', 'Re-scan all domain accounts', 'Sync database with current domain state', 'rescan_all_accounts', 1, '🔄', 'scan resync sync domain accounts database'),
         ($section_id, 'list_accounts', 'List all accounts', 'Display accounts with filtering options', 'list_all_accounts_menu', 2, '📊', 'list accounts filter display show'),
@@ -109,9 +110,9 @@ populate_user_group_items() {
 populate_file_drive_items() {
     echo "Populating File & Drive Operations items..."
     
-    local section_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'file_drive_operations';")
+    local section_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'file_drive_operations';")
     
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($section_id, 'file_operations', 'File Operations', 'File management and operations', 'file_operations_menu', 1, '📁', 'file operations manage copy move'),
         ($section_id, 'shared_drives', 'Shared Drive Management', 'Manage shared drives and permissions', 'shared_drive_menu', 2, '🗂️', 'shared drives permissions manage team'),
@@ -128,8 +129,8 @@ populate_remaining_sections() {
     echo "Populating remaining menu sections..."
     
     # Analysis & Discovery
-    local analysis_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'analysis_discovery';")
-    sqlite3 "$DB_PATH" "
+    local analysis_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'analysis_discovery';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($analysis_id, 'account_analysis', 'Account Analysis', 'Comprehensive account analysis tools', 'account_analysis_menu', 1, '🔍', 'analysis analyze accounts discover search'),
         ($analysis_id, 'file_discovery', 'File Discovery', 'Discover and analyze files', 'file_discovery_menu', 2, '📄', 'files discover find search analyze'),
@@ -137,8 +138,8 @@ populate_remaining_sections() {
     "
     
     # Account List Management
-    local list_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'account_list_management';")
-    sqlite3 "$DB_PATH" "
+    local list_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'account_list_management';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($list_id, 'manage_lists', 'Manage Account Lists', 'Create and manage account lists', 'account_list_management_menu', 1, '📋', 'lists manage create accounts groups'),
         ($list_id, 'csv_operations', 'CSV Import/Export', 'Import and export CSV data', 'csv_operations_menu', 2, '📊', 'csv import export data spreadsheet'),
@@ -146,8 +147,8 @@ populate_remaining_sections() {
     "
     
     # Dashboard & Statistics  
-    local dashboard_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'dashboard_statistics';")
-    sqlite3 "$DB_PATH" "
+    local dashboard_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'dashboard_statistics';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($dashboard_id, 'overview', 'System Overview', 'System status and overview', 'system_overview_menu', 1, '🎯', 'overview dashboard status system summary'),
         ($dashboard_id, 'statistics', 'Statistics & Metrics', 'System statistics and metrics', 'statistics_menu', 2, '📊', 'statistics metrics stats analytics data'),
@@ -155,8 +156,8 @@ populate_remaining_sections() {
     "
     
     # Reports & Monitoring
-    local reports_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'reports_monitoring';")
-    sqlite3 "$DB_PATH" "
+    local reports_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'reports_monitoring';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($reports_id, 'activity_reports', 'Activity Reports', 'Generate activity reports', 'activity_reports_menu', 1, '📈', 'activity reports generate audit trail'),
         ($reports_id, 'log_management', 'Log Management', 'View and manage system logs', 'log_management_menu', 2, '📝', 'logs management view audit trail'),
@@ -164,8 +165,8 @@ populate_remaining_sections() {
     "
     
     # System Administration
-    local admin_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'system_administration';")
-    sqlite3 "$DB_PATH" "
+    local admin_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'system_administration';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($admin_id, 'system_config', 'System Configuration', 'Configure system settings', 'system_configuration_menu', 1, '⚙️', 'configuration settings system admin setup'),
         ($admin_id, 'maintenance', 'System Maintenance', 'System maintenance operations', 'system_maintenance_menu', 2, '🔧', 'maintenance repair fix system cleanup'),
@@ -173,8 +174,8 @@ populate_remaining_sections() {
     "
     
     # SCuBA Compliance
-    local scuba_id=$(sqlite3 "$DB_PATH" "SELECT id FROM menu_sections WHERE name = 'scuba_compliance';")
-    sqlite3 "$DB_PATH" "
+    local scuba_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'scuba_compliance';")
+    sqlite3 "$MENU_DB_PATH" "
         INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
         ($scuba_id, 'baseline_check', 'Baseline Compliance Check', 'Check CISA baseline compliance', 'scuba_baseline_menu', 1, '🔐', 'baseline compliance cisa security check'),
         ($scuba_id, 'policy_management', 'Policy Management', 'Manage security policies', 'policy_management_menu', 2, '📋', 'policy security manage rules compliance'),
@@ -189,14 +190,8 @@ main() {
     echo "=== GWOMBAT Menu Database Loader ==="
     echo ""
     
-    # Check if database exists
-    if [[ ! -f "$DB_PATH" ]]; then
-        echo "Creating new database..."
-        # Apply main schema first
-        if [[ -f "local-config/database_schema.sql" ]]; then
-            sqlite3 "$DB_PATH" < "local-config/database_schema.sql"
-        fi
-    fi
+    # Create standalone menu database (no dependency on main database)
+    echo "Creating standalone menu database at $MENU_DB_PATH..."
     
     initialize_menu_database
     clear_menu_data
@@ -212,13 +207,13 @@ main() {
     
     # Show summary
     echo "Summary:"
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         SELECT 'Sections: ' || COUNT(*) FROM menu_sections WHERE is_active = 1;
     "
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         SELECT 'Menu Items: ' || COUNT(*) FROM menu_items WHERE is_active = 1;
     "
-    sqlite3 "$DB_PATH" "
+    sqlite3 "$MENU_DB_PATH" "
         SELECT 'Navigation Options: ' || COUNT(*) FROM menu_navigation WHERE is_active = 1;
     "
 }

@@ -1,6 +1,5 @@
-# Environment files with sensitive data
+# Environment files with sensitive data  
 .env
-server.env
 *.env
 !.env.template
 !server.env.template
@@ -10,6 +9,9 @@ server.env
 *.sqlite
 *.sqlite3
 account_lifecycle.db
+# Exception: menu database contains no sensitive data
+!local-config/menu.db
+!local-config/menu_schema.sql
 
 # SSH Keys and authentication
 *.key
@@ -110,3 +112,9 @@ old-scripts-replaced-by-master/
 .claude/
 logs/*
 reports/*
+
+# Local configuration and data (contains sensitive domain/account data)
+local-config/
+# Exception: menu files contain no sensitive data
+!local-config/menu.db
+!local-config/menu_schema.sql

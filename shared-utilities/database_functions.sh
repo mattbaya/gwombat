@@ -6,6 +6,7 @@
 # Database configuration
 SCRIPTPATH="${SCRIPTPATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DB_FILE="${SCRIPTPATH}/local-config/account_lifecycle.db"
+MENU_DB_FILE="${SCRIPTPATH}/local-config/menu.db"
 DB_SCHEMA_FILE="${SCRIPTPATH}/local-config/database_schema.sql"
 
 # Color definitions (fallback if not defined elsewhere)
@@ -787,7 +788,7 @@ init_menu_database() {
         return 1
     fi
     
-    sqlite3 "$DB_FILE" < "$menu_schema_file"
+    sqlite3 "$MENU_DB_FILE" < "$menu_schema_file"
     
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}Menu database schema initialized${NC}"
@@ -810,7 +811,7 @@ generate_main_menu() {
         echo -e "${!color_code}=== ${display_name^^} ===${NC}"
         echo "$section_id. $icon $display_name"
         echo ""
-    done < <(sqlite3 "$DB_FILE" "
+    done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT id, name, display_name, description, icon, color_code 
         FROM menu_sections 
         WHERE is_active = 1 
@@ -822,7 +823,7 @@ generate_main_menu() {
     while IFS='|' read -r key_char display_name icon; do
         [[ -z "$key_char" ]] && continue
         echo "$key_char. $icon $display_name"
-    done < <(sqlite3 "$DB_FILE" "
+    done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT key_char, display_name, icon 
         FROM menu_navigation 
         WHERE is_active = 1 
