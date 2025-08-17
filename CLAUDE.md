@@ -106,7 +106,7 @@ gwombat/
 │   ├── config_manager.sh               # Configuration management
 │   └── [30+ utility scripts]           # Specialized operations
 ├── local-config/
-│   ├── account_lifecycle.db            # Main SQLite database
+│   ├── gwombat.db            # Main SQLite database
 │   ├── menu_schema.sql                 # Menu management schema
 │   └── [multiple specialized schemas]   # Domain-specific schemas
 ├── python-modules/                     # Advanced Python integrations

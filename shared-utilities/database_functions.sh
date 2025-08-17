@@ -5,7 +5,7 @@
 
 # Database configuration
 SCRIPTPATH="${SCRIPTPATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-DB_FILE="${SCRIPTPATH}/local-config/account_lifecycle.db"
+DB_FILE="${SCRIPTPATH}/local-config/gwombat.db"
 MENU_DB_FILE="${SCRIPTPATH}/local-config/menu.db"
 DB_SCHEMA_FILE="${SCRIPTPATH}/local-config/database_schema.sql"
 
@@ -34,7 +34,7 @@ init_database() {
     [[ -z "$db_file" ]] && db_file="$DB_FILE"
     
     if [[ ! -f "$db_file" ]]; then
-        echo -e "${CYAN}Initializing account lifecycle database...${NC}"
+        echo -e "${CYAN}Initializing GWOMBAT database...${NC}"
         
         if [[ ! -f "$DB_SCHEMA_FILE" ]]; then
             echo -e "${RED}Error: Database schema file not found: $DB_SCHEMA_FILE${NC}"

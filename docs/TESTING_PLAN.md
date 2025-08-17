@@ -159,7 +159,7 @@ Comprehensive testing of GWOMBAT (Google Workspace Optimization, Management, Bac
 
 ## Testing Environment Details
 - **Location**: /Users/mjb9/scripts/gwombat
-- **Database**: account_lifecycle.db (98KB with 18 accounts)
+- **Database**: gwombat.db (98KB with 18 accounts)
 - **Last Updated**: August 16, 2025
 - **Git Status**: Clean working directory on main branch
 

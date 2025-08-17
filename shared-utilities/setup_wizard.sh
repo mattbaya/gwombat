@@ -146,6 +146,38 @@ get_user_input() {
                     continue
                 fi
                 ;;
+            "yn")
+                if [[ "$user_input" =~ ^[YyNn]$ ]]; then
+                    break
+                else
+                    echo -e "${RED}Please enter 'y' for yes or 'n' for no.${NC}"
+                    continue
+                fi
+                ;;
+            "1-2")
+                if [[ "$user_input" =~ ^[12]$ ]]; then
+                    break
+                else
+                    echo -e "${RED}Please enter 1 or 2.${NC}"
+                    continue
+                fi
+                ;;
+            "1-3")
+                if [[ "$user_input" =~ ^[123]$ ]]; then
+                    break
+                else
+                    echo -e "${RED}Please enter 1, 2, or 3.${NC}"
+                    continue
+                fi
+                ;;
+            "1-4")
+                if [[ "$user_input" =~ ^[1234]$ ]]; then
+                    break
+                else
+                    echo -e "${RED}Please enter 1, 2, 3, or 4.${NC}"
+                    continue
+                fi
+                ;;
             *)
                 break
                 ;;
@@ -242,7 +274,7 @@ configure_gam() {
         echo ""
         
         local install_now
-        install_now=$(get_user_input "Would you like to install GAM now? (y/n)" "n" "false")
+        install_now=$(get_user_input "Would you like to install GAM now? (y/n)" "n" "false" "yn")
         
         if [[ "$install_now" =~ ^[Yy] ]]; then
             echo ""
@@ -298,7 +330,7 @@ configure_gam() {
             echo ""
             
             local configure_now
-            configure_now=$(get_user_input "Configure GAM now? (y/n)" "y" "false")
+            configure_now=$(get_user_input "Configure GAM now? (y/n)" "y" "false" "yn")
             
             if [[ "$configure_now" =~ ^[Yy] ]]; then
                 echo ""
@@ -337,15 +369,22 @@ configure_gam() {
         echo ""
         echo -e "${CYAN}GAM Advanced Configuration Options:${NC}"
         echo ""
-        echo "Would you like to configure advanced GAM settings?"
-        echo "1. Set custom GAM config directory"
-        echo "2. Configure GAM for multiple domains"
-        echo "3. Set up GAM service account (advanced)"
-        echo "4. Skip advanced configuration"
+        echo "Most users can skip this section. Advanced options are only needed if:"
+        echo ""
+        echo "1. 📁 Set custom GAM config directory"
+        echo "   → Use if you need GAM config in a non-standard location"
+        echo "   → Default: ~/.gam (recommended for most users)"
+        echo ""
+        echo "2. 🔐 Set up GAM service account (advanced)"
+        echo "   → Use for automated scripts without user interaction"
+        echo "   → Requires Google Cloud Console setup"
+        echo ""
+        echo "3. ⏭️  Skip advanced configuration (recommended)"
+        echo "   → Use standard GAM setup with default settings"
         echo ""
         
         local advanced_choice
-        advanced_choice=$(get_user_input "Select option (1-4)" "4" "false")
+        advanced_choice=$(get_user_input "Select option (1-3)" "3" "false")
         
         case "$advanced_choice" in
             1)
@@ -360,17 +399,6 @@ configure_gam() {
                 ;;
             2)
                 echo ""
-                echo -e "${CYAN}Multiple Domain Configuration${NC}"
-                echo "For multiple domains, you can:"
-                echo "1. Use separate GAM installations"
-                echo "2. Use GAM profiles with different config directories"
-                echo "3. Switch between OAuth tokens"
-                echo ""
-                echo "See GAM documentation for multi-domain setup:"
-                echo "https://github.com/GAM-team/GAM/wiki/Multiple-Domains"
-                ;;
-            3)
-                echo ""
                 echo -e "${CYAN}Service Account Configuration${NC}"
                 echo "Service accounts provide automated access without OAuth."
                 echo ""
@@ -383,8 +411,8 @@ configure_gam() {
                 echo "⚠️  Service account setup requires Google Cloud Console access"
                 echo "See: https://github.com/GAM-team/GAM/wiki/Service-Account-Access"
                 ;;
-            4)
-                echo -e "${YELLOW}⚠ Skipping advanced GAM configuration${NC}"
+            3)
+                echo -e "${YELLOW}✓ Skipping advanced GAM configuration (recommended)${NC}"
                 ;;
         esac
         
@@ -529,7 +557,7 @@ configure_python_environment() {
     local use_venv="false"
     if [[ "$SETUP_PYTHON_VENV_SUPPORT" == "true" ]]; then
         local venv_choice
-        venv_choice=$(get_user_input "Use virtual environment for GWOMBAT? (y/n)" "y" "false")
+        venv_choice=$(get_user_input "Use virtual environment for GWOMBAT? (y/n)" "y" "false" "yn")
         
         if [[ "$venv_choice" =~ ^[Yy] ]]; then
             use_venv="true"
@@ -607,7 +635,7 @@ configure_python_environment() {
     
     if [[ "$install_packages" =~ ^[Yy] ]]; then
         echo ""
-        echo -e "${CYAN}Installing GWOMBAT Python packages...${NC}"
+        echo -e "${CYAN}Analyzing Python package requirements...${NC}"
         
         # Check requirements file
         local requirements_file="$GWOMBAT_ROOT/python-modules/requirements.txt"
@@ -617,28 +645,91 @@ configure_python_environment() {
             return 1
         fi
         
-        echo "Requirements file: $requirements_file"
-        echo ""
-        echo -e "${BLUE}Packages to be installed:${NC}"
+        echo "  → Checking system packages vs requirements..."
         
-        # Show package list
+        # Check which packages are already installed system-wide
+        local system_packages=()
+        local missing_packages=()
+        local needs_venv=false
+        
         while IFS= read -r line; do
             if [[ "$line" =~ ^[a-zA-Z] ]]; then
                 local package_name=$(echo "$line" | cut -d'>' -f1 | cut -d'=' -f1 | cut -d'[' -f1)
-                echo "  • $package_name"
+                
+                # Check if package is already available system-wide
+                if python3 -c "import $package_name" 2>/dev/null; then
+                    echo -e "${GREEN}  ✓ $package_name (system)${NC}"
+                    system_packages+=("$package_name")
+                else
+                    echo -e "${YELLOW}  ○ $package_name (needs install)${NC}"
+                    missing_packages+=("$line")
+                    needs_venv=true
+                fi
             fi
         done < "$requirements_file"
         
         echo ""
-        echo "Installing packages (this may take a few minutes)..."
+        echo -e "${BLUE}📊 Package Analysis:${NC}"
+        echo "  • System packages available: ${#system_packages[@]}"
+        echo "  • Packages to install: ${#missing_packages[@]}"
         
-        # Install packages with progress indication
-        local pip_cmd="pip3"
-        if [[ "$use_venv" == "true" ]]; then
-            pip_cmd="pip"  # Use venv pip
+        if [[ ${#missing_packages[@]} -eq 0 ]]; then
+            echo ""
+            echo -e "${GREEN}🎉 All required packages already available system-wide!${NC}"
+            echo "No additional installation needed."
+            log_setup "All Python packages already available system-wide"
+        else
+            echo ""
+            if [[ "$use_venv" == "true" && $needs_venv == "true" ]]; then
+                echo -e "${CYAN}Installing missing packages to virtual environment...${NC}"
+                echo "This keeps your system Python installation clean."
+                
+                # Create requirements file for missing packages only
+                local venv_requirements="/tmp/gwombat-missing-requirements.txt"
+                printf '%s\n' "${missing_packages[@]}" > "$venv_requirements"
+                
+                echo ""
+                echo "Missing packages to install in venv:"
+                for pkg in "${missing_packages[@]}"; do
+                    local pkg_name=$(echo "$pkg" | cut -d'>' -f1 | cut -d'=' -f1 | cut -d'[' -f1)
+                    echo "  • $pkg_name"
+                done
+                
+                echo ""
+                echo "Installing to virtual environment (this may take a few minutes)..."
+                if pip install -r "$venv_requirements" --upgrade; then
+                    rm -f "$venv_requirements"
+                    echo -e "${GREEN}✓ Missing packages installed to virtual environment${NC}"
+                    log_setup "Missing Python packages installed to venv: ${missing_packages[*]}"
+                else
+                    echo -e "${RED}✗ Failed to install some packages to virtual environment${NC}"
+                    echo "Falling back to system installation..."
+                    use_venv="false"
+                fi
+            fi
+            
+            if [[ "$use_venv" == "false" ]]; then
+                echo -e "${CYAN}Installing missing packages system-wide...${NC}"
+                echo "Note: This will modify your system Python installation."
+                
+                # Create requirements file for missing packages only  
+                local system_requirements="/tmp/gwombat-missing-requirements.txt"
+                printf '%s\n' "${missing_packages[@]}" > "$system_requirements"
+                
+                echo ""
+                echo "Installing packages (this may take a few minutes)..."
+                if pip3 install -r "$system_requirements" --upgrade; then
+                    rm -f "$system_requirements"
+                    echo -e "${GREEN}✓ Missing packages installed system-wide${NC}"
+                    log_setup "Missing Python packages installed system-wide: ${missing_packages[*]}"
+                else
+                    echo -e "${RED}✗ Failed to install some packages${NC}"
+                    return 1
+                fi
+            fi
         fi
         
-        if $pip_cmd install -r "$requirements_file" --upgrade; then
+        if true; then
             echo -e "${GREEN}✓ All Python packages installed successfully${NC}"
             log_setup "Python packages installed successfully"
             
@@ -775,14 +866,51 @@ configure_optional_tools() {
                 local test_email
                 test_email=$(get_user_input "Enter test email for GYB setup" "$SETUP_ADMIN_USER" "false")
                 if [[ -n "$test_email" ]]; then
-                    echo -e "${CYAN}Running GYB initial setup...${NC}"
-                    echo "This will open a browser for OAuth authorization..."
-                    if gyb --email "$test_email" --action estimate; then
-                        echo -e "${GREEN}✓ GYB configuration successful!${NC}"
-                        log_setup "GYB configured successfully for $test_email"
+                    echo -e "${CYAN}Setting up GYB (Got Your Back)...${NC}"
+                    echo ""
+                    echo "GYB requires a Google Cloud Project for API access."
+                    echo "This will create the necessary project and OAuth configuration."
+                    echo ""
+                    
+                    # Step 1: Create project
+                    echo -e "${YELLOW}Step 1: Creating Google Cloud Project...${NC}"
+                    echo "This will open a browser for project creation and API setup..."
+                    if gyb --action create-project --email "$test_email"; then
+                        echo -e "${GREEN}✓ Google Cloud Project created successfully${NC}"
+                        
+                        # Step 2: Test the setup
+                        echo ""
+                        echo -e "${YELLOW}Step 2: Testing GYB configuration...${NC}"
+                        if gyb --email "$test_email" --action estimate; then
+                            echo -e "${GREEN}✓ GYB setup completed successfully!${NC}"
+                            echo "GYB is now ready to backup Gmail for your domain."
+                            log_setup "GYB configured successfully for $test_email"
+                        else
+                            echo -e "${YELLOW}⚠ GYB project created but test failed${NC}"
+                            echo "You may need to manually authorize GYB:"
+                            echo "  gyb --email $test_email --action estimate"
+                            log_setup "GYB project created but authorization incomplete" "WARN"
+                        fi
                     else
-                        echo -e "${YELLOW}⚠ GYB configuration may need additional setup${NC}"
-                        log_setup "GYB configuration incomplete" "WARN"
+                        echo -e "${RED}✗ GYB project creation failed${NC}"
+                        echo ""
+                        echo "This usually happens when:"
+                        echo "• GYB needs a Google Cloud Project configured"
+                        echo "• OAuth client credentials are missing"
+                        echo "• Google APIs need to be enabled"
+                        echo ""
+                        echo -e "${CYAN}Manual setup steps:${NC}"
+                        echo "1. Run: gyb --action create-project --email $test_email"
+                        echo "2. Follow browser prompts to:"
+                        echo "   → Create/select Google Cloud Project"
+                        echo "   → Enable Gmail API"
+                        echo "   → Create OAuth credentials"
+                        echo "3. Test setup: gyb --email $test_email --action estimate"
+                        echo ""
+                        echo -e "${YELLOW}Note: GYB config files are usually stored in:${NC}"
+                        echo "• ~/.gyb/ (user directory)"
+                        echo "• /usr/local/etc/gyb/ (system directory)"
+                        log_setup "GYB project creation failed - manual setup required" "ERROR"
                     fi
                 fi
             else
@@ -937,33 +1065,74 @@ configure_optional_tools() {
     else
         echo -e "${YELLOW}○ rclone not found${NC}"
         echo ""
-        echo -e "${BLUE}rclone Installation Guide:${NC}"
-        echo "1. Visit: https://rclone.org/install/"
-        echo "2. One-line install: curl https://rclone.org/install.sh | sudo bash"
-        echo "3. Or download binary for your platform"
+        echo -e "${BLUE}rclone - Cloud Storage Tool Installation${NC}"
+        echo ""
+        echo "rclone syncs files to cloud storage services like Google Drive, AWS S3, etc."
+        echo "It's used by GWOMBAT for cloud backup and storage management."
+        echo ""
+        echo "Installation options:"
+        echo "1. 🚀 Auto-install using official installer (recommended)"
+        echo "2. 📥 Manual installation guide"
+        echo "3. ⏭️  Skip installation"
         echo ""
         
-        local install_rclone
-        install_rclone=$(get_user_input "Install rclone now? (y/n)" "n" "false")
+        local install_choice
+        install_choice=$(get_user_input "Select option (1-3)" "3" "false" "1-3")
         
-        if [[ "$install_rclone" =~ ^[Yy] ]]; then
-            echo ""
-            echo -e "${CYAN}Installing rclone...${NC}"
-            if command -v curl >/dev/null 2>&1; then
-                if curl https://rclone.org/install.sh | sudo bash; then
-                    echo -e "${GREEN}✓ rclone installation completed${NC}"
-                    echo "Run setup wizard again to configure remotes"
-                    log_setup "rclone installed successfully"
+        case "$install_choice" in
+            1)
+                echo ""
+                echo -e "${CYAN}Installing rclone automatically...${NC}"
+                if command -v curl >/dev/null 2>&1; then
+                    echo "Using official rclone installer..."
+                    if curl https://rclone.org/install.sh | sudo bash; then
+                        echo -e "${GREEN}✓ rclone installation completed${NC}"
+                        echo ""
+                        echo -e "${YELLOW}Next steps:${NC}"
+                        echo "1. Configure remotes: rclone config"
+                        echo "2. Test configuration: rclone lsd <remote>:"
+                        echo "3. Run GWOMBAT setup again to configure backup storage"
+                        log_setup "rclone installed successfully"
+                    else
+                        echo -e "${RED}✗ rclone installation failed${NC}"
+                        echo "Falling back to manual installation guide..."
+                        install_choice=2
+                        log_setup "rclone installation failed" "ERROR"
+                    fi
                 else
-                    echo -e "${YELLOW}⚠ rclone installation failed${NC}"
-                    echo "Install manually from: https://rclone.org/install/"
-                    log_setup "rclone installation failed" "WARN"
+                    echo -e "${YELLOW}curl not found - falling back to manual guide${NC}"
+                    install_choice=2
                 fi
-            else
-                echo -e "${YELLOW}⚠ curl not available. Install rclone manually${NC}"
-                echo "Download from: https://rclone.org/install/"
-            fi
-        fi
+                ;;
+            2)
+                echo ""
+                echo -e "${CYAN}Manual rclone Installation Guide${NC}"
+                echo ""
+                echo "Choose your installation method:"
+                echo ""
+                echo -e "${YELLOW}Linux/macOS (recommended):${NC}"
+                echo "• One-line install: curl https://rclone.org/install.sh | sudo bash"
+                echo ""
+                echo -e "${YELLOW}Package Managers:${NC}"
+                echo "• Ubuntu/Debian: sudo apt install rclone"
+                echo "• macOS Homebrew: brew install rclone"
+                echo "• Arch Linux: pacman -S rclone"
+                echo ""
+                echo -e "${YELLOW}Manual Download:${NC}"
+                echo "• Visit: https://rclone.org/downloads/"
+                echo "• Download binary for your platform"
+                echo "• Extract and add to PATH"
+                echo ""
+                echo -e "${CYAN}After installation:${NC}"
+                echo "1. Verify: rclone version"
+                echo "2. Configure storage: rclone config"
+                echo "3. Test: rclone lsd <remote>:"
+                ;;
+            3)
+                echo -e "${YELLOW}⚠ Skipping rclone installation${NC}"
+                echo "You can install rclone later for cloud storage functionality."
+                ;;
+        esac
         log_setup "rclone not found"
     fi
     
@@ -984,37 +1153,102 @@ configure_optional_tools() {
     else
         echo -e "${YELLOW}○ restic not found${NC}"
         echo ""
-        echo -e "${BLUE}restic Installation Guide:${NC}"
-        echo "1. Visit: https://restic.net/"
-        echo "2. Download binary for your platform"
-        echo "3. Or install via package manager"
+        echo -e "${BLUE}restic - Backup Tool Installation${NC}"
+        echo ""
+        echo "restic is a modern backup program that can backup to cloud storage."
+        echo "It's used by GWOMBAT for automated backup workflows."
+        echo ""
+        echo "Installation options:"
+        echo "1. 🚀 Auto-install using package manager (recommended)"
+        echo "2. 📥 Manual installation guide"
+        echo "3. ⏭️  Skip installation"
         echo ""
         
-        local install_restic
-        install_restic=$(get_user_input "Install restic now? (y/n)" "n" "false")
+        local install_choice
+        install_choice=$(get_user_input "Select option (1-3)" "3" "false" "1-3")
         
-        if [[ "$install_restic" =~ ^[Yy] ]]; then
-            echo ""
-            echo -e "${CYAN}Installing restic...${NC}"
-            # Platform-specific installation
-            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-                if command -v apt >/dev/null 2>&1; then
-                    sudo apt update && sudo apt install restic
-                elif command -v yum >/dev/null 2>&1; then
-                    sudo yum install restic
+        case "$install_choice" in
+            1)
+                echo ""
+                echo -e "${CYAN}Installing restic automatically...${NC}"
+                # Platform-specific installation
+                if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                    if command -v apt >/dev/null 2>&1; then
+                        echo "Using apt package manager..."
+                        if sudo apt update && sudo apt install -y restic; then
+                            echo -e "${GREEN}✓ restic installed successfully via apt${NC}"
+                            log_setup "restic installed via apt"
+                        else
+                            echo -e "${RED}✗ apt installation failed${NC}"
+                            echo "Falling back to manual installation guide..."
+                            install_choice=2
+                        fi
+                    elif command -v yum >/dev/null 2>&1; then
+                        echo "Using yum package manager..."
+                        if sudo yum install -y restic; then
+                            echo -e "${GREEN}✓ restic installed successfully via yum${NC}"
+                            log_setup "restic installed via yum"
+                        else
+                            echo -e "${RED}✗ yum installation failed${NC}"
+                            echo "Falling back to manual installation guide..."
+                            install_choice=2
+                        fi
+                    else
+                        echo -e "${YELLOW}No supported package manager found${NC}"
+                        echo "Falling back to manual installation guide..."
+                        install_choice=2
+                    fi
+                elif [[ "$OSTYPE" == "darwin"* ]]; then
+                    if command -v brew >/dev/null 2>&1; then
+                        echo "Using Homebrew..."
+                        if brew install restic; then
+                            echo -e "${GREEN}✓ restic installed successfully via Homebrew${NC}"
+                            log_setup "restic installed via Homebrew"
+                        else
+                            echo -e "${RED}✗ Homebrew installation failed${NC}"
+                            echo "Falling back to manual installation guide..."
+                            install_choice=2
+                        fi
+                    else
+                        echo -e "${YELLOW}Homebrew not found${NC}"
+                        echo "Falling back to manual installation guide..."
+                        install_choice=2
+                    fi
                 else
-                    echo "Please install restic manually from https://restic.net/"
+                    echo -e "${YELLOW}Unsupported platform for auto-installation${NC}"
+                    echo "Falling back to manual installation guide..."
+                    install_choice=2
                 fi
-            elif [[ "$OSTYPE" == "darwin"* ]]; then
-                if command -v brew >/dev/null 2>&1; then
-                    brew install restic
-                else
-                    echo "Please install restic manually from https://restic.net/"
-                fi
-            else
-                echo "Please install restic manually from https://restic.net/"
-            fi
-        fi
+                ;;
+            2)
+                echo ""
+                echo -e "${CYAN}Manual restic Installation Guide${NC}"
+                echo ""
+                echo "Choose your platform:"
+                echo ""
+                echo -e "${YELLOW}Linux:${NC}"
+                echo "• Ubuntu/Debian: sudo apt install restic"
+                echo "• RHEL/CentOS/Fedora: sudo yum install restic"
+                echo "• Or download from: https://github.com/restic/restic/releases"
+                echo ""
+                echo -e "${YELLOW}macOS:${NC}"
+                echo "• Homebrew: brew install restic"
+                echo "• Or download from: https://github.com/restic/restic/releases"
+                echo ""
+                echo -e "${YELLOW}Windows:${NC}"
+                echo "• Download from: https://github.com/restic/restic/releases"
+                echo "• Or use Chocolatey: choco install restic"
+                echo ""
+                echo -e "${CYAN}After installation:${NC}"
+                echo "1. Verify: restic version"
+                echo "2. Initialize repository: restic init"
+                echo "3. Configure in GWOMBAT backup settings"
+                ;;
+            3)
+                echo -e "${YELLOW}⚠ Skipping restic installation${NC}"
+                echo "You can install restic later for backup functionality."
+                ;;
+        esac
         log_setup "restic not found"
     fi
     
@@ -1055,43 +1289,68 @@ configure_optional_tools() {
 # Configure server/deployment settings
 configure_deployment_settings() {
     echo ""
-    echo -e "${CYAN}🚀 Deployment Configuration${NC}"
+    echo -e "${CYAN}🚀 Installation Location${NC}"
     echo ""
-    echo "Configure settings for deployment to production servers (optional)."
+    echo "GWOMBAT is typically installed directly on the production server where it will run."
+    echo ""
+    echo "Current setup assumes: ${GREEN}Local installation${NC} (running on this server)"
     echo ""
     
-    local configure_deployment
-    configure_deployment=$(get_user_input "Configure deployment settings now? (y/n)" "n" "false")
+    local remote_deployment
+    remote_deployment=$(get_user_input "Do you want to deploy GWOMBAT to a different remote server instead? (y/n)" "n" "false" "yn")
     
-    if [[ "$configure_deployment" =~ ^[Yy] ]]; then
-        # Production server
-        local production_server
-        production_server=$(get_user_input "Production server hostname" "" "false")
+    if [[ "$remote_deployment" =~ ^[Yy] ]]; then
+        echo ""
+        echo -e "${YELLOW}Remote Deployment Setup${NC}"
+        echo ""
+        echo "⚠️  ${BOLD}Remote deployment requirements:${NC}"
+        echo "• You must have SSH access to the target server"
+        echo "• The target server needs git, bash, and SQLite installed"
+        echo "• GWOMBAT will be deployed using git for version control"
+        echo "• You'll need to configure GAM on the target server separately"
+        echo ""
         
-        if [[ -n "$production_server" ]]; then
+        local proceed_remote
+        proceed_remote=$(get_user_input "Proceed with remote deployment setup? (y/n)" "y" "false" "yn")
+        
+        if [[ "$proceed_remote" =~ ^[Yy] ]]; then
+            # Production server
+            local production_server
+            production_server=$(get_user_input "Remote server hostname" "" "true")
+            
             # Production user
             local production_user
-            production_user=$(get_user_input "Production server username" "" "false")
+            production_user=$(get_user_input "Username on remote server" "" "true")
             
             # GWOMBAT path on server
             local gwombat_path
-            gwombat_path=$(get_user_input "GWOMBAT path on server" "/opt/gwombat" "false")
+            gwombat_path=$(get_user_input "GWOMBAT installation path on remote server" "/opt/gwombat" "true")
             
             # SSH key path
             local ssh_key_path
-            ssh_key_path=$(get_user_input "SSH key path" "$HOME/.ssh/gwombatgit-key" "false")
+            ssh_key_path=$(get_user_input "SSH key path for deployment" "$HOME/.ssh/gwombatgit-key" "false")
             
             export SETUP_PRODUCTION_SERVER="$production_server"
             export SETUP_PRODUCTION_USER="$production_user"
             export SETUP_GWOMBAT_PATH="$gwombat_path"
             export SETUP_SSH_KEY_PATH="$ssh_key_path"
             
-            echo -e "${GREEN}✓ Deployment settings configured${NC}"
-            log_setup "Deployment configured: $production_server"
+            echo ""
+            echo -e "${GREEN}✓ Remote deployment configured${NC}"
+            echo -e "${YELLOW}Next steps after setup completion:${NC}"
+            echo "1. Run: ./deploy.sh (to deploy to remote server)"
+            echo "2. SSH to $production_server and configure GAM"
+            echo "3. Run GWOMBAT setup wizard on the remote server"
+            
+            log_setup "Remote deployment configured: $production_user@$production_server:$gwombat_path"
+        else
+            echo -e "${YELLOW}⚠ Reverting to local installation${NC}"
+            log_setup "Remote deployment cancelled - using local installation"
         fi
     else
-        echo -e "${YELLOW}⚠ Skipping deployment configuration${NC}"
-        log_setup "Skipped deployment configuration"
+        echo -e "${GREEN}✓ Using local installation${NC}"
+        echo "GWOMBAT will be configured to run on this server."
+        log_setup "Local installation selected"
     fi
 }
 
@@ -1290,14 +1549,19 @@ configure_initial_scans() {
         
         # Output format
         echo ""
-        echo "Scan output format:"
-        echo "1. Console output only"
-        echo "2. CSV reports + console"
-        echo "3. HTML dashboard + CSV + console (recommended)"
+        echo "Scan data storage and output:"
+        echo ""
+        echo -e "${GREEN}✓ All scan data will be stored in SQLite database for analysis${NC}"
+        echo -e "${GREEN}✓ Historical tracking and trend analysis enabled${NC}"
+        echo ""
+        echo "Additional output formats:"
+        echo "1. Database only (recommended for production)"
+        echo "2. Database + CSV export files"
+        echo "3. Database + CSV + HTML dashboard (comprehensive)"
         echo ""
         
         local output_format
-        output_format=$(get_user_input "Select output format (1-3)" "3" "false")
+        output_format=$(get_user_input "Select additional output (1-3)" "1" "false" "1-3")
         export SETUP_SCAN_OUTPUT="$output_format"
         
         # Estimated time warning
@@ -1309,8 +1573,11 @@ configure_initial_scans() {
             3) echo "Deep scan: 15-45 minutes" ;;
         esac
         echo ""
-        echo -e "${BLUE}💡 Tip: Scans run in background and can be interrupted safely${NC}"
-        echo -e "${BLUE}    Results are saved incrementally as scans complete${NC}"
+        echo -e "${BLUE}💡 Database Benefits:${NC}"
+        echo -e "${BLUE}    • Historical trend analysis and reporting${NC}"
+        echo -e "${BLUE}    • Account lifecycle tracking across time${NC}"
+        echo -e "${BLUE}    • Verification status and compliance monitoring${NC}"
+        echo -e "${BLUE}    • Incremental updates - scans can be safely interrupted${NC}"
         
         log_setup "Scan configuration: depth=$scan_depth, output=$output_format"
     fi
@@ -1725,6 +1992,7 @@ perform_initial_scans() {
     echo ""
     echo -e "${CYAN}📋 Generating Scan Summary Report${NC}"
     
+    echo "  → Creating report header..."
     echo "GWOMBAT Initial System Discovery Report" > "$scan_summary"
     echo "=======================================" >> "$scan_summary"
     echo "Scan Date: $(date)" >> "$scan_summary"
@@ -1733,20 +2001,28 @@ perform_initial_scans() {
     echo "Total Modules: $total_scans" >> "$scan_summary"
     echo "" >> "$scan_summary"
     
+    echo "  → Processing scan results..."
     echo "Scan Results Summary:" >> "$scan_summary"
     echo "--------------------" >> "$scan_summary"
     
     # Include summaries from each scan
+    local summary_count=0
     for summary_file in "$scan_dir"/*-summary.txt; do
         if [[ -f "$summary_file" ]]; then
+            echo "    • Including $(basename "$summary_file")..."
             echo "" >> "$scan_summary"
             cat "$summary_file" >> "$scan_summary"
+            ((summary_count++))
         fi
     done
+    echo "  → Processed $summary_count summary files"
+    echo -e "${GREEN}  ✓ Scan summary report created: $scan_summary${NC}"
     
     # Generate HTML dashboard if requested
     if [[ "${SETUP_SCAN_OUTPUT:-3}" == "3" ]]; then
+        echo ""
         echo -e "${CYAN}📊 Generating HTML Dashboard${NC}"
+        echo "  → Creating HTML template..."
         local html_dashboard="$scan_dir/dashboard.html"
         
         cat > "$html_dashboard" << 'EOF'
@@ -1804,20 +2080,26 @@ perform_initial_scans() {
         <ul>
 EOF
         
+        echo "  → Adding report file links..."
         # Add links to generated files
+        local file_count=0
         for file in "$scan_dir"/*.csv "$scan_dir"/*.txt; do
             if [[ -f "$file" ]]; then
                 local filename=$(basename "$file")
+                echo "    • Linking $filename..."
                 echo "            <li><a href=\"$filename\">$filename</a></li>" >> "$html_dashboard"
+                ((file_count++))
             fi
         done
         
+        echo "  → Finalizing HTML structure..."
         echo '        </ul>' >> "$html_dashboard"
         echo '    </div>' >> "$html_dashboard"
         echo '</body>' >> "$html_dashboard"
         echo '</html>' >> "$html_dashboard"
         
-        echo -e "${GREEN}  ✓ HTML dashboard created: $html_dashboard${NC}"
+        echo -e "${GREEN}  ✓ HTML dashboard created with $file_count linked files${NC}"
+        echo -e "${GREEN}  ✓ Dashboard location: $html_dashboard${NC}"
     fi
     
     echo ""

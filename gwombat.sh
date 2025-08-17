@@ -216,7 +216,7 @@ sanitize_gam_input() {
 # Enhanced dependency check function with logging and optional tools
 store_domain_in_database() {
     local domain="$1"
-    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
     
     if [[ -f "$db_file" && -n "$domain" ]]; then
         sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$domain');" 2>/dev/null
@@ -227,7 +227,7 @@ store_domain_in_database() {
 reset_database_for_domain_change() {
     local new_domain="$1"
     local old_domain="$2"
-    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
     
     echo -e "${YELLOW}⚠️  Domain change detected!${NC}"
     echo -e "${YELLOW}   Old domain: $old_domain${NC}"
@@ -332,7 +332,7 @@ show_gam_info() {
 verify_gam_domain() {
     local gam_path="${GAM:-gam}"
     local configured_domain="${DOMAIN}"
-    local db_file="${SCRIPTPATH}/local-config/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/gwombat.db"
     
     if [[ -z "$configured_domain" ]]; then
         echo -e "${RED}❌ CRITICAL: No DOMAIN configured in .env file${NC}"
@@ -867,7 +867,7 @@ cleanup_logs() {
 create_database_backup() {
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local backup_file="${BACKUP_DIR}/account_lifecycle_${timestamp}.db.gz"
-    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
     
     echo -e "${CYAN}Creating database backup...${NC}"
     
@@ -989,7 +989,7 @@ restore_database_backup() {
     fi
     
     local selected_backup="${backups[$((backup_choice-1))]}"
-    local db_file="${SCRIPTPATH}/local-config/local-config/account_lifecycle.db"
+    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
     local backup_of_current="${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
     
     echo ""
@@ -1290,7 +1290,7 @@ configuration_menu() {
                         [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$backup_dir/"
                         
                         # Backup database
-                        [[ -f "local-config/account_lifecycle.db" ]] && cp "local-config/account_lifecycle.db" "$backup_dir/"
+                        [[ -f "local-config/gwombat.db" ]] && cp "local-config/gwombat.db" "$backup_dir/"
                         
                         # Backup any local-config/reports/logs
                         [[ -d "reports" ]] && cp -r "reports" "$backup_dir/"
@@ -1362,9 +1362,9 @@ configuration_menu() {
                     echo "  ✓ gwombat-config.json"
                     ((files_backed_up++))
                 fi
-                if [[ -f "local-config/account_lifecycle.db" ]]; then
-                    cp "local-config/account_lifecycle.db" "$backup_dir/"
-                    echo "  ✓ local-config/account_lifecycle.db"
+                if [[ -f "local-config/gwombat.db" ]]; then
+                    cp "local-config/gwombat.db" "$backup_dir/"
+                    echo "  ✓ local-config/gwombat.db"
                     ((files_backed_up++))
                 fi
                 
@@ -1405,7 +1405,7 @@ configuration_menu() {
                                 [[ -f "$selected_backup/.env" ]] && cp "$selected_backup/.env" "./" && echo "  ✓ .env restored"
                                 [[ -f "$selected_backup/local-config/server.env" ]] && cp "$selected_backup/local-config/server.env" "./" && echo "  ✓ local-config/server.env restored"
                                 [[ -f "$selected_backup/gwombat-config.json" ]] && cp "$selected_backup/gwombat-config.json" "$CONFIG_FILE" && echo "  ✓ config restored"
-                                [[ -f "$selected_backup/local-config/account_lifecycle.db" ]] && cp "$selected_backup/local-config/account_lifecycle.db" "./" && echo "  ✓ database restored"
+                                [[ -f "$selected_backup/local-config/gwombat.db" ]] && cp "$selected_backup/local-config/gwombat.db" "./" && echo "  ✓ database restored"
                                 
                                 echo ""
                                 echo -e "${GREEN}✓ Configuration restored successfully${NC}"
@@ -2383,8 +2383,8 @@ choose_data_source() {
     local operation_name="$1"
     
     # Check when domain data was last synced
-    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
-    local db_user_count=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    local last_sync=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    local db_user_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
     
     if [[ -n "$last_sync" && "$db_user_count" -gt 0 ]]; then
         echo ""
@@ -2426,7 +2426,7 @@ choose_data_source() {
 # - Importing account data from CSV
 # - Any operation that changes domain membership
 mark_stats_dirty() {
-    sqlite3 local-config/account_lifecycle.db "
+    sqlite3 local-config/gwombat.db "
         INSERT OR REPLACE INTO config (key, value) VALUES ('stats_dirty', 'true');
     " 2>/dev/null
 }
@@ -2485,7 +2485,7 @@ sync_domain_to_database() {
         fi
         
         # Insert or update user in database
-        sqlite3 local-config/account_lifecycle.db "
+        sqlite3 local-config/gwombat.db "
             INSERT OR REPLACE INTO accounts (
                 email, 
                 current_stage, 
@@ -2509,7 +2509,7 @@ sync_domain_to_database() {
     echo "  ✅ Synced $processed users to database"
     
     # Update last sync timestamp and mark stats as dirty since we've changed account data
-    sqlite3 local-config/account_lifecycle.db "
+    sqlite3 local-config/gwombat.db "
         INSERT OR REPLACE INTO config (key, value) VALUES ('last_domain_sync', datetime('now'));
     " 2>/dev/null
     
@@ -2523,7 +2523,7 @@ show_quick_stats() {
     echo -e "${GRAY}   Generated: $(date '+%Y-%m-%d %H:%M:%S')${NC}"
     
     # Check if database exists
-    if [[ ! -f "local-config/account_lifecycle.db" ]]; then
+    if [[ ! -f "local-config/gwombat.db" ]]; then
         echo "  🔍 Database not initialized - run setup first"
         echo ""
         return
@@ -2533,15 +2533,15 @@ show_quick_stats() {
     local db_accounts
     local db_suspended
     local db_active
-    db_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
-    db_suspended=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
-    db_active=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+    db_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    db_suspended=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+    db_active=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
     
     # Try to get cached domain stats from database (GAM-based stats)
     local cached_stats
-    cached_stats=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='domain_stats_cache'" 2>/dev/null || echo "")
+    cached_stats=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='domain_stats_cache'" 2>/dev/null || echo "")
     local cache_timestamp
-    cache_timestamp=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='domain_stats_timestamp'" 2>/dev/null || echo "0")
+    cache_timestamp=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='domain_stats_timestamp'" 2>/dev/null || echo "0")
     local current_time=$(date +%s)
     
     # Initialize domain counters
@@ -2551,7 +2551,7 @@ show_quick_stats() {
     
     # Check if stats need recalculation (dirty flag, no cache, or empty database)
     local stats_dirty
-    stats_dirty=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='stats_dirty'" 2>/dev/null || echo "true")
+    stats_dirty=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='stats_dirty'" 2>/dev/null || echo "true")
     
     # Use cached stats if they exist, stats are not dirty, AND database has data
     if [[ -n "$cached_stats" && "$stats_dirty" != "true" && "$db_accounts" -gt 0 ]]; then
@@ -2566,9 +2566,9 @@ show_quick_stats() {
             sync_domain_to_database
             
             # Now get counts from database (more reliable than GAM direct counts)
-            total_users=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "?")
-            db_active=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
-            db_suspended=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+            total_users=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "?")
+            db_active=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+            db_suspended=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
             db_accounts="$total_users"
             
             # Get groups and shared drives counts (these don't change often, so direct GAM is OK)
@@ -2585,7 +2585,7 @@ show_quick_stats() {
             # Cache the results and clear dirty flag (only if we got valid data)
             if [[ "$total_users" != "?" ]]; then
                 local cache_data="$total_users,$total_groups,$shared_drives"
-                sqlite3 local-config/account_lifecycle.db "
+                sqlite3 local-config/gwombat.db "
                     INSERT OR REPLACE INTO config (key, value) VALUES ('domain_stats_cache', '$cache_data');
                     INSERT OR REPLACE INTO config (key, value) VALUES ('domain_stats_timestamp', '$current_time');
                     INSERT OR REPLACE INTO config (key, value) VALUES ('stats_dirty', 'false');
@@ -2600,7 +2600,7 @@ show_quick_stats() {
     echo -e "  🗄️  Database: ${BOLD}$db_accounts${NC} accounts tracked"
     
     # Show when database was last synced
-    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    local last_sync=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
     if [[ -n "$last_sync" ]]; then
         echo -e "${GRAY}   Database synced: $last_sync${NC}"
     fi
@@ -4319,7 +4319,7 @@ analyze_user_file_sharing() {
         echo -e "${CYAN}Storing analysis results in database...${NC}"
         
         # Create table if it doesn't exist
-        sqlite3 local-config/account_lifecycle.db "
+        sqlite3 local-config/gwombat.db "
             CREATE TABLE IF NOT EXISTS sharing_analysis_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 analysis_id TEXT,
@@ -4333,7 +4333,7 @@ analyze_user_file_sharing() {
         " 2>/dev/null
         
         # Store summary
-        sqlite3 local-config/account_lifecycle.db "
+        sqlite3 local-config/gwombat.db "
             INSERT INTO sharing_analysis_results (
                 analysis_id, email, total_files, shared_files, active_recipients, csv_files_path
             ) VALUES (
@@ -4369,7 +4369,7 @@ export_analysis_to_csv() {
     if [[ -z "$analysis_id" ]]; then
         echo -e "${RED}Error: Analysis ID required${NC}"
         echo "Available analyses:"
-        sqlite3 local-config/account_lifecycle.db "SELECT analysis_id, email, analyzed_at FROM sharing_analysis_results ORDER BY analyzed_at DESC LIMIT 10;" 2>/dev/null
+        sqlite3 local-config/gwombat.db "SELECT analysis_id, email, analyzed_at FROM sharing_analysis_results ORDER BY analyzed_at DESC LIMIT 10;" 2>/dev/null
         return 1
     fi
     
@@ -4377,7 +4377,7 @@ export_analysis_to_csv() {
     
     echo -e "${CYAN}Exporting analysis $analysis_id to CSV...${NC}"
     
-    sqlite3 local-config/account_lifecycle.db -header -csv "
+    sqlite3 local-config/gwombat.db -header -csv "
         SELECT 
             analysis_id,
             email,
@@ -4417,7 +4417,7 @@ import_csv_to_database() {
             local imported=0
             
             tail -n +2 "$csv_file" | while IFS=',' read -r analysis_id email total_files shared_files active_recipients analyzed_at; do
-                sqlite3 local-config/account_lifecycle.db "
+                sqlite3 local-config/gwombat.db "
                     INSERT INTO sharing_analysis_results (
                         analysis_id, email, total_files, shared_files, active_recipients, analyzed_at
                     ) VALUES (
@@ -5373,8 +5373,8 @@ analyze_accounts_no_sharing() {
     echo -e "${GREEN}Analyzing accounts with no file sharing...${NC}"
     
     # Check when domain data was last synced
-    local last_sync=$(sqlite3 local-config/account_lifecycle.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
-    local db_user_count=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    local last_sync=$(sqlite3 local-config/gwombat.db "SELECT value FROM config WHERE key='last_domain_sync';" 2>/dev/null)
+    local db_user_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
     
     local user_list=""
     local data_source=""
@@ -5421,10 +5421,10 @@ analyze_accounts_no_sharing() {
         "database")
             case $scope in
                 "suspended")
-                    user_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null)
+                    user_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null)
                     ;;
                 "ou")
-                    user_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts WHERE ou_path LIKE '%Suspended%';" 2>/dev/null)
+                    user_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts WHERE ou_path LIKE '%Suspended%';" 2>/dev/null)
                     ;;
             esac
             ;;
@@ -5453,7 +5453,7 @@ analyze_accounts_no_sharing() {
     local analysis_id=$(date +%Y%m%d_%H%M)
     
     # Create analysis session in database
-    sqlite3 local-config/account_lifecycle.db "
+    sqlite3 local-config/gwombat.db "
         CREATE TABLE IF NOT EXISTS file_sharing_analysis (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             analysis_id TEXT,
@@ -5480,7 +5480,7 @@ analyze_accounts_no_sharing() {
         [[ $shared_files -gt 0 ]] && has_sharing=1
         
         # Store results in database
-        sqlite3 local-config/account_lifecycle.db "
+        sqlite3 local-config/gwombat.db "
             INSERT INTO file_sharing_analysis (
                 analysis_id, email, has_shared_files, total_files, storage_used
             ) VALUES (
@@ -5490,9 +5490,9 @@ analyze_accounts_no_sharing() {
     done
     
     # Show summary results
-    local total_analyzed=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id';" 2>/dev/null)
-    local no_sharing=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=0;" 2>/dev/null)
-    local with_sharing=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=1;" 2>/dev/null)
+    local total_analyzed=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id';" 2>/dev/null)
+    local no_sharing=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=0;" 2>/dev/null)
+    local with_sharing=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM file_sharing_analysis WHERE analysis_id='$analysis_id' AND has_shared_files=1;" 2>/dev/null)
     
     echo ""
     echo -e "${GREEN}Analysis complete (ID: $analysis_id):${NC}"
@@ -7330,9 +7330,9 @@ rescan_all_accounts() {
     echo -e "${GREEN}✅ Account re-scan completed!${NC}"
     
     # Show summary
-    local total_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
-    local active_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
-    local suspended_accounts=$(sqlite3 local-config/account_lifecycle.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
+    local total_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+    local active_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "0")
+    local suspended_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "0")
     
     echo ""
     echo -e "${CYAN}📊 Updated Account Summary:${NC}"
@@ -7388,13 +7388,13 @@ list_accounts_filtered() {
         # Use database
         case $filter_type in
             "all")
-                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts ORDER BY email;"
+                sqlite3 local-config/gwombat.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts ORDER BY email;"
                 ;;
             "active")
-                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage = 'active' ORDER BY email;"
+                sqlite3 local-config/gwombat.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage = 'active' ORDER BY email;"
                 ;;
             "suspended")
-                sqlite3 local-config/account_lifecycle.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row') ORDER BY email;"
+                sqlite3 local-config/gwombat.db -header "SELECT email, current_stage, ou_path, updated_at FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row') ORDER BY email;"
                 ;;
         esac
     else
@@ -7432,7 +7432,10 @@ calculate_account_sizes_menu() {
     echo "3. Specific account"
     echo "4. Accounts from list/CSV"
     echo ""
-    read -p "Select scope (1-4): " scope_choice
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select scope (1-4, m, x): " scope_choice
     echo ""
     
     case $scope_choice in
@@ -7440,6 +7443,8 @@ calculate_account_sizes_menu() {
         2) calculate_suspended_account_sizes ;;
         3) calculate_single_account_size ;;
         4) calculate_account_sizes_from_list ;;
+        m) return ;;
+        x) exit 0 ;;
         *) 
             echo -e "${RED}Invalid option.${NC}"
             read -p "Press Enter to continue..."
@@ -7452,10 +7457,13 @@ calculate_all_account_sizes() {
     echo -e "${CYAN}Calculating storage sizes for all accounts...${NC}"
     echo ""
     
+    # Generate unique scan session ID
+    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)"
+    
     # Choose data source for account list
     if choose_data_source "storage calculation"; then
         # Use database
-        local account_list=$(sqlite3 local-config/account_lifecycle.db "SELECT email FROM accounts ORDER BY email;" 2>/dev/null)
+        local account_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts ORDER BY email;" 2>/dev/null)
     else
         # Use fresh GAM data
         local account_list=$($GAM print users fields primaryemail 2>/dev/null | tail -n +2 | cut -d',' -f1)
@@ -7467,78 +7475,1843 @@ calculate_all_account_sizes() {
         return
     fi
     
-    # Create storage analysis table
-    sqlite3 local-config/account_lifecycle.db "
-        CREATE TABLE IF NOT EXISTS account_storage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            storage_used_bytes INTEGER,
-            storage_used_display TEXT,
-            analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    " 2>/dev/null
-    
     local counter=0
     local total_accounts=$(echo "$account_list" | wc -l)
+    local accounts_processed=0
+    local errors=0
     
-    echo "Processing $total_accounts accounts..."
+    echo "Processing $total_accounts accounts with session ID: $scan_session_id"
     echo ""
     
+    # Process accounts and store in new schema
     echo "$account_list" | while read email; do
         [[ -z "$email" ]] && continue
         
         ((counter++))
         show_progress $counter $total_accounts "Analyzing: $email"
         
-        # Get storage info from GAM
-        local storage_info=$($GAM info user "$email" 2>/dev/null | grep "Storage Used:")
-        local storage_bytes="0"
-        local storage_display="0 MB"
+        # Get storage info from GAM with quota information
+        local user_info=$($GAM info user "$email" fields quota 2>/dev/null)
         
-        if [[ -n "$storage_info" ]]; then
-            storage_display=$(echo "$storage_info" | cut -d':' -f2 | xargs)
-            # Try to extract bytes (this is approximate)
-            if [[ "$storage_display" =~ GB ]]; then
-                local gb_value=$(echo "$storage_display" | grep -o '[0-9.]*' | head -1)
-                storage_bytes=$(echo "$gb_value * 1073741824" | bc 2>/dev/null || echo "0")
-            elif [[ "$storage_display" =~ MB ]]; then
-                local mb_value=$(echo "$storage_display" | grep -o '[0-9.]*' | head -1)
-                storage_bytes=$(echo "$mb_value * 1048576" | bc 2>/dev/null || echo "0")
-            fi
+        if [[ -z "$user_info" ]]; then
+            ((errors++))
+            continue
         fi
         
-        # Store in database
-        sqlite3 local-config/account_lifecycle.db "
-            INSERT OR REPLACE INTO account_storage (email, storage_used_bytes, storage_used_display)
-            VALUES ('$email', '$storage_bytes', '$storage_display');
-        " 2>/dev/null
+        # Extract storage information
+        local storage_used_bytes=0
+        local storage_quota_bytes=0
+        local display_name=""
+        
+        # Get display name
+        display_name=$($GAM info user "$email" fields name 2>/dev/null | grep "Full Name:" | cut -d':' -f2 | xargs)
+        
+        # Parse storage used (try multiple patterns)
+        if echo "$user_info" | grep -q "Storage Used:"; then
+            local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+            local size_value=$(echo "$storage_line" | grep -o '[0-9.]*[0-9]' | head -1)
+            local size_unit=$(echo "$storage_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            case "${size_unit,,}" in
+                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes") storage_used_bytes="$size_value" ;;
+                *) storage_used_bytes=0 ;;
+            esac
+        fi
+        
+        # Parse storage quota 
+        if echo "$user_info" | grep -q "Storage Limit:"; then
+            local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
+            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*[0-9]' | head -1)
+            local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            case "${quota_unit,,}" in
+                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes") storage_quota_bytes="$quota_value" ;;
+                *) storage_quota_bytes=0 ;;
+            esac
+        fi
+        
+        # Calculate derived values
+        local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local usage_percentage=0
+        
+        if [[ $storage_quota_bytes -gt 0 ]]; then
+            usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
+        fi
+        
+        # Store in new account_storage_sizes table
+        sqlite3 local-config/gwombat.db "
+            INSERT OR REPLACE INTO account_storage_sizes (
+                email, display_name, storage_used_bytes, storage_used_gb,
+                storage_quota_bytes, storage_quota_gb, usage_percentage,
+                measurement_date, scan_session_id
+            ) VALUES (
+                '$(echo "$email" | sed "s/'/''/g")',
+                '$(echo "$display_name" | sed "s/'/''/g")',
+                $storage_used_bytes,
+                $storage_used_gb,
+                $storage_quota_bytes,
+                $storage_quota_gb,
+                $usage_percentage,
+                DATE('now'),
+                '$scan_session_id'
+            );
+        " 2>/dev/null && ((accounts_processed++))
     done
     
     echo ""
     echo -e "${GREEN}✅ Storage analysis completed!${NC}"
+    echo "   Accounts processed: $accounts_processed"
+    echo "   Session ID: $scan_session_id"
     echo ""
-    echo "View results:"
-    echo "  sqlite3 local-config/account_lifecycle.db 'SELECT email, storage_used_display FROM account_storage ORDER BY storage_used_bytes DESC LIMIT 10;'"
+    
+    # Display top 10 largest accounts
+    echo -e "${CYAN}📊 Top 10 Largest Accounts:${NC}"
     echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 30) as Email,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM account_storage_sizes 
+        WHERE measurement_date = DATE('now')
+        ORDER BY storage_used_gb DESC 
+        LIMIT 10;
+    " 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}💡 Use menu option 'View Account Storage Sizes' for filtering and detailed analysis${NC}"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to view account storage sizes with filtering and sorting
+view_account_storage_sizes_menu() {
+    clear
+    echo -e "${GREEN}=== View Account Storage Sizes ===${NC}"
+    echo ""
+    
+    # Check if we have storage data
+    local record_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM account_storage_sizes;" 2>/dev/null || echo "0")
+    
+    if [[ $record_count -eq 0 ]]; then
+        echo -e "${YELLOW}No storage data found. Please run 'Calculate account storage sizes' first.${NC}"
+        echo ""
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "Viewing options:"
+    echo "1. All accounts (latest measurement)"
+    echo "2. Filter by size threshold"
+    echo "3. Filter by usage percentage"
+    echo "4. Search by email/name"
+    echo "5. Sort by different criteria"
+    echo ""
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select option (1-5, m, x): " view_choice
+    echo ""
+    
+    case $view_choice in
+        1) show_all_storage_sizes ;;
+        2) filter_by_size_threshold ;;
+        3) filter_by_usage_percentage ;;
+        4) search_storage_by_account ;;
+        5) sort_storage_sizes ;;
+        m) return ;;
+        x) exit 0 ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Show all storage sizes (latest measurement)
+show_all_storage_sizes() {
+    echo -e "${CYAN}📊 All Account Storage Sizes (Latest Measurements)${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY storage_used_gb DESC) as Rank,
+            SUBSTR(email, 1, 35) as Email,
+            COALESCE(SUBSTR(display_name, 1, 25), 'N/A') as Name,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.2f GB', storage_quota_gb) as 'Quota',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            CASE 
+                WHEN usage_percentage >= 95 THEN 'Critical'
+                WHEN usage_percentage >= 85 THEN 'High'
+                WHEN usage_percentage >= 70 THEN 'Medium'
+                ELSE 'Normal'
+            END as Status,
+            measurement_date as 'Measured'
+        FROM latest_account_sizes
+        ORDER BY storage_used_gb DESC;
+    " 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}💡 Legend: Critical (95%+), High (85%+), Medium (70%+), Normal (<70%)${NC}"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Filter by size threshold
+filter_by_size_threshold() {
+    echo -e "${CYAN}Filter by Storage Size Threshold${NC}"
+    echo ""
+    echo "Select threshold:"
+    echo "1. > 10 GB"
+    echo "2. > 25 GB" 
+    echo "3. > 50 GB"
+    echo "4. > 100 GB"
+    echo "5. Custom threshold"
+    echo ""
+    read -p "Select threshold (1-5): " threshold_choice
+    echo ""
+    
+    local threshold_gb=0
+    case $threshold_choice in
+        1) threshold_gb=10 ;;
+        2) threshold_gb=25 ;;
+        3) threshold_gb=50 ;;
+        4) threshold_gb=100 ;;
+        5) 
+            read -p "Enter custom threshold in GB: " threshold_gb
+            if ! [[ "$threshold_gb" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                echo -e "${RED}Invalid number format.${NC}"
+                read -p "Press Enter to continue..."
+                return
+            fi
+            ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    echo -e "${CYAN}📊 Accounts with Storage > ${threshold_gb} GB${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 35) as Email,
+            COALESCE(SUBSTR(display_name, 1, 25), 'N/A') as Name,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM latest_account_sizes
+        WHERE storage_used_gb > $threshold_gb
+        ORDER BY storage_used_gb DESC;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Filter by usage percentage
+filter_by_usage_percentage() {
+    echo -e "${CYAN}Filter by Usage Percentage${NC}"
+    echo ""
+    echo "Select usage level:"
+    echo "1. Critical usage (95%+)"
+    echo "2. High usage (85%+)"
+    echo "3. Medium usage (70%+)"
+    echo "4. Custom percentage"
+    echo ""
+    read -p "Select usage level (1-4): " usage_choice
+    echo ""
+    
+    local usage_threshold=0
+    local usage_label=""
+    case $usage_choice in
+        1) usage_threshold=95; usage_label="Critical (95%+)" ;;
+        2) usage_threshold=85; usage_label="High (85%+)" ;;
+        3) usage_threshold=70; usage_label="Medium (70%+)" ;;
+        4) 
+            read -p "Enter custom usage percentage (0-100): " usage_threshold
+            if ! [[ "$usage_threshold" =~ ^[0-9]+(\.[0-9]+)?$ ]] || (( $(echo "$usage_threshold > 100" | bc -l) )); then
+                echo -e "${RED}Invalid percentage (must be 0-100).${NC}"
+                read -p "Press Enter to continue..."
+                return
+            fi
+            usage_label="Custom (${usage_threshold}%+)"
+            ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    echo -e "${CYAN}📊 Accounts with ${usage_label} Usage${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 35) as Email,
+            COALESCE(SUBSTR(display_name, 1, 25), 'N/A') as Name,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.2f GB', storage_quota_gb) as 'Quota',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM latest_account_sizes
+        WHERE usage_percentage >= $usage_threshold
+        ORDER BY usage_percentage DESC;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Search storage by account
+search_storage_by_account() {
+    echo -e "${CYAN}Search Account Storage${NC}"
+    echo ""
+    read -p "Enter email or name search term: " search_term
+    echo ""
+    
+    if [[ -z "$search_term" ]]; then
+        echo -e "${RED}Search term cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}📊 Search Results for: '$search_term'${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            email as Email,
+            COALESCE(display_name, 'N/A') as 'Display Name',
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.2f GB', storage_quota_gb) as 'Quota',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM latest_account_sizes
+        WHERE email LIKE '%$search_term%' OR display_name LIKE '%$search_term%'
+        ORDER BY storage_used_gb DESC;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Sort storage sizes
+sort_storage_sizes() {
+    echo -e "${CYAN}Sort Account Storage${NC}"
+    echo ""
+    echo "Sort by:"
+    echo "1. Storage size (largest first)"
+    echo "2. Storage size (smallest first)"
+    echo "3. Usage percentage (highest first)"
+    echo "4. Usage percentage (lowest first)"
+    echo "5. Email address (A-Z)"
+    echo "6. Display name (A-Z)"
+    echo ""
+    read -p "Select sort option (1-6): " sort_choice
+    echo ""
+    
+    local order_clause=""
+    local sort_label=""
+    case $sort_choice in
+        1) order_clause="ORDER BY storage_used_gb DESC"; sort_label="Storage Size (Largest First)" ;;
+        2) order_clause="ORDER BY storage_used_gb ASC"; sort_label="Storage Size (Smallest First)" ;;
+        3) order_clause="ORDER BY usage_percentage DESC"; sort_label="Usage Percentage (Highest First)" ;;
+        4) order_clause="ORDER BY usage_percentage ASC"; sort_label="Usage Percentage (Lowest First)" ;;
+        5) order_clause="ORDER BY email ASC"; sort_label="Email Address (A-Z)" ;;
+        6) order_clause="ORDER BY display_name ASC"; sort_label="Display Name (A-Z)" ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    echo -e "${CYAN}📊 Account Storage - ${sort_label}${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 30) as Email,
+            COALESCE(SUBSTR(display_name, 1, 20), 'N/A') as Name,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM latest_account_sizes
+        $order_clause;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to show storage size history and trends
+storage_size_history_menu() {
+    clear
+    echo -e "${GREEN}=== Storage Size History & Trends ===${NC}"
+    echo ""
+    
+    # Check if we have historical data
+    local history_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM storage_size_history;" 2>/dev/null || echo "0")
+    
+    if [[ $history_count -eq 0 ]]; then
+        echo -e "${YELLOW}No historical storage data found.${NC}"
+        echo "Historical data is automatically created from measurements over time."
+        echo "Run storage calculations regularly to build historical trends."
+        echo ""
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "History options:"
+    echo "1. Account storage trends over time"
+    echo "2. System-wide storage growth"
+    echo "3. Storage changes by time period"
+    echo "4. Top storage growth accounts"
+    echo ""
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select option (1-4, m, x): " history_choice
+    echo ""
+    
+    case $history_choice in
+        1) show_account_storage_trends ;;
+        2) show_systemwide_storage_growth ;;
+        3) show_storage_changes_by_period ;;
+        4) show_top_storage_growth ;;
+        m) return ;;
+        x) exit 0 ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Function to show storage change analytics
+storage_change_analytics_menu() {
+    clear
+    echo -e "${GREEN}=== Storage Change Analytics ===${NC}"
+    echo ""
+    
+    # Check if we have change analysis data
+    local change_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM storage_change_analysis;" 2>/dev/null || echo "0")
+    
+    if [[ $change_count -eq 0 ]]; then
+        echo -e "${YELLOW}No storage change data found.${NC}"
+        echo "Change analysis is automatically created when you run storage calculations multiple times."
+        echo "Run storage calculations on different days to generate change analytics."
+        echo ""
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "Analytics options:"
+    echo "1. Accounts with rapid growth"
+    echo "2. Biggest storage deltas"
+    echo "3. Storage change summary"
+    echo "4. Growth/shrinkage patterns"
+    echo ""
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select option (1-4, m, x): " analytics_choice
+    echo ""
+    
+    case $analytics_choice in
+        1) show_rapid_growth_accounts ;;
+        2) show_biggest_storage_deltas ;;
+        3) show_storage_change_summary ;;
+        4) show_growth_patterns ;;
+        m) return ;;
+        x) exit 0 ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Show rapid growth accounts
+show_rapid_growth_accounts() {
+    echo -e "${CYAN}📈 Accounts with Rapid Storage Growth${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 30) as Email,
+            COALESCE(SUBSTR(display_name, 1, 20), 'N/A') as Name,
+            PRINTF('%.2f GB', size_change_gb) as 'Growth',
+            PRINTF('%.1f%%', percentage_change) as 'Change %',
+            period_start as 'Period Start',
+            period_end as 'Period End',
+            PRINTF('%.2f GB', current_size_gb) as 'Current Size'
+        FROM rapid_growth_accounts
+        ORDER BY size_change_gb DESC
+        LIMIT 20;
+    " 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}💡 Showing accounts with >1GB growth or >25% increase${NC}"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Show biggest storage deltas
+show_biggest_storage_deltas() {
+    echo -e "${CYAN}📊 Biggest Storage Changes (All Types)${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 30) as Email,
+            COALESCE(SUBSTR(display_name, 1, 20), 'N/A') as Name,
+            PRINTF('%.2f GB', size_change_gb) as 'Change',
+            PRINTF('%.1f%%', percentage_change) as 'Change %',
+            change_type as 'Type',
+            period_start as 'Start',
+            period_end as 'End'
+        FROM storage_change_analysis
+        ORDER BY ABS(size_change_gb) DESC
+        LIMIT 25;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Show storage change summary
+show_storage_change_summary() {
+    echo -e "${CYAN}📋 Storage Change Summary${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}=== Change Type Distribution ===${NC}"
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            change_type as 'Change Type',
+            COUNT(*) as 'Count',
+            PRINTF('%.2f GB', AVG(size_change_gb)) as 'Avg Change',
+            PRINTF('%.2f GB', MAX(ABS(size_change_gb))) as 'Max Change'
+        FROM storage_change_analysis
+        GROUP BY change_type
+        ORDER BY COUNT(*) DESC;
+    " 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}=== Recent Activity (Last 30 Days) ===${NC}"
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            COUNT(*) as 'Total Changes',
+            COUNT(CASE WHEN change_type = 'increase' THEN 1 END) as 'Increases',
+            COUNT(CASE WHEN change_type = 'decrease' THEN 1 END) as 'Decreases',
+            COUNT(CASE WHEN change_type = 'stable' THEN 1 END) as 'Stable',
+            PRINTF('%.2f GB', SUM(CASE WHEN change_type = 'increase' THEN size_change_gb ELSE 0 END)) as 'Total Growth'
+        FROM storage_change_analysis
+        WHERE period_end >= DATE('now', '-30 days');
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Show growth patterns
+show_growth_patterns() {
+    echo -e "${CYAN}📈 Storage Growth Patterns${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}=== Top Growth Trends ===${NC}"
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 25) as Email,
+            analysis_period as 'Period',
+            PRINTF('%.2f GB', avg_change_gb) as 'Avg Change',
+            PRINTF('%.2f GB', max_change_gb) as 'Max Change',
+            measurement_count as 'Measurements',
+            latest_measurement as 'Latest'
+        FROM storage_size_trends
+        WHERE avg_change_gb > 0.1
+        ORDER BY avg_change_gb DESC
+        LIMIT 15;
+    " 2>/dev/null
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Placeholder functions for history menu items (to be implemented)
+show_account_storage_trends() {
+    echo -e "${YELLOW}Account Storage Trends - Coming Soon${NC}"
+    echo "This will show individual account storage trends over time."
+    read -p "Press Enter to continue..."
+}
+
+show_systemwide_storage_growth() {
+    echo -e "${YELLOW}System-wide Storage Growth - Coming Soon${NC}"
+    echo "This will show overall domain storage growth patterns."
+    read -p "Press Enter to continue..."
+}
+
+show_storage_changes_by_period() {
+    echo -e "${YELLOW}Storage Changes by Period - Coming Soon${NC}"
+    echo "This will show storage changes grouped by time periods."
+    read -p "Press Enter to continue..."
+}
+
+show_top_storage_growth() {
+    echo -e "${YELLOW}Top Storage Growth - Coming Soon${NC}"
+    echo "This will show accounts with the highest storage growth."
     read -p "Press Enter to continue..."
 }
 
 # Stub functions for menu items (to be implemented)
 account_search_diagnostics_menu() {
-    echo -e "${YELLOW}Account Search & Diagnostics - Coming Soon${NC}"
-    echo "This will include:"
-    echo "• Search accounts by email, name, or OU"
-    echo "• Account diagnostics and health checks" 
-    echo "• Detailed account information display"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Account Search & Diagnostics ===${NC}"
+        echo ""
+        echo -e "${CYAN}Search and analyze account information and health${NC}"
+        echo ""
+        echo "Search options:"
+        echo "1. 🔍 Search by email address"
+        echo "2. 👤 Search by display name"
+        echo "3. 🏢 Search by organizational unit"
+        echo "4. 📊 Account health diagnostics"
+        echo "5. 📋 Detailed account information"
+        echo "6. 🔄 Account status verification"
+        echo "7. 📈 Account activity analysis"
+        echo "8. 🎯 Quick account lookup"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-8, m, x): " search_choice
+        echo ""
+        
+        case $search_choice in
+            1) search_accounts_by_email ;;
+            2) search_accounts_by_name ;;
+            3) search_accounts_by_ou ;;
+            4) account_health_diagnostics ;;
+            5) detailed_account_information ;;
+            6) account_status_verification ;;
+            7) account_activity_analysis ;;
+            8) quick_account_lookup ;;
+            m) return ;;
+            x) exit 0 ;;
+            *) 
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Search accounts by email address
+search_accounts_by_email() {
+    echo -e "${CYAN}Search Accounts by Email Address${NC}"
+    echo ""
+    read -p "Enter email address or partial email: " email_search
+    echo ""
+    
+    if [[ -z "$email_search" ]]; then
+        echo -e "${RED}Search term cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}📧 Search Results for: '$email_search'${NC}"
+    echo ""
+    
+    # Search in database first
+    local db_results=$(sqlite3 local-config/gwombat.db "
+        SELECT email, current_stage, ou_path, updated_at 
+        FROM accounts 
+        WHERE email LIKE '%$email_search%' 
+        ORDER BY email;
+    " 2>/dev/null)
+    
+    if [[ -n "$db_results" ]]; then
+        echo -e "${YELLOW}=== Database Results ===${NC}"
+        echo "$db_results" | while IFS='|' read -r email stage ou updated; do
+            echo -e "${GREEN}Email:${NC} $email"
+            echo -e "${GREEN}Stage:${NC} $stage"
+            echo -e "${GREEN}OU:${NC} $ou"
+            echo -e "${GREEN}Updated:${NC} $updated"
+            echo ""
+        done
+    fi
+    
+    # Search with GAM for live data
+    echo -e "${YELLOW}=== Live GAM Search ===${NC}"
+    local gam_results=$($GAM print users query "$email_search" fields primaryemail,name,orgunitpath,suspended 2>/dev/null | tail -n +2)
+    
+    if [[ -n "$gam_results" ]]; then
+        echo "$gam_results" | while IFS=',' read -r email name ou suspended; do
+            echo -e "${GREEN}Email:${NC} $email"
+            echo -e "${GREEN}Name:${NC} $name"
+            echo -e "${GREEN}OU:${NC} $ou"
+            echo -e "${GREEN}Status:${NC} $([ "$suspended" = "True" ] && echo "Suspended" || echo "Active")"
+            echo ""
+        done
+    else
+        echo "No results found in GAM."
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Search accounts by display name
+search_accounts_by_name() {
+    echo -e "${CYAN}Search Accounts by Display Name${NC}"
+    echo ""
+    read -p "Enter display name or partial name: " name_search
+    echo ""
+    
+    if [[ -z "$name_search" ]]; then
+        echo -e "${RED}Search term cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}👤 Search Results for: '$name_search'${NC}"
+    echo ""
+    
+    # Search with GAM for live data
+    local gam_results=$($GAM print users query "givenName:$name_search OR familyName:$name_search OR name:$name_search" fields primaryemail,name,orgunitpath,suspended 2>/dev/null | tail -n +2)
+    
+    if [[ -n "$gam_results" ]]; then
+        echo "$gam_results" | while IFS=',' read -r email name ou suspended; do
+            echo -e "${GREEN}Email:${NC} $email"
+            echo -e "${GREEN}Name:${NC} $name"
+            echo -e "${GREEN}OU:${NC} $ou"
+            echo -e "${GREEN}Status:${NC} $([ "$suspended" = "True" ] && echo "Suspended" || echo "Active")"
+            
+            # Check if we have additional info in database
+            local db_info=$(sqlite3 local-config/gwombat.db "
+                SELECT current_stage, updated_at 
+                FROM accounts 
+                WHERE email = '$email';
+            " 2>/dev/null)
+            
+            if [[ -n "$db_info" ]]; then
+                local stage=$(echo "$db_info" | cut -d'|' -f1)
+                local updated=$(echo "$db_info" | cut -d'|' -f2)
+                echo -e "${GREEN}Lifecycle Stage:${NC} $stage"
+                echo -e "${GREEN}Last Updated:${NC} $updated"
+            fi
+            echo ""
+        done
+    else
+        echo "No results found."
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Search accounts by organizational unit
+search_accounts_by_ou() {
+    echo -e "${CYAN}Search Accounts by Organizational Unit${NC}"
+    echo ""
+    echo "Common OUs:"
+    echo "1. /Students"
+    echo "2. /Faculty"
+    echo "3. /Staff"
+    echo "4. /Suspended Users"
+    echo "5. /Suspended Users/Pending Deletion"
+    echo "6. Custom OU path"
+    echo ""
+    read -p "Select OU option (1-6): " ou_choice
+    echo ""
+    
+    local ou_path=""
+    case $ou_choice in
+        1) ou_path="/Students" ;;
+        2) ou_path="/Faculty" ;;
+        3) ou_path="/Staff" ;;
+        4) ou_path="/Suspended Users" ;;
+        5) ou_path="/Suspended Users/Pending Deletion" ;;
+        6) 
+            read -p "Enter custom OU path: " ou_path
+            ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    if [[ -z "$ou_path" ]]; then
+        echo -e "${RED}OU path cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}🏢 Accounts in OU: '$ou_path'${NC}"
+    echo ""
+    
+    # Search with GAM
+    local gam_results=$($GAM print users query "orgUnitPath='$ou_path'" fields primaryemail,name,suspended,creationtime 2>/dev/null | tail -n +2)
+    
+    if [[ -n "$gam_results" ]]; then
+        local count=0
+        echo "$gam_results" | while IFS=',' read -r email name suspended created; do
+            ((count++))
+            echo -e "${GREEN}$count. Email:${NC} $email"
+            echo -e "   ${GREEN}Name:${NC} $name"
+            echo -e "   ${GREEN}Status:${NC} $([ "$suspended" = "True" ] && echo "Suspended" || echo "Active")"
+            echo -e "   ${GREEN}Created:${NC} $created"
+            echo ""
+        done
+        
+        echo -e "${YELLOW}Total accounts found: $(echo "$gam_results" | wc -l)${NC}"
+    else
+        echo "No accounts found in this OU."
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Account health diagnostics
+account_health_diagnostics() {
+    echo -e "${CYAN}Account Health Diagnostics${NC}"
+    echo ""
+    read -p "Enter email address to diagnose: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}🔍 Diagnosing Account: $email${NC}"
+    echo ""
+    
+    # Check if account exists in GAM
+    local gam_info=$($GAM info user "$email" 2>/dev/null)
+    
+    if [[ -z "$gam_info" ]]; then
+        echo -e "${RED}❌ Account not found in Google Workspace${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${GREEN}✅ Account exists in Google Workspace${NC}"
+    echo ""
+    
+    # Extract key information
+    local suspended=$(echo "$gam_info" | grep -i "suspended:" | cut -d':' -f2 | xargs)
+    local ou_path=$(echo "$gam_info" | grep -i "org unit path:" | cut -d':' -f2- | xargs)
+    local last_login=$(echo "$gam_info" | grep -i "last login time:" | cut -d':' -f2- | xargs)
+    local creation_time=$(echo "$gam_info" | grep -i "creation time:" | cut -d':' -f2- | xargs)
+    local storage_used=$(echo "$gam_info" | grep -i "storage used:" | cut -d':' -f2- | xargs)
+    
+    # Health checks
+    echo -e "${YELLOW}=== Health Status ===${NC}"
+    
+    # Suspension status
+    if [[ "$suspended" = "True" ]]; then
+        echo -e "${RED}⚠️  Account is suspended${NC}"
+    else
+        echo -e "${GREEN}✅ Account is active${NC}"
+    fi
+    
+    # OU placement
+    echo -e "${GREEN}📍 Organizational Unit:${NC} $ou_path"
+    
+    # Login activity
+    if [[ -n "$last_login" && "$last_login" != "Never" ]]; then
+        echo -e "${GREEN}🔐 Last Login:${NC} $last_login"
+        
+        # Check if login is recent (within 30 days)
+        local login_date=$(date -d "$last_login" +%s 2>/dev/null)
+        local thirty_days_ago=$(date -d "30 days ago" +%s)
+        
+        if [[ -n "$login_date" && $login_date -gt $thirty_days_ago ]]; then
+            echo -e "${GREEN}✅ Recent login activity${NC}"
+        else
+            echo -e "${YELLOW}⚠️  No recent login activity (>30 days)${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  No login activity recorded${NC}"
+    fi
+    
+    # Storage usage
+    if [[ -n "$storage_used" ]]; then
+        echo -e "${GREEN}💾 Storage Used:${NC} $storage_used"
+    fi
+    
+    # Check database information
+    local db_info=$(sqlite3 local-config/gwombat.db "
+        SELECT current_stage, updated_at 
+        FROM accounts 
+        WHERE email = '$email';
+    " 2>/dev/null)
+    
+    if [[ -n "$db_info" ]]; then
+        echo ""
+        echo -e "${YELLOW}=== Database Information ===${NC}"
+        local stage=$(echo "$db_info" | cut -d'|' -f1)
+        local updated=$(echo "$db_info" | cut -d'|' -f2)
+        echo -e "${GREEN}Lifecycle Stage:${NC} $stage"
+        echo -e "${GREEN}Last Updated:${NC} $updated"
+        
+        # Check for data consistency
+        if [[ "$suspended" = "True" && "$stage" = "active" ]]; then
+            echo -e "${RED}⚠️  Data inconsistency: Account suspended but marked active in database${NC}"
+        elif [[ "$suspended" != "True" && "$stage" != "active" ]]; then
+            echo -e "${YELLOW}⚠️  Data inconsistency: Account active but marked $stage in database${NC}"
+        else
+            echo -e "${GREEN}✅ Data consistency check passed${NC}"
+        fi
+    else
+        echo -e "${YELLOW}ℹ️  Account not found in local database${NC}"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Detailed account information
+detailed_account_information() {
+    echo -e "${CYAN}Detailed Account Information${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}📋 Complete Information for: $email${NC}"
+    echo ""
+    
+    # Get comprehensive GAM information
+    echo -e "${YELLOW}=== GAM Information ===${NC}"
+    $GAM info user "$email" 2>/dev/null || echo "Account not found in GAM"
+    
+    echo ""
+    echo -e "${YELLOW}=== Database Information ===${NC}"
+    sqlite3 local-config/gwombat.db -header "
+        SELECT * FROM accounts WHERE email = '$email';
+    " 2>/dev/null || echo "Account not found in database"
+    
+    echo ""
+    echo -e "${YELLOW}=== Storage Information ===${NC}"
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            storage_used_gb,
+            storage_quota_gb,
+            usage_percentage,
+            measurement_date
+        FROM account_storage_sizes 
+        WHERE email = '$email'
+        ORDER BY measurement_date DESC 
+        LIMIT 5;
+    " 2>/dev/null || echo "No storage data available"
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Account status verification
+account_status_verification() {
+    echo -e "${CYAN}Account Status Verification${NC}"
+    echo ""
+    read -p "Enter email address to verify: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}🔄 Verifying Status for: $email${NC}"
+    echo ""
+    
+    # Get current GAM status
+    local gam_suspended=$($GAM info user "$email" 2>/dev/null | grep -i "suspended:" | cut -d':' -f2 | xargs)
+    local gam_ou=$($GAM info user "$email" 2>/dev/null | grep -i "org unit path:" | cut -d':' -f2- | xargs)
+    
+    # Get database status
+    local db_info=$(sqlite3 local-config/gwombat.db "
+        SELECT current_stage, ou_path 
+        FROM accounts 
+        WHERE email = '$email';
+    " 2>/dev/null)
+    
+    if [[ -z "$gam_suspended" ]]; then
+        echo -e "${RED}❌ Account not found in GAM${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${YELLOW}=== Status Comparison ===${NC}"
+    echo -e "${GREEN}GAM Suspended:${NC} $gam_suspended"
+    echo -e "${GREEN}GAM OU:${NC} $gam_ou"
+    
+    if [[ -n "$db_info" ]]; then
+        local db_stage=$(echo "$db_info" | cut -d'|' -f1)
+        local db_ou=$(echo "$db_info" | cut -d'|' -f2)
+        echo -e "${GREEN}DB Stage:${NC} $db_stage"
+        echo -e "${GREEN}DB OU:${NC} $db_ou"
+        
+        # Verification logic
+        echo ""
+        echo -e "${YELLOW}=== Verification Results ===${NC}"
+        
+        if [[ "$gam_suspended" = "True" ]]; then
+            if [[ "$db_stage" != "active" ]]; then
+                echo -e "${GREEN}✅ Suspension status matches database stage${NC}"
+            else
+                echo -e "${RED}❌ Account suspended in GAM but marked active in database${NC}"
+            fi
+        else
+            if [[ "$db_stage" = "active" ]]; then
+                echo -e "${GREEN}✅ Active status matches database stage${NC}"
+            else
+                echo -e "${YELLOW}⚠️  Account active in GAM but marked $db_stage in database${NC}"
+            fi
+        fi
+        
+        if [[ "$gam_ou" = "$db_ou" ]]; then
+            echo -e "${GREEN}✅ OU placement matches database${NC}"
+        else
+            echo -e "${YELLOW}⚠️  OU mismatch - GAM: '$gam_ou', DB: '$db_ou'${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Account not found in database${NC}"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Account activity analysis
+account_activity_analysis() {
+    echo -e "${CYAN}Account Activity Analysis${NC}"
+    echo ""
+    read -p "Enter email address to analyze: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}📈 Activity Analysis for: $email${NC}"
+    echo ""
+    
+    # Get login activity
+    local login_info=$($GAM info user "$email" 2>/dev/null | grep -i "last login time:")
+    if [[ -n "$login_info" ]]; then
+        echo -e "${GREEN}Last Login:${NC} $(echo "$login_info" | cut -d':' -f2- | xargs)"
+    fi
+    
+    # Check for file activity (if we have sharing analysis data)
+    local file_activity=$(sqlite3 local-config/gwombat.db "
+        SELECT COUNT(*) 
+        FROM file_sharing_analysis 
+        WHERE email = '$email';
+    " 2>/dev/null)
+    
+    if [[ -n "$file_activity" && "$file_activity" -gt 0 ]]; then
+        echo -e "${GREEN}File Sharing Records:${NC} $file_activity"
+    fi
+    
+    # Check stage history
+    local stage_history=$(sqlite3 local-config/gwombat.db "
+        SELECT stage_name, changed_at 
+        FROM stage_history 
+        WHERE email = '$email' 
+        ORDER BY changed_at DESC 
+        LIMIT 5;
+    " 2>/dev/null)
+    
+    if [[ -n "$stage_history" ]]; then
+        echo ""
+        echo -e "${YELLOW}=== Recent Stage Changes ===${NC}"
+        echo "$stage_history" | while IFS='|' read -r stage date; do
+            echo -e "${GREEN}$date:${NC} $stage"
+        done
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Quick account lookup
+quick_account_lookup() {
+    echo -e "${CYAN}Quick Account Lookup${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}⚡ Quick Info for: $email${NC}"
+    echo ""
+    
+    # Quick GAM check
+    local quick_info=$($GAM info user "$email" fields primaryemail,name,suspended,orgunitpath 2>/dev/null)
+    
+    if [[ -n "$quick_info" ]]; then
+        echo "$quick_info" | grep -E "(Email|Full Name|Suspended|Org Unit Path):"
+    else
+        echo -e "${RED}Account not found${NC}"
+    fi
+    
+    echo ""
     read -p "Press Enter to continue..."
 }
 
 individual_user_management_menu() {
-    echo -e "${YELLOW}Individual User Management - Coming Soon${NC}"
-    echo "This will include:"
-    echo "• Modify user details and settings"
-    echo "• Reset passwords and 2FA"
-    echo "• Change organizational units"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Individual User Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Manage individual user accounts and settings${NC}"
+        echo ""
+        echo "User operations:"
+        echo "1. 👤 Modify user details and settings"
+        echo "2. 🔐 Reset user password"
+        echo "3. 🔑 Reset 2FA and app passwords"
+        echo "4. 🏢 Change organizational unit"
+        echo "5. 📧 Update user aliases"
+        echo "6. 👥 Manage group memberships"
+        echo "7. 📄 Assign/remove licenses"
+        echo "8. 🚫 Suspend/restore account"
+        echo "9. 📊 View user information"
+        echo "10. 🔄 Sync user to database"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-10, m, x): " user_mgmt_choice
+        echo ""
+        
+        case $user_mgmt_choice in
+            1) modify_user_details ;;
+            2) reset_user_password ;;
+            3) reset_user_2fa ;;
+            4) change_user_ou ;;
+            5) update_user_aliases ;;
+            6) manage_user_groups ;;
+            7) manage_user_licenses ;;
+            8) suspend_restore_user ;;
+            9) view_user_information ;;
+            10) sync_user_to_database ;;
+            m) return ;;
+            x) exit 0 ;;
+            *) 
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
+}
+
+# Modify user details and settings
+modify_user_details() {
+    echo -e "${CYAN}Modify User Details and Settings${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}Current User Information:${NC}"
+    $GAM info user "$email" fields name,primaryemail,recoveryemail
+    echo ""
+    
+    echo "What would you like to modify?"
+    echo "1. First name"
+    echo "2. Last name"  
+    echo "3. Recovery email"
+    echo "4. User title/position"
+    echo "5. Phone number"
+    echo "6. Department"
+    echo ""
+    read -p "Select option (1-6): " modify_choice
+    echo ""
+    
+    case $modify_choice in
+        1)
+            read -p "Enter new first name: " first_name
+            if [[ -n "$first_name" ]]; then
+                echo -e "${YELLOW}Updating first name to: $first_name${NC}"
+                $GAM update user "$email" givenname "$first_name"
+                echo -e "${GREEN}✅ First name updated${NC}"
+            fi
+            ;;
+        2)
+            read -p "Enter new last name: " last_name
+            if [[ -n "$last_name" ]]; then
+                echo -e "${YELLOW}Updating last name to: $last_name${NC}"
+                $GAM update user "$email" familyname "$last_name"
+                echo -e "${GREEN}✅ Last name updated${NC}"
+            fi
+            ;;
+        3)
+            read -p "Enter new recovery email: " recovery_email
+            if [[ -n "$recovery_email" ]]; then
+                echo -e "${YELLOW}Updating recovery email to: $recovery_email${NC}"
+                $GAM update user "$email" recoveryemail "$recovery_email"
+                echo -e "${GREEN}✅ Recovery email updated${NC}"
+            fi
+            ;;
+        4)
+            read -p "Enter title/position: " title
+            if [[ -n "$title" ]]; then
+                echo -e "${YELLOW}Updating title to: $title${NC}"
+                $GAM update user "$email" title "$title"
+                echo -e "${GREEN}✅ Title updated${NC}"
+            fi
+            ;;
+        5)
+            read -p "Enter phone number: " phone
+            if [[ -n "$phone" ]]; then
+                echo -e "${YELLOW}Updating phone number to: $phone${NC}"
+                $GAM update user "$email" phone "$phone"
+                echo -e "${GREEN}✅ Phone number updated${NC}"
+            fi
+            ;;
+        6)
+            read -p "Enter department: " department
+            if [[ -n "$department" ]]; then
+                echo -e "${YELLOW}Updating department to: $department${NC}"
+                $GAM update user "$email" department "$department"
+                echo -e "${GREEN}✅ Department updated${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Reset user password
+reset_user_password() {
+    echo -e "${CYAN}Reset User Password${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "Password reset options:"
+    echo "1. Generate random password"
+    echo "2. Set specific password"
+    echo "3. Reset password and force change on next login"
+    echo ""
+    read -p "Select option (1-3): " pwd_choice
+    echo ""
+    
+    case $pwd_choice in
+        1)
+            echo -e "${YELLOW}Generating random password...${NC}"
+            local new_password=$(openssl rand -base64 12)
+            $GAM update user "$email" password "$new_password"
+            echo -e "${GREEN}✅ Password reset successfully${NC}"
+            echo -e "${YELLOW}New password: $new_password${NC}"
+            echo -e "${RED}⚠️  Please securely share this password with the user${NC}"
+            ;;
+        2)
+            read -s -p "Enter new password: " new_password
+            echo ""
+            read -s -p "Confirm password: " confirm_password
+            echo ""
+            
+            if [[ "$new_password" = "$confirm_password" ]]; then
+                $GAM update user "$email" password "$new_password"
+                echo -e "${GREEN}✅ Password updated successfully${NC}"
+            else
+                echo -e "${RED}❌ Passwords do not match${NC}"
+            fi
+            ;;
+        3)
+            echo -e "${YELLOW}Generating temporary password and forcing change...${NC}"
+            local temp_password=$(openssl rand -base64 12)
+            $GAM update user "$email" password "$temp_password" changepasswordatnextlogin on
+            echo -e "${GREEN}✅ Temporary password set with forced change${NC}"
+            echo -e "${YELLOW}Temporary password: $temp_password${NC}"
+            echo -e "${RED}⚠️  User will be required to change password on next login${NC}"
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Reset 2FA and app passwords
+reset_user_2fa() {
+    echo -e "${CYAN}Reset 2FA and App Passwords${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "2FA/Security reset options:"
+    echo "1. Reset 2-Step Verification"
+    echo "2. Reset App-Specific Passwords"
+    echo "3. Reset both 2FA and App Passwords"
+    echo ""
+    read -p "Select option (1-3): " reset_choice
+    echo ""
+    
+    case $reset_choice in
+        1)
+            echo -e "${YELLOW}Resetting 2-Step Verification...${NC}"
+            $GAM user "$email" turnoff2sv
+            echo -e "${GREEN}✅ 2-Step Verification reset${NC}"
+            echo -e "${YELLOW}ℹ️  User can now set up 2FA again${NC}"
+            ;;
+        2)
+            echo -e "${YELLOW}Resetting App-Specific Passwords...${NC}"
+            $GAM user "$email" deprovision
+            echo -e "${GREEN}✅ App-Specific Passwords reset${NC}"
+            echo -e "${YELLOW}ℹ️  User will need to generate new app passwords${NC}"
+            ;;
+        3)
+            echo -e "${YELLOW}Resetting both 2FA and App Passwords...${NC}"
+            $GAM user "$email" turnoff2sv
+            $GAM user "$email" deprovision
+            echo -e "${GREEN}✅ 2FA and App Passwords reset${NC}"
+            echo -e "${YELLOW}ℹ️  User can set up 2FA and app passwords again${NC}"
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Change user organizational unit
+change_user_ou() {
+    echo -e "${CYAN}Change User Organizational Unit${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists and show current OU
+    local current_ou=$($GAM info user "$email" 2>/dev/null | grep -i "org unit path:" | cut -d':' -f2- | xargs)
+    
+    if [[ -z "$current_ou" ]]; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${GREEN}Current OU:${NC} $current_ou"
+    echo ""
+    
+    echo "Select new organizational unit:"
+    echo "1. /Students"
+    echo "2. /Faculty"
+    echo "3. /Staff"
+    echo "4. /Suspended Users"
+    echo "5. /Suspended Users/Pending Deletion"
+    echo "6. /Suspended Users/Temporary Hold"
+    echo "7. /Suspended Users/Exit Row"
+    echo "8. Custom OU path"
+    echo ""
+    read -p "Select OU option (1-8): " ou_choice
+    echo ""
+    
+    local new_ou=""
+    case $ou_choice in
+        1) new_ou="/Students" ;;
+        2) new_ou="/Faculty" ;;
+        3) new_ou="/Staff" ;;
+        4) new_ou="/Suspended Users" ;;
+        5) new_ou="/Suspended Users/Pending Deletion" ;;
+        6) new_ou="/Suspended Users/Temporary Hold" ;;
+        7) new_ou="/Suspended Users/Exit Row" ;;
+        8) 
+            read -p "Enter custom OU path: " new_ou
+            ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    if [[ -z "$new_ou" ]]; then
+        echo -e "${RED}OU path cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    if [[ "$new_ou" = "$current_ou" ]]; then
+        echo -e "${YELLOW}User is already in that OU.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${YELLOW}Moving user from '$current_ou' to '$new_ou'${NC}"
+    read -p "Confirm this change? (y/N): " confirm
+    
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        $GAM update user "$email" ou "$new_ou"
+        echo -e "${GREEN}✅ User moved to $new_ou${NC}"
+        
+        # Update database if account exists there
+        sqlite3 local-config/gwombat.db "
+            UPDATE accounts 
+            SET ou_path = '$new_ou', updated_at = CURRENT_TIMESTAMP 
+            WHERE email = '$email';
+        " 2>/dev/null
+        
+        if [[ $? -eq 0 ]]; then
+            echo -e "${GREEN}✅ Database updated${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Operation cancelled${NC}"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Update user aliases
+update_user_aliases() {
+    echo -e "${CYAN}Update User Aliases${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists and show current aliases
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${GREEN}Current aliases for $email:${NC}"
+    $GAM info user "$email" | grep -i "email aliases:" || echo "No aliases found"
+    echo ""
+    
+    echo "Alias operations:"
+    echo "1. Add new alias"
+    echo "2. Remove existing alias"
+    echo "3. List all aliases"
+    echo ""
+    read -p "Select option (1-3): " alias_choice
+    echo ""
+    
+    case $alias_choice in
+        1)
+            read -p "Enter new alias email: " new_alias
+            if [[ -n "$new_alias" ]]; then
+                echo -e "${YELLOW}Adding alias: $new_alias${NC}"
+                $GAM create alias "$new_alias" user "$email"
+                echo -e "${GREEN}✅ Alias added${NC}"
+            fi
+            ;;
+        2)
+            read -p "Enter alias to remove: " remove_alias
+            if [[ -n "$remove_alias" ]]; then
+                echo -e "${YELLOW}Removing alias: $remove_alias${NC}"
+                $GAM delete alias "$remove_alias"
+                echo -e "${GREEN}✅ Alias removed${NC}"
+            fi
+            ;;
+        3)
+            echo -e "${CYAN}All aliases for $email:${NC}"
+            $GAM print aliases | grep "$email" || echo "No aliases found"
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Manage user groups
+manage_user_groups() {
+    echo -e "${CYAN}Manage User Group Memberships${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "Group operations:"
+    echo "1. Show current group memberships"
+    echo "2. Add user to group"
+    echo "3. Remove user from group"
+    echo ""
+    read -p "Select option (1-3): " group_choice
+    echo ""
+    
+    case $group_choice in
+        1)
+            echo -e "${CYAN}Current group memberships for $email:${NC}"
+            $GAM print group-members | grep "$email" || echo "No group memberships found"
+            ;;
+        2)
+            read -p "Enter group email to add user to: " group_email
+            if [[ -n "$group_email" ]]; then
+                echo -e "${YELLOW}Adding $email to group $group_email${NC}"
+                $GAM update group "$group_email" add member user "$email"
+                echo -e "${GREEN}✅ User added to group${NC}"
+            fi
+            ;;
+        3)
+            read -p "Enter group email to remove user from: " group_email
+            if [[ -n "$group_email" ]]; then
+                echo -e "${YELLOW}Removing $email from group $group_email${NC}"
+                $GAM update group "$group_email" remove member "$email"
+                echo -e "${GREEN}✅ User removed from group${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Manage user licenses
+manage_user_licenses() {
+    echo -e "${CYAN}Manage User Licenses${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Verify user exists
+    if ! $GAM info user "$email" >/dev/null 2>&1; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo "License operations:"
+    echo "1. Show current licenses"
+    echo "2. Add Google Workspace license"
+    echo "3. Remove license"
+    echo ""
+    read -p "Select option (1-3): " license_choice
+    echo ""
+    
+    case $license_choice in
+        1)
+            echo -e "${CYAN}Current licenses for $email:${NC}"
+            $GAM print licenses | grep "$email" || echo "No licenses found"
+            ;;
+        2)
+            echo "Available license types:"
+            echo "1. Google Workspace Business Starter"
+            echo "2. Google Workspace Business Standard"
+            echo "3. Google Workspace Business Plus"
+            echo "4. Google Workspace Enterprise"
+            read -p "Select license type (1-4): " license_type
+            
+            local sku=""
+            case $license_type in
+                1) sku="1010020020" ;;  # Business Starter
+                2) sku="1010020025" ;;  # Business Standard
+                3) sku="1010020026" ;;  # Business Plus
+                4) sku="1010020028" ;;  # Enterprise
+                *) echo -e "${RED}Invalid license type${NC}"; return ;;
+            esac
+            
+            echo -e "${YELLOW}Adding license to $email${NC}"
+            $GAM insert license "$email" sku "$sku"
+            echo -e "${GREEN}✅ License added${NC}"
+            ;;
+        3)
+            read -p "Enter SKU to remove: " sku
+            if [[ -n "$sku" ]]; then
+                echo -e "${YELLOW}Removing license from $email${NC}"
+                $GAM delete license "$email" sku "$sku"
+                echo -e "${GREEN}✅ License removed${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Suspend/restore user
+suspend_restore_user() {
+    echo -e "${CYAN}Suspend/Restore User Account${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Check current status
+    local suspended=$($GAM info user "$email" 2>/dev/null | grep -i "suspended:" | cut -d':' -f2 | xargs)
+    
+    if [[ -z "$suspended" ]]; then
+        echo -e "${RED}User not found: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${GREEN}Current status:${NC} $([ "$suspended" = "True" ] && echo "Suspended" || echo "Active")"
+    echo ""
+    
+    if [[ "$suspended" = "True" ]]; then
+        echo "User is currently suspended."
+        read -p "Restore this user? (y/N): " confirm
+        
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Restoring user account...${NC}"
+            $GAM update user "$email" suspended off
+            echo -e "${GREEN}✅ User account restored${NC}"
+            
+            # Update database
+            sqlite3 local-config/gwombat.db "
+                UPDATE accounts 
+                SET current_stage = 'active', updated_at = CURRENT_TIMESTAMP 
+                WHERE email = '$email';
+            " 2>/dev/null
+        fi
+    else
+        echo "User is currently active."
+        read -p "Suspend this user? (y/N): " confirm
+        
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            read -p "Enter suspension reason (optional): " reason
+            echo -e "${YELLOW}Suspending user account...${NC}"
+            
+            if [[ -n "$reason" ]]; then
+                $GAM update user "$email" suspended on suspendreason "$reason"
+            else
+                $GAM update user "$email" suspended on
+            fi
+            
+            echo -e "${GREEN}✅ User account suspended${NC}"
+            
+            # Update database
+            sqlite3 local-config/gwombat.db "
+                UPDATE accounts 
+                SET current_stage = 'recently_suspended', updated_at = CURRENT_TIMESTAMP 
+                WHERE email = '$email';
+            " 2>/dev/null
+        fi
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# View user information
+view_user_information() {
+    echo -e "${CYAN}View User Information${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}Complete User Information for: $email${NC}"
+    echo ""
+    
+    # GAM information
+    echo -e "${YELLOW}=== Google Workspace Information ===${NC}"
+    $GAM info user "$email" 2>/dev/null || echo "User not found in GAM"
+    
+    echo ""
+    echo -e "${YELLOW}=== Group Memberships ===${NC}"
+    $GAM print group-members | grep "$email" || echo "No group memberships"
+    
+    echo ""
+    echo -e "${YELLOW}=== License Information ===${NC}"
+    $GAM print licenses | grep "$email" || echo "No licenses assigned"
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Sync user to database
+sync_user_to_database() {
+    echo -e "${CYAN}Sync User to Database${NC}"
+    echo ""
+    read -p "Enter email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Get user info from GAM
+    local user_info=$($GAM info user "$email" 2>/dev/null)
+    
+    if [[ -z "$user_info" ]]; then
+        echo -e "${RED}User not found in GAM: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Extract information
+    local suspended=$(echo "$user_info" | grep -i "suspended:" | cut -d':' -f2 | xargs)
+    local ou_path=$(echo "$user_info" | grep -i "org unit path:" | cut -d':' -f2- | xargs)
+    local full_name=$(echo "$user_info" | grep -i "full name:" | cut -d':' -f2- | xargs)
+    
+    # Determine stage based on suspension status and OU
+    local stage="active"
+    if [[ "$suspended" = "True" ]]; then
+        if [[ "$ou_path" =~ "Pending Deletion" ]]; then
+            stage="pending_deletion"
+        elif [[ "$ou_path" =~ "Temporary Hold" ]]; then
+            stage="temporary_hold"
+        elif [[ "$ou_path" =~ "Exit Row" ]]; then
+            stage="exit_row"
+        else
+            stage="recently_suspended"
+        fi
+    fi
+    
+    echo -e "${YELLOW}Syncing user data:${NC}"
+    echo "  Email: $email"
+    echo "  Name: $full_name"
+    echo "  OU: $ou_path"
+    echo "  Stage: $stage"
+    echo "  Suspended: $suspended"
+    echo ""
+    
+    # Insert or update in database
+    sqlite3 local-config/gwombat.db "
+        INSERT OR REPLACE INTO accounts (
+            email, full_name, current_stage, ou_path, 
+            suspended, updated_at, synced_at
+        ) VALUES (
+            '$email', 
+            '$(echo "$full_name" | sed "s/'/''/g")', 
+            '$stage', 
+            '$(echo "$ou_path" | sed "s/'/''/g")', 
+            '$([ "$suspended" = "True" ] && echo "1" || echo "0")', 
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        );
+    " 2>/dev/null
+    
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✅ User synced to database successfully${NC}"
+    else
+        echo -e "${RED}❌ Error syncing user to database${NC}"
+    fi
+    
+    echo ""
     read -p "Press Enter to continue..."
 }
 
@@ -7598,81 +9371,91 @@ user_group_management_menu() {
         echo -e "${BLUE}=== ACCOUNT DISCOVERY & SCANNING ===${NC}"
         echo "1. 🔄 Re-scan all domain accounts (sync database)"
         echo "2. 📊 List all accounts (with filtering options)"
+        echo ""
+        echo -e "${BLUE}=== STORAGE MANAGEMENT ===${NC}"
         echo "3. 📏 Calculate account storage sizes"
-        echo "4. 🔍 Account search and diagnostics"
+        echo "4. 📊 View account storage sizes (filtering & sorting)"
+        echo "5. 📈 Storage size history & trends"
+        echo "6. 📋 Storage change analytics"
+        echo ""
+        echo -e "${BLUE}=== ACCOUNT TOOLS ===${NC}"
+        echo "7. 🔍 Account search and diagnostics"
         echo ""
         echo -e "${PURPLE}=== ACCOUNT MANAGEMENT ===${NC}"
-        echo "5. 👤 Individual user management"
-        echo "6. 📋 Bulk user operations"
-        echo "7. 🔐 Account status operations (suspend/restore)"
+        echo "8. 👤 Individual user management"
+        echo "9. 📋 Bulk user operations"
+        echo "10. 🔐 Account status operations (suspend/restore)"
         echo ""
         echo -e "${GREEN}=== GROUP & LICENSE MANAGEMENT ===${NC}"
-        echo "8. 👥 Group operations (add/remove members, bulk operations)"
-        echo "9. 📄 License management (assign/remove/audit licenses)"
+        echo "11. 👥 Group operations (add/remove members, bulk operations)"
+        echo "12. 📄 License management (assign/remove/audit licenses)"
         echo ""
         echo -e "${ORANGE}=== SUSPENDED ACCOUNT LIFECYCLE ===${NC}"
-        echo "10. 🔍 Scan All Suspended Accounts (Discover & Categorize)"
-        echo "11. 📝 Auto-Create Stage Lists from Current Accounts"
-        echo "12. 📋 Manage Recently Suspended Accounts"
-        echo "13. 🔄 Process Accounts for Pending Deletion"
-        echo "14. 📊 File Sharing Analysis & Reports"
-        echo "15. 🎯 Final Decisions (Temporary Hold / Exit Row)"
-        echo "16. 🗑️  Account Deletion Operations"
-        echo "17. 🔍 Quick Account Status Checker"
+        echo "13. 🔍 Scan All Suspended Accounts (Discover & Categorize)"
+        echo "14. 📝 Auto-Create Stage Lists from Current Accounts"
+        echo "15. 📋 Manage Recently Suspended Accounts"
+        echo "16. 🔄 Process Accounts for Pending Deletion"
+        echo "17. 📊 File Sharing Analysis & Reports"
+        echo "18. 🎯 Final Decisions (Temporary Hold / Exit Row)"
+        echo "19. 🗑️  Account Deletion Operations"
+        echo "20. 🔍 Quick Account Status Checker"
         echo ""
         echo -e "${CYAN}=== REPORTS & ANALYTICS ===${NC}"
-        echo "18. 📈 User statistics and summaries"
-        echo "19. 📋 Account lifecycle reports"
-        echo "20. 💾 Export account data to CSV"
+        echo "21. 📈 User statistics and summaries"
+        echo "22. 📋 Account lifecycle reports"
+        echo "23. 💾 Export account data to CSV"
         echo ""
         echo "p. Previous menu (Main menu)"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-20, p, m, x): " user_group_choice
+        read -p "Select an option (1-23, p, m, x): " user_group_choice
         echo ""
         
         case $user_group_choice in
             1) rescan_all_accounts ;;
             2) list_all_accounts_menu ;;
             3) calculate_account_sizes_menu ;;
-            4) account_search_diagnostics_menu ;;
-            5) individual_user_management_menu ;;
-            6) bulk_user_operations_menu ;;
-            7) account_status_operations_menu ;;
-            8) group_operations_menu ;;
-            9) license_management_menu ;;
-            10) 
+            4) view_account_storage_sizes_menu ;;
+            5) storage_size_history_menu ;;
+            6) storage_change_analytics_menu ;;
+            7) account_search_diagnostics_menu ;;
+            8) individual_user_management_menu ;;
+            9) bulk_user_operations_menu ;;
+            10) account_status_operations_menu ;;
+            11) group_operations_menu ;;
+            12) license_management_menu ;;
+            13) 
                 echo -e "${CYAN}Scanning all suspended accounts...${NC}"
                 scan_suspended_accounts
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            11)
+            14)
                 echo -e "${CYAN}Auto-creating stage lists...${NC}"
                 auto_create_stage_lists
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            12) stage1_recently_suspended_menu ;;
-            13) stage2_pending_deletion_menu ;;
-            14) 
+            15) stage1_recently_suspended_menu ;;
+            16) stage2_pending_deletion_menu ;;
+            17) 
                 stage3_sharing_analysis_menu
                 if [[ $? -eq 99 ]]; then
                     return 99  # Pass through the main menu return code
                 fi
                 ;;
-            15) stage4_final_decisions_menu ;;
-            16) stage5_deletion_menu ;;
-            17) quick_account_status_checker ;;
-            18) user_statistics_menu ;;
-            19) account_lifecycle_reports_menu ;;
-            20) export_account_data_menu ;;
+            18) stage4_final_decisions_menu ;;
+            19) stage5_deletion_menu ;;
+            20) quick_account_status_checker ;;
+            21) user_statistics_menu ;;
+            22) account_lifecycle_reports_menu ;;
+            23) export_account_data_menu ;;
             p|P) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-20, p, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-23, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac

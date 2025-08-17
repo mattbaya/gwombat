@@ -177,7 +177,7 @@ ssh-copy-id -i ~/.ssh/gwombatgit-key.pub user@your-server.edu
 GWOMBAT v4.0 uses a revolutionary multi-schema SQLite architecture:
 
 **Automatic Initialization:**
-- Primary database created in `local-config/account_lifecycle.db`
+- Primary database created in `local-config/gwombat.db`
 - Menu database populated automatically via `menu_data_loader.sh`
 - Multiple specialized schemas for different functional domains
 
@@ -187,13 +187,13 @@ GWOMBAT v4.0 uses a revolutionary multi-schema SQLite architecture:
 ./shared-utilities/menu_data_loader.sh
 
 # Check database schemas
-sqlite3 local-config/account_lifecycle.db ".tables"
+sqlite3 local-config/gwombat.db ".tables"
 
 # Test search functionality
 source shared-utilities/database_functions.sh && search_menu_database "user"
 
 # View menu statistics
-sqlite3 local-config/account_lifecycle.db "
+sqlite3 local-config/gwombat.db "
 SELECT 'Sections: ' || COUNT(*) FROM menu_sections WHERE is_active = 1;
 SELECT 'Menu Items: ' || COUNT(*) FROM menu_items WHERE is_active = 1;
 SELECT 'Navigation Options: ' || COUNT(*) FROM menu_navigation WHERE is_active = 1;

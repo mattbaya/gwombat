@@ -118,3 +118,9 @@ local-config/
 # Exception: menu files contain no sensitive data
 !local-config/menu.db
 !local-config/menu_schema.sql
+
+# Python virtual environments
+python-modules/venv/
+__pycache__/
+*.pyc
+*.pyo

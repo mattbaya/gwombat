@@ -6,7 +6,7 @@
 # Source the database functions
 source "$(dirname "$0")/database_functions.sh"
 
-DB_PATH="local-config/account_lifecycle.db"
+DB_PATH="local-config/gwombat.db"
 MENU_DB_PATH="local-config/menu.db"
 
 # Initialize standalone menu database schema

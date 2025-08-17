@@ -784,7 +784,7 @@ system_settings_menu() {
                 ;;
             4)
                 echo -e "${CYAN}Configure Database Path${NC}"
-                echo "Current database: local-config/account_lifecycle.db"
+                echo "Current database: local-config/gwombat.db"
                 echo ""
                 echo "Database path is configured automatically."
                 echo "To change location, move the local-config directory."
@@ -910,8 +910,8 @@ system_settings_menu() {
                 fi
                 
                 # Check database
-                if [[ -f "local-config/account_lifecycle.db" ]]; then
-                    local db_size=$(du -h local-config/account_lifecycle.db | cut -f1)
+                if [[ -f "local-config/gwombat.db" ]]; then
+                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
                     echo "🗄️  Database size: $db_size"
                     echo -e "   ${GREEN}✓ Database accessible${NC}"
                 else
