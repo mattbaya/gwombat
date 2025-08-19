@@ -1970,7 +1970,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            15)
+            6)
                 # Security Scans
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Scans Menu${NC}"
@@ -2001,7 +2001,7 @@ dashboard_menu() {
                             days="${days:-7}"
                             $SHARED_UTILITIES_PATH/security_reports.sh scan-all "$days"
                             ;;
-                        15) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
+                        6) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
                         *) echo -e "${RED}Invalid option${NC}" ;;
                     esac
                     echo ""
@@ -2025,7 +2025,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            16)
+            7)
                 # Generate Security Report
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Report Generation${NC}"
@@ -2060,7 +2060,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            14)
+            8)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     $SHARED_UTILITIES_PATH/backup_tools.sh status
                     echo ""
@@ -2084,7 +2084,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            15)
+            9)
                 if [[ "$gyb_available" == "true" ]]; then
                     echo -e "${CYAN}Gmail Backup Operations${NC}"
                     read -p "Enter user email for Gmail backup: " user_email
@@ -2127,7 +2127,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            16)
+            10)
                 if [[ "$rclone_available" == "true" ]]; then
                     echo -e "${CYAN}Cloud Storage Operations${NC}"
                     read -p "Enter source path: " source_path
@@ -2178,7 +2178,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            14)
+            11)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     echo -e "${CYAN}Backup User on Suspension${NC}"
                     read -p "Enter user email to backup: " user_email
@@ -2225,7 +2225,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            15)
+            12)
                 # Configuration Management
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
                     source "$SHARED_UTILITIES_PATH/config_manager.sh"
@@ -2252,7 +2252,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            16)
+            13)
                 # Scheduler Management
                 if [[ -x "$SHARED_UTILITIES_PATH/scheduler.sh" ]]; then
                     echo -e "${CYAN}🕐 Scheduler Management${NC}"
@@ -8796,143 +8796,26 @@ calculate_account_sizes_menu() {
 
 # Function to calculate storage for all accounts
 calculate_all_account_sizes() {
-    echo -e "${CYAN}Calculating storage sizes for all accounts...${NC}"
+    echo -e "${YELLOW}⚠️  Account Storage Calculation Currently Unavailable${NC}"
     echo ""
-    
-    # Generate unique scan session ID
-    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)"
-    
-    # Choose data source for account list
-    if choose_data_source "storage calculation"; then
-        # Use database
-        local account_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts ORDER BY email;" 2>/dev/null)
-    else
-        # Use fresh GAM data
-        local account_list=$($GAM print users fields primaryemail 2>/dev/null | tail -n +2 | cut -d',' -f1)
-    fi
-    
-    if [[ -z "$account_list" ]]; then
-        echo -e "${RED}No accounts found.${NC}"
-        read -p "Press Enter to continue..."
-        return
-    fi
-    
-    local counter=0
-    local total_accounts=$(echo "$account_list" | wc -l)
-    local accounts_processed=0
-    local errors=0
-    
-    echo "Processing $total_accounts accounts with session ID: $scan_session_id"
+    echo -e "${WHITE}Issue:${NC} The storage calculation feature needs to be updated"
+    echo "for compatibility with GAM7 command syntax."
     echo ""
-    
-    # Process accounts and store in new schema
-    echo "$account_list" | while read email; do
-        [[ -z "$email" ]] && continue
-        
-        ((counter++))
-        show_progress $counter $total_accounts "Analyzing: $email"
-        
-        # Get storage info from GAM with quota information
-        local user_info=$($GAM info user "$email" fields quota 2>/dev/null)
-        
-        if [[ -z "$user_info" ]]; then
-            ((errors++))
-            continue
-        fi
-        
-        # Extract storage information
-        local storage_used_bytes=0
-        local storage_quota_bytes=0
-        local display_name=""
-        
-        # Get display name
-        display_name=$($GAM info user "$email" fields name 2>/dev/null | grep "Full Name:" | cut -d':' -f2 | xargs)
-        
-        # Parse storage used (try multiple patterns)
-        if echo "$user_info" | grep -q "Storage Used:"; then
-            local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
-            local size_value=$(echo "$storage_line" | grep -o '[0-9.]*[0-9]' | head -1)
-            local size_unit=$(echo "$storage_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
-            
-            case "${size_unit,,}" in
-                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
-                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
-                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
-                "bytes") storage_used_bytes="$size_value" ;;
-                *) storage_used_bytes=0 ;;
-            esac
-        fi
-        
-        # Parse storage quota 
-        if echo "$user_info" | grep -q "Storage Limit:"; then
-            local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
-            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*[0-9]' | head -1)
-            local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
-            
-            case "${quota_unit,,}" in
-                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
-                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
-                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
-                "bytes") storage_quota_bytes="$quota_value" ;;
-                *) storage_quota_bytes=0 ;;
-            esac
-        fi
-        
-        # Calculate derived values
-        local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
-        local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
-        local usage_percentage=0
-        
-        if [[ $storage_quota_bytes -gt 0 ]]; then
-            usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
-        fi
-        
-        # Store in new account_storage_sizes table
-        sqlite3 local-config/gwombat.db "
-            INSERT OR REPLACE INTO account_storage_sizes (
-                email, display_name, storage_used_bytes, storage_used_gb,
-                storage_quota_bytes, storage_quota_gb, usage_percentage,
-                measurement_date, scan_session_id
-            ) VALUES (
-                '$(echo "$email" | sed "s/'/''/g")',
-                '$(echo "$display_name" | sed "s/'/''/g")',
-                $storage_used_bytes,
-                $storage_used_gb,
-                $storage_quota_bytes,
-                $storage_quota_gb,
-                $usage_percentage,
-                DATE('now'),
-                '$scan_session_id'
-            );
-        " 2>/dev/null && ((accounts_processed++))
-    done
-    
+    echo -e "${WHITE}Current Status:${NC}"
+    echo "• The GAM7 commands for retrieving user storage quota information"
+    echo "  differ from the legacy GAM commands used in this function"
+    echo "• Research is needed to identify the correct GAM7 syntax"
+    echo "• This feature is tracked in the development roadmap"
     echo ""
-    echo -e "${GREEN}✅ Storage analysis completed!${NC}"
-    echo "   Accounts processed: $accounts_processed"
-    echo "   Session ID: $scan_session_id"
+    echo -e "${CYAN}Recommended Actions:${NC}"
+    echo "1. Check GAM7 documentation for storage/quota commands"
+    echo "2. Update the function with correct GAM7 syntax"
+    echo "3. Test with your Google Workspace environment"
     echo ""
-    
-    # Display top 10 largest accounts
-    echo -e "${CYAN}📊 Top 10 Largest Accounts:${NC}"
-    echo ""
-    
-    sqlite3 local-config/gwombat.db -header "
-        SELECT 
-            SUBSTR(email, 1, 30) as Email,
-            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
-            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
-            measurement_date as 'Measured'
-        FROM account_storage_sizes 
-        WHERE measurement_date = DATE('now')
-        ORDER BY storage_used_gb DESC 
-        LIMIT 10;
-    " 2>/dev/null
-    
-    echo ""
-    echo -e "${YELLOW}💡 Use menu option 'View Account Storage Sizes' for filtering and detailed analysis${NC}"
+    echo -e "${WHITE}Alternative:${NC} Use Google Admin Console for storage information"
     echo ""
     read -p "Press Enter to continue..."
+    return
 }
 
 # Function to view account storage sizes with filtering and sorting
@@ -15115,22 +14998,19 @@ user_group_management_menu() {
             if [[ $item_order -le 2 && "$current_category" != "discovery" ]]; then
                 echo -e "${BLUE}=== ACCOUNT DISCOVERY & SCANNING ===${NC}"
                 current_category="discovery"
-            elif [[ $item_order -ge 3 && $item_order -le 6 && "$current_category" != "storage" ]]; then
-                echo -e "${PURPLE}=== STORAGE MANAGEMENT ===${NC}"
-                current_category="storage"
-            elif [[ $item_order -eq 7 && "$current_category" != "tools" ]]; then
+            elif [[ $item_order -eq 3 && "$current_category" != "tools" ]]; then
                 echo -e "${CYAN}=== ACCOUNT TOOLS ===${NC}"
                 current_category="tools"
-            elif [[ $item_order -ge 8 && $item_order -le 10 && "$current_category" != "management" ]]; then
+            elif [[ $item_order -ge 4 && $item_order -le 6 && "$current_category" != "management" ]]; then
                 echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
                 current_category="management"
-            elif [[ $item_order -ge 11 && $item_order -le 12 && "$current_category" != "groups" ]]; then
+            elif [[ $item_order -ge 7 && $item_order -le 8 && "$current_category" != "groups" ]]; then
                 echo -e "${YELLOW}=== GROUP & LICENSE MANAGEMENT ===${NC}"
                 current_category="groups"
-            elif [[ $item_order -ge 13 && $item_order -le 20 && "$current_category" != "lifecycle" ]]; then
+            elif [[ $item_order -ge 9 && $item_order -le 16 && "$current_category" != "lifecycle" ]]; then
                 echo -e "${RED}=== SUSPENDED ACCOUNT LIFECYCLE ===${NC}"
                 current_category="lifecycle"
-            elif [[ $item_order -ge 21 && "$current_category" != "reports" ]]; then
+            elif [[ $item_order -ge 17 && "$current_category" != "reports" ]]; then
                 echo -e "${CYAN}=== REPORTS & ANALYTICS ===${NC}"
                 current_category="reports"
             fi
@@ -35865,7 +35745,9 @@ backup_operations_main_menu() {
                 ;;
         esac
     done
-}# Improved input handling function
+}
+
+# Improved input handling function
 # Usage: get_user_input "prompt" "valid_options" "max_attempts"
 get_user_input() {
     local prompt="$1"
@@ -35912,3 +35794,6 @@ handle_menu_choice() {
     
     get_user_input "$prompt" "$valid_options" "$max_attempts"
 }
+
+# Execute main function with all arguments
+main "$@"

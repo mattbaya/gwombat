@@ -17,7 +17,7 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 
 ## 🎯 Core Menu Categories
 
-### 👥 User & Group Management (20 operations)
+### 👥 User & Group Management (16 operations)
 - **Account Discovery & Scanning** - Automated domain account scanning and categorization
 - **Account Management** - Individual and bulk user operations
 - **Group & License Management** - Comprehensive group membership and license administration
