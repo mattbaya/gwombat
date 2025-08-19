@@ -10,6 +10,8 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 - **👥 Comprehensive User Management** - Complete lifecycle from creation to deletion with database tracking
 - **🔍 Intelligent Search** - Real-time keyword search across all menu options with contextual results
 - **📋 Alphabetical Index** - Complete operation catalog with navigation paths
+- **📊 CSV Export System** - Comprehensive data export for users, shared drives, account lists, and custom queries
+- **🧪 Test Domain Management** - Safe production/test domain switching with automated backup/restore
 - **⚙️ External Tools Integration** - Synchronized GAM, GYB, and rclone domain configuration
 - **🔐 Advanced Security** - Domain verification, audit trails, and secure deployment
 - **📊 Python Integration** - Compliance dashboards and API interfaces
@@ -25,8 +27,9 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 - **Workflow Configuration** - Design custom suspension stages and transitions
 - **Reports & Analytics** - User statistics and lifecycle reporting
 
-### 💾 Data & File Operations (11 operations)
+### 💾 Data & File Operations (12 operations)
 - **File & Drive Operations** - Bulk operations, shared drive management, permissions
+- **CSV Data Export** - Comprehensive export system for users, shared drives, account lists, and custom GAM queries
 - **Analysis & Discovery** - File sharing analysis, account discovery, diagnostics
 - **Account List Management** - Database-driven batch operations with progress tracking
 
@@ -41,7 +44,28 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 
 ### ⚙️ Configuration Management
 - **External Tools Configuration** - GAM, GYB, rclone domain synchronization
+- **Test Domain Management** - Production/test domain switching with backup/restore
 - **System Setup & Settings** - Environment configuration and deployment management
+
+## 🎯 New Feature Highlights
+
+### 📊 CSV Export System
+Export any GWOMBAT data to CSV format for external analysis:
+- **User Data Export** - All users, suspended users, active users, or custom queries
+- **Shared Drive Export** - Complete shared drive listings with metadata
+- **Account List Export** - Export database-managed account lists
+- **Custom GAM Queries** - Export results from any GAM command
+- **Automated Metadata** - Export timestamps, descriptions, and record counts
+- **File Management** - Organized exports directory with cleanup tools
+
+### 🧪 Test Domain Management
+Safely switch between production and test Google Workspace domains:
+- **Multi-Domain Configuration** - Configure up to 3 test domains plus production
+- **Safe Domain Switching** - Automatic configuration backup before changes
+- **GAM Connectivity Testing** - Verify domain connectivity before switching
+- **Test Mode Safety** - Enhanced confirmations and dry-run options in test domains
+- **Configuration Backup/Restore** - Full configuration history and rollback capability
+- **Production Protection** - Clear indicators and safety checks when in test mode
 
 ## 🏗️ Revolutionary Architecture
 
@@ -101,6 +125,8 @@ nano .env  # Configure DOMAIN, ADMIN_USER, GAM_PATH, etc.
 # - Press 's' for intelligent search
 # - Press 'i' for alphabetical index
 # - Navigate to User & Group Management for integrated lifecycle
+# - File & Drive Operations → CSV Data Export for data export
+# - Configuration → Test Domain Management for safe testing
 ```
 
 ## 🔍 Advanced Menu Features
@@ -122,14 +148,30 @@ s → "security"  # Find compliance and security features
 
 ## 📚 Documentation
 
+### Setup & Configuration
 - **[INSTALLATION.md](docs/INSTALLATION.md)** - Comprehensive setup and configuration
 - **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment procedures
 - **[REQUIREMENTS.md](docs/REQUIREMENTS.md)** - System requirements and dependencies
-- **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Testing procedures and validation
 - **[OAUTH_TROUBLESHOOTING.md](docs/OAUTH_TROUBLESHOOTING.md)** - Google Workspace OAuth authentication issues
+
+### Feature Documentation
+- **[CSV_EXPORT_SYSTEM.md](docs/CSV_EXPORT_SYSTEM.md)** - Complete CSV export functionality guide
+- **[TEST_DOMAIN_MANAGEMENT.md](docs/TEST_DOMAIN_MANAGEMENT.md)** - Test domain configuration and safety procedures
+
+### Development & Testing
+- **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Testing procedures and validation
+- **[TO-DO.md](TO-DO.md)** - Development task tracking and project status
 - **[CLAUDE.md](CLAUDE.md)** - AI development context and architecture
 
-## 🌟 Latest Enhancements (v4.0 - August 2025)
+## 🌟 Latest Enhancements (v4.1 - August 2025)
+
+### 🎯 High Priority Features Completed
+- **📊 CSV Export System** - Comprehensive data export with automated integration
+- **🧪 Test Domain Management** - Safe production/test domain switching with backup/restore
+- **🗂️ Database Architecture Enhancement** - Proper shared-config/local-config separation
+- **📚 Enhanced Documentation** - Complete feature documentation and user guides
+
+### 🔄 Previous Enhancements (v4.0 - August 2025)
 
 ### SQLite Menu Revolution
 - **Dynamic Menu Generation** - Complete replacement of hardcoded interfaces

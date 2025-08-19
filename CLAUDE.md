@@ -151,15 +151,22 @@ SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"    # Deployment SSH key
 ```
 gwombat/
 ├── gwombat.sh                           # Main application (9000+ lines)
-├── CLAUDE.md                            # AI development context
+├── CLAUDE.md                            # AI development context  
+├── TO-DO.md                             # Development task tracking
 ├── shared-utilities/
 │   ├── database_functions.sh            # Database operations (1000+ lines)
+│   ├── export_functions.sh             # CSV export system
+│   ├── test_domain_manager.sh          # Test domain management
 │   ├── menu_data_loader.sh             # Menu database population
 │   ├── config_manager.sh               # Configuration management
 │   └── [30+ utility scripts]           # Specialized operations
+├── shared-config/
+│   ├── menu.db                         # Application-level menu database
+│   └── menu_schema.sql                 # Menu management schema
 ├── local-config/
-│   ├── gwombat.db            # Main SQLite database
-│   ├── menu_schema.sql                 # Menu management schema
+│   ├── gwombat.db                      # Instance-specific database
+│   ├── test-domains.env                # Test domain configurations
+│   ├── exports/                        # CSV export output directory
 │   └── [multiple specialized schemas]   # Domain-specific schemas
 ├── python-modules/                     # Advanced Python integrations
 └── docs/                              # Documentation
@@ -167,8 +174,10 @@ gwombat/
 
 ## Current Integration Status
 ✅ **SQLite Menu System**: Dynamic database-driven interfaces with intelligent search
+✅ **CSV Export System**: Comprehensive data export functionality integrated throughout application
+✅ **Test Domain Management**: Production/test domain switching with automated backup/restore  
 ✅ **External Tools Configuration**: Centralized GAM/GYB/rclone domain synchronization  
-✅ **Database Architecture**: Multi-schema design with comprehensive functionality
+✅ **Database Architecture**: Multi-schema design with shared-config/local-config separation
 ✅ **Security Verification**: Domain mismatch protection and automated verification
 ✅ **Python Integration**: Advanced compliance modules and dashboard capabilities
 ✅ **Deployment Automation**: Secure SSH key-based deployment with environment configuration
