@@ -35795,5 +35795,30 @@ handle_menu_choice() {
     get_user_input "$prompt" "$valid_options" "$max_attempts"
 }
 
+# Workflow manager integration
+workflow_manager_menu() {
+    if [[ -x "$SHARED_UTILITIES_PATH/workflow_manager.sh" ]]; then
+        "$SHARED_UTILITIES_PATH/workflow_manager.sh"
+    else
+        echo -e "${YELLOW}=== Suspension Workflow Manager Setup Required ===${NC}"
+        echo ""
+        echo "The Suspension Workflow Manager allows you to:"
+        echo "• Configure custom suspension lifecycle stages"
+        echo "• Set up automated stage transitions"
+        echo "• Define stage-specific actions and requirements"
+        echo "• Track account progression through workflow stages"
+        echo "• Generate workflow reports and analytics"
+        echo ""
+        echo -e "${CYAN}To enable this feature:${NC}"
+        echo "1. Ensure workflow_manager.sh exists in shared-utilities/"
+        echo "2. Run database initialization from the workflow manager"
+        echo "3. Configure your organization's suspension stages"
+        echo ""
+        echo -e "${GREEN}Once configured, you'll have a fully customizable suspension workflow.${NC}"
+        echo ""
+        read -p "Press Enter to continue..."
+    fi
+}
+
 # Execute main function with all arguments
 main "$@"

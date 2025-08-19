@@ -17,11 +17,12 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 
 ## 🎯 Core Menu Categories
 
-### 👥 User & Group Management (16 operations)
+### 👥 User & Group Management (17 operations)
 - **Account Discovery & Scanning** - Automated domain account scanning and categorization
 - **Account Management** - Individual and bulk user operations
 - **Group & License Management** - Comprehensive group membership and license administration
-- **Suspended Account Lifecycle** - Complete 8-stage workflow from suspension to deletion
+- **Suspended Account Lifecycle** - Configurable workflow with customizable stages
+- **Workflow Configuration** - Design custom suspension stages and transitions
 - **Reports & Analytics** - User statistics and lifecycle reporting
 
 ### 💾 Data & File Operations (11 operations)

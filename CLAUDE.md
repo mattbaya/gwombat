@@ -102,9 +102,10 @@
 ### Key Technical Patterns
 1. **Database-First Architecture**: All interfaces and state driven by SQLite
 2. **Dynamic Menu Generation**: No hardcoded menu structures
-3. **Domain Security Verification**: Automatic verification GAM domain matches .env DOMAIN
-4. **Environment Configuration**: No hardcoded paths or server-specific values
-5. **Comprehensive Logging**: Multi-level logging for operations and deployments
+3. **Configurable Workflows**: User-customizable suspension lifecycle stages with database-driven workflow management
+4. **Domain Security Verification**: Automatic verification GAM domain matches .env DOMAIN
+5. **Environment Configuration**: No hardcoded paths or server-specific values
+6. **Comprehensive Logging**: Multi-level logging for operations and deployments
 
 ### Dependencies
 - **GAM (Google Apps Manager)**: Primary Google Workspace interface (GAM7 compatible)
