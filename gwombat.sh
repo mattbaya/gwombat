@@ -24226,9 +24226,84 @@ main() {
             echo -e "${RED}❌ CRITICAL SECURITY ERROR: Cannot proceed with domain mismatch${NC}"
             echo ""
             echo "This prevents potential data operations on the wrong domain."
-            echo "Please fix the domain configuration and try again."
             echo ""
-            exit 1
+            echo -e "${CYAN}Would you like me to help you fix this now?${NC}"
+            echo ""
+            echo "1. 🔧 Reconfigure GAM for domain: ${DOMAIN}"
+            echo "2. 📝 Update .env to match GAM domain"
+            echo "3. 🚪 Exit to fix manually"
+            echo ""
+            
+            local fix_choice
+            while true; do
+                read -p "Select option (1-3): " fix_choice
+                case "$fix_choice" in
+                    1)
+                        echo ""
+                        echo -e "${CYAN}Starting GAM reconfiguration for domain: ${DOMAIN}${NC}"
+                        echo ""
+                        
+                        # Source config manager functions
+                        if [[ -f "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                            source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                            configure_gam_for_domain
+                        else
+                            echo -e "${YELLOW}Configuration manager not found. Manual GAM setup required:${NC}"
+                            echo ""
+                            echo "1. Run: ${WHITE}$GAM oauth create${NC}"
+                            echo "2. Follow the authentication prompts"
+                            echo "3. Verify with: ${WHITE}$GAM info domain${NC}"
+                            echo "4. Restart GWOMBAT"
+                            echo ""
+                            read -p "Press Enter when GAM is configured..."
+                        fi
+                        
+                        # Verify the fix worked
+                        echo ""
+                        echo -e "${CYAN}Testing GAM configuration...${NC}"
+                        if verify_gam_domain; then
+                            echo -e "${GREEN}✓ GAM domain configuration fixed!${NC}"
+                            echo ""
+                            break
+                        else
+                            echo -e "${RED}Domain mismatch still exists. Please check GAM configuration.${NC}"
+                            echo ""
+                            exit 1
+                        fi
+                        ;;
+                    2)
+                        echo ""
+                        echo -e "${CYAN}Updating .env file to match GAM domain...${NC}"
+                        
+                        # Get GAM domain
+                        local gam_domain=$(${GAM:-gam} info domain 2>/dev/null | grep -E "^Primary Domain|^Domain:" | head -1 | awk '{print $NF}' | tr -d ' ')
+                        if [[ -n "$gam_domain" ]]; then
+                            # Create backup
+                            cp .env ".env.backup.$(date +%Y%m%d_%H%M%S)"
+                            
+                            # Update domain
+                            sed -i.tmp "s/^DOMAIN=.*/DOMAIN=\"$gam_domain\"/" .env && rm .env.tmp
+                            
+                            echo -e "${GREEN}✓ Updated DOMAIN in .env to: $gam_domain${NC}"
+                            echo -e "${YELLOW}⚠️  Please restart GWOMBAT to apply changes${NC}"
+                            echo ""
+                            exit 0
+                        else
+                            echo -e "${RED}Could not detect GAM domain. Please configure GAM first.${NC}"
+                            exit 1
+                        fi
+                        ;;
+                    3)
+                        echo ""
+                        echo "Exiting for manual configuration."
+                        echo ""
+                        exit 1
+                        ;;
+                    *)
+                        echo -e "${RED}Invalid option. Please select 1, 2, or 3.${NC}"
+                        ;;
+                esac
+            done
         fi
         echo ""
     fi
