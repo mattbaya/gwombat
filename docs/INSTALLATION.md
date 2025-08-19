@@ -46,16 +46,19 @@ cd gwombat
 
 ### 3. Configure Environment
 ```bash
-# Copy the environment template
-cp .env.template .env
+# Run the interactive setup wizard (creates local-config/.env)
+./shared-utilities/setup_wizard.sh
 
-# Edit the configuration file
-nano .env  # or use your preferred editor
+# The setup wizard will guide you through:
+# - Domain and admin user configuration
+# - GAM installation and setup
+# - Python environment setup
+# - Optional tools configuration (GYB, rclone, etc.)
 ```
 
 ### 4. Environment Configuration
 
-#### Required Settings (.env)
+#### Required Settings (local-config/.env)
 ```bash
 # Domain and Organization Configuration
 DOMAIN="your-domain.edu"
@@ -102,7 +105,7 @@ gam oauth create
 # Test basic functionality and verify domain
 gam info domain
 
-# CRITICAL: Verify GAM domain matches your .env DOMAIN setting
+# CRITICAL: Verify GAM domain matches your local-config/.env DOMAIN setting
 # GWOMBAT will perform automatic domain verification on startup
 ```
 
@@ -239,7 +242,7 @@ python gws_api.py
 ### 2. Test GAM Integration and Domain Security
 ```bash
 # From within GWOMBAT:
-# The system will automatically verify GAM domain matches .env DOMAIN
+# The system will automatically verify GAM domain matches local-config/.env DOMAIN
 
 # Test external tools configuration:
 # - Navigate to Configuration Management → External Tools Configuration
@@ -265,7 +268,7 @@ source shared-utilities/database_functions.sh && search_menu_database "security"
 ```bash
 # Check GAM installation
 which gam
-# Update GAM_PATH in .env file
+# Update GAM_PATH in local-config/.env file
 ```
 
 **Permission errors:**
@@ -302,8 +305,8 @@ GWOMBAT creates detailed logs in the `logs/` directory:
 
 ### File Permissions
 ```bash
-# Secure the .env file
-chmod 600 .env
+# Secure the .env file  
+chmod 600 local-config/.env
 chmod 600 server.env
 
 # Secure SSH keys
@@ -319,7 +322,7 @@ chmod 644 ~/.ssh/gwombatgit-key.pub
 ### Backup Configuration
 ```bash
 # Backup your configuration
-cp .env .env.backup
+cp local-config/.env local-config/.env.backup
 cp server.env server.env.backup
 
 # Store backups securely (outside the git repository)
@@ -358,7 +361,8 @@ tail -f logs/session_*.log
 ```
 
 ### Key Files
-- `.env` - Main configuration
+- `local-config/.env` - Main configuration (created by setup wizard)
+- `.env.template` - Configuration template (version controlled)
 - `config/gwombat.db` - SQLite database
 - `logs/` - Application logs
 - `shared-utilities/database_functions.sh` - Database operations

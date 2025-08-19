@@ -42,6 +42,12 @@
 - **`local-config/`**: Instance-specific data (account data, configurations, logs)
 - **`shared-config/`**: Application-level structure (menu definitions, schemas)
 
+**Configuration File Organization**:
+- **`local-config/.env`**: Main environment configuration (gitignored, instance-specific)
+- **`.env.template`**: Configuration template (version controlled, repo root)  
+- **`local-config/test-domains.env`**: Test domain configurations
+- **Backward Compatibility**: Legacy `.env` in root still supported
+
 **Core Functions**:
 - `generate_main_menu()`, `generate_submenu()` - Dynamic menu generation
 - `search_menu_database()`, `show_menu_database_index()` - Advanced search and indexing
@@ -136,6 +142,7 @@ bash -n gwombat.sh && bash -n shared-utilities/database_functions.sh
 ```
 
 ### Environment Configuration
+**Configuration File Location**: `local-config/.env` (created by setup wizard)
 **Required .env variables**:
 ```bash
 DOMAIN="your-domain.edu"                    # Google Workspace domain
@@ -164,6 +171,7 @@ gwombat/
 │   ├── menu.db                         # Application-level menu database
 │   └── menu_schema.sql                 # Menu management schema
 ├── local-config/
+│   ├── .env                            # Main configuration file (instance-specific)
 │   ├── gwombat.db                      # Instance-specific database
 │   ├── test-domains.env                # Test domain configurations
 │   ├── exports/                        # CSV export output directory
@@ -178,6 +186,7 @@ gwombat/
 ✅ **Test Domain Management**: Production/test domain switching with automated backup/restore  
 ✅ **External Tools Configuration**: Centralized GAM/GYB/rclone domain synchronization  
 ✅ **Database Architecture**: Multi-schema design with shared-config/local-config separation
+✅ **Configuration Organization**: .env files properly organized in local-config/ with template support
 ✅ **Security Verification**: Domain mismatch protection and automated verification
 ✅ **Python Integration**: Advanced compliance modules and dashboard capabilities
 ✅ **Deployment Automation**: Secure SSH key-based deployment with environment configuration

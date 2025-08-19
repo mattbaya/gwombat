@@ -82,7 +82,7 @@ gam info domain
 ### 3. Configure GWOMBAT for GAM
 Update your environment configuration:
 ```bash
-# In .env or server.env
+# In local-config/.env or server.env
 GAM_PATH="/path/to/your/gam"  # Common: /usr/local/bin/gam
 GAM_CONFIG_PATH="/home/your-user/.gam"  # Your GAM config directory
 ADMIN_USER="your-admin@your-domain.edu"  # Your actual admin account
@@ -104,7 +104,7 @@ ADMIN_USER="your-admin@your-domain.edu"  # Your actual admin account
   - `https://www.googleapis.com/auth/drive`
 
 ### Admin Permissions
-The account configured as ADMIN_USER in your .env file requires:
+The account configured as ADMIN_USER in your local-config/.env file requires:
 - **Super Admin** privileges (recommended)
 - Or specific admin roles:
   - User Management Admin
@@ -167,14 +167,14 @@ The account configured as ADMIN_USER in your .env file requires:
 ### File Permissions
 ```bash
 # Secure configuration files
-chmod 600 server.env .env
+chmod 600 server.env local-config/.env
 chmod 700 logs/ tmp/ backups/
 chmod 755 *.sh
 ```
 
 ### Environment Variables
-- **No secrets in code** - All credentials in .env files
-- **Gitignore sensitive files** - .env, *.db, logs/
+- **No secrets in code** - All credentials in local-config/.env files
+- **Gitignore sensitive files** - local-config/, *.db, logs/
 - **SSH key protection** - Password-protected deployment keys
 
 ### Audit Logging
@@ -192,7 +192,7 @@ chmod 755 *.sh
 which gam
 gam version
 
-# Update PATH or GAM_PATH in server.env
+# Update PATH or GAM_PATH in local-config/.env or server.env
 ```
 
 **SQLite missing**

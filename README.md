@@ -111,9 +111,8 @@ Safely switch between production and test Google Workspace domains:
 git clone git@github.com:mattbaya/gwombat.git
 cd gwombat
 
-# Initialize environment
-cp .env.template .env
-nano .env  # Configure DOMAIN, ADMIN_USER, GAM_PATH, etc.
+# Initialize environment (setup wizard creates local-config/.env)
+./shared-utilities/setup_wizard.sh  # Interactive configuration setup
 
 # Initialize menu database
 ./shared-utilities/menu_data_loader.sh
@@ -127,6 +126,20 @@ nano .env  # Configure DOMAIN, ADMIN_USER, GAM_PATH, etc.
 # - Navigate to User & Group Management for integrated lifecycle
 # - File & Drive Operations → CSV Data Export for data export
 # - Configuration → Test Domain Management for safe testing
+```
+
+### File Organization
+```
+local-config/          # Instance-specific configurations
+├── .env              # Main configuration (created by setup wizard)
+├── gwombat.db        # Instance database
+└── exports/          # CSV export outputs
+
+shared-config/         # Application-level configurations  
+├── menu.db           # Menu database
+└── menu_schema.sql   # Menu structure
+
+.env.template         # Configuration template (version controlled)
 ```
 
 ## 🔍 Advanced Menu Features
