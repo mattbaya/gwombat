@@ -115,7 +115,9 @@ reports/*
 
 # Local configuration and data (contains sensitive domain/account data)
 local-config/
-# Exception: menu files contain no sensitive data
+# Exception: templates and menu files contain no sensitive data
+!local-config/.gitkeep
+!local-config/.env.template
 !local-config/menu.db
 !local-config/menu_schema.sql
 
