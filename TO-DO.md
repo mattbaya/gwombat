@@ -3,14 +3,15 @@
 ## Progress Status  
 - **Last worked on**: CSV Export Integration and Test Domain Management (August 2025)
 - **Session**: High Priority Tasks Completion - CSV Export, Test Domain Management, Menu Enhancements  
-- **Recently Completed**: 2/3 high priority tasks (CSV Export ✅, Test Domain Management ✅)
-- **Major Achievement**: Added comprehensive CSV export functionality and test domain management system
+- **Recently Completed**: 3/3 high priority tasks (CSV Export ✅, Test Domain Management ✅, Configuration Organization ✅)
+- **Major Achievement**: Added comprehensive CSV export functionality, test domain management system, and configuration file organization
 
 ## Current High Priority Tasks (August 2025)
 
 ### ✅ **RECENTLY COMPLETED**
 - [x] **Integrate CSV export functionality into existing GWOMBAT menus** - COMPLETED: Added export functions source, integrated quick_export into user query functions (query_all_suspended_users, query_users_by_department, query_users_custom), and added CSV Data Export menu option to File & Drive Operations
 - [x] **Implement test domain functionality** - COMPLETED: Created comprehensive test domain management system with shared-utilities/test_domain_manager.sh and integrated into configuration menu option 3 for safe testing and development
+- [x] **Configuration File Organization & Setup Wizard Integration** - COMPLETED: Moved .env to local-config/ for consistency, fixed setup wizard GWOMBAT_ROOT path resolution, updated all documentation, maintained backward compatibility with legacy .env location
 
 ### ⏳ **PENDING HIGH PRIORITY**
 - [ ] **Replace hardcoded system_overview_menu with SQLite-driven version** - Ready to deploy the new function when safe to implement
@@ -99,6 +100,15 @@ The menu system successfully uses a **hybrid SQLite-driven architecture** where:
 33. ✅ Implement Performance Reports menu (Major implementation: 20 functions with 5 working performance analysis tools)
 
 ### ✅ **COMPLETED**
+
+### Infrastructure & Configuration Management (August 2025)
+37. ✅ Configuration File Organization - Move .env to local-config/ directory for consistency with other config files
+38. ✅ Setup Wizard Path Resolution - Fix GWOMBAT_ROOT path calculation in setup wizard (from $SCRIPT_DIR to $(dirname "$SCRIPT_DIR"))
+39. ✅ Environment Loading Updates - Update gwombat.sh to load configuration from local-config/.env with legacy .env fallback
+40. ✅ Git Workflow Management - Merge remote changes, resolve conflicts, commit and push infrastructure improvements
+41. ✅ Documentation Synchronization - Update all documentation (CLAUDE.md, README.md, docs/) to reflect new file organization
+42. ✅ First-Time Setup Integration - Update setup detection to check both local-config/.env and legacy .env locations
+43. ✅ Backward Compatibility - Maintain support for legacy .env location while encouraging new organization
 
 ### Database & Storage Management
 1. ✅ Create account_storage_sizes database schema with retention policy
