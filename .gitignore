@@ -124,3 +124,4 @@ python-modules/venv/
 __pycache__/
 *.pyc
 *.pyo
+/.env*
