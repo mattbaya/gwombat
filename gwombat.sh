@@ -1264,47 +1264,118 @@ configuration_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             2)
-                # Configure New Domain with Backup
-                echo -e "${CYAN}Configure New Domain${NC}"
+                # Configure New Domain with Proper GAM Reconfiguration
+                echo -e "${CYAN}=== Configure New Domain ===${NC}"
                 echo ""
                 if [[ -n "$DOMAIN" ]]; then
-                    echo -e "${YELLOW}⚠️ Current domain: $DOMAIN${NC}"
+                    echo -e "${YELLOW}⚠️  Current domain: $DOMAIN${NC}"
                     echo ""
-                    echo "Configuring a new domain will:"
-                    echo "• Backup current configuration and database"
-                    echo "• Reset GWOMBAT for the new domain"
-                    echo "• Preserve all existing data safely"
+                    echo "Changing domains requires several steps:"
+                    echo "1. 💾 Backup current configuration and database"
+                    echo "2. 🔧 Reconfigure GAM for new domain"
+                    echo "3. ⚙️  Update GWOMBAT configuration"
+                    echo "4. 🔄 Restart GWOMBAT with new domain"
                     echo ""
                     read -p "Continue with domain change? (y/N): " confirm_domain_change
                     if [[ "$confirm_domain_change" =~ ^[Yy]$ ]]; then
-                        # Create backup
-                        local backup_timestamp=$(date +%Y%m%d-%H%M%S)
+                        
+                        # Step 1: Create backup
+                        echo ""
+                        echo -e "${CYAN}Step 1: Creating backup...${NC}"
+                        local backup_timestamp=$(date +%Y%m%d_%H%M%S)
                         local backup_dir="./backups/domain-backup-${DOMAIN}-${backup_timestamp}"
                         mkdir -p "$backup_dir"
                         
-                        echo "Creating backup in $backup_dir..."
-                        
                         # Backup configuration files
-                        [[ -f ".env" ]] && cp ".env" "$backup_dir/"
+                        [[ -f ".env" ]] && cp ".env" "$backup_dir/.env.backup.$backup_timestamp"
                         [[ -f "local-config/server.env" ]] && cp "local-config/server.env" "$backup_dir/"
                         [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$backup_dir/"
                         
                         # Backup database
                         [[ -f "local-config/gwombat.db" ]] && cp "local-config/gwombat.db" "$backup_dir/"
                         
-                        # Backup any local-config/reports/logs
-                        [[ -d "reports" ]] && cp -r "reports" "$backup_dir/"
+                        # Backup any reports/logs
+                        [[ -d "reports" ]] && cp -r "reports" "$backup_dir/" 2>/dev/null || true
                         [[ -d "logs" ]] && cp -r "logs" "$backup_dir/" 2>/dev/null || true
                         
                         echo -e "${GREEN}✓ Backup created: $backup_dir${NC}"
                         echo ""
                         
-                        # Run setup wizard for new domain
-                        echo "Starting setup wizard for new domain..."
-                        if [[ -x "./setup_wizard.sh" ]]; then
-                            ./setup_wizard.sh
+                        # Step 2: GAM Reconfiguration Guide
+                        echo -e "${CYAN}Step 2: GAM Reconfiguration Required${NC}"
+                        echo ""
+                        echo -e "${WHITE}You must reconfigure GAM for the new domain BEFORE proceeding.${NC}"
+                        echo ""
+                        echo -e "${YELLOW}GAM Reconfiguration Steps:${NC}"
+                        echo "1. Run: ${WHITE}$GAM oauth create${NC}"
+                        echo "2. Follow the OAuth setup process"
+                        echo "3. Authenticate with the NEW domain's super admin account"
+                        echo "4. Test with: ${WHITE}$GAM info domain${NC}"
+                        echo ""
+                        echo -e "${RED}⚠️  IMPORTANT: Use the super admin account of your NEW domain${NC}"
+                        echo ""
+                        
+                        read -p "Have you completed GAM reconfiguration for the new domain? (y/N): " gam_configured
+                        if [[ "$gam_configured" =~ ^[Yy]$ ]]; then
+                            
+                            # Step 3: Verify GAM configuration
+                            echo ""
+                            echo -e "${CYAN}Step 3: Verifying GAM configuration...${NC}"
+                            local new_domain_test
+                            if new_domain_test=$($GAM info domain 2>&1); then
+                                local detected_domain=$(echo "$new_domain_test" | grep -i "domain:" | head -1 | sed 's/.*domain[: ]*//i' | tr -d ' \t\r\n')
+                                if [[ -n "$detected_domain" ]]; then
+                                    echo -e "${GREEN}✓ GAM is now configured for domain: $detected_domain${NC}"
+                                    echo ""
+                                    
+                                    # Step 4: Update GWOMBAT configuration
+                                    echo -e "${CYAN}Step 4: Updating GWOMBAT configuration...${NC}"
+                                    read -p "Enter the admin user email for $detected_domain: " new_admin_user
+                                    
+                                    # Update .env file
+                                    if [[ -f ".env" ]]; then
+                                        # Create backup of current .env
+                                        cp ".env" ".env.backup.$backup_timestamp"
+                                        
+                                        # Update domain and admin user
+                                        sed -i.bak "s/^DOMAIN=.*/DOMAIN=\"$detected_domain\"/" ".env"
+                                        if [[ -n "$new_admin_user" ]]; then
+                                            sed -i.bak "s/^ADMIN_USER=.*/ADMIN_USER=\"$new_admin_user\"/" ".env"
+                                        fi
+                                        
+                                        echo -e "${GREEN}✓ Updated .env configuration${NC}"
+                                    fi
+                                    
+                                    echo ""
+                                    echo -e "${GREEN}=== Domain Change Completed Successfully ===${NC}"
+                                    echo -e "${WHITE}Old domain:${NC} $DOMAIN (backed up)"
+                                    echo -e "${WHITE}New domain:${NC} $detected_domain"
+                                    echo -e "${WHITE}Backup location:${NC} $backup_dir"
+                                    echo ""
+                                    echo -e "${YELLOW}GWOMBAT will now restart with the new domain configuration.${NC}"
+                                    echo ""
+                                    read -p "Press Enter to restart GWOMBAT..."
+                                    
+                                    # Restart GWOMBAT
+                                    exec "$0" "$@"
+                                else
+                                    echo -e "${RED}✗ Could not detect domain from GAM output${NC}"
+                                    echo "GAM output: $new_domain_test"
+                                fi
+                            else
+                                echo -e "${RED}✗ GAM domain verification failed${NC}"
+                                echo "Error: $new_domain_test"
+                                echo ""
+                                echo "Please ensure GAM is properly configured with: $GAM oauth create"
+                            fi
                         else
-                            echo -e "${RED}Setup wizard not found${NC}"
+                            echo ""
+                            echo -e "${YELLOW}Domain change cancelled. Please reconfigure GAM first.${NC}"
+                            echo ""
+                            echo "To reconfigure GAM manually:"
+                            echo "1. Run: $GAM oauth create"
+                            echo "2. Complete OAuth setup for new domain"
+                            echo "3. Return to this menu to complete domain change"
                         fi
                     else
                         echo "Domain change cancelled."
@@ -1315,6 +1386,11 @@ configuration_menu() {
                         ./setup_wizard.sh
                     else
                         echo -e "${RED}Setup wizard not found${NC}"
+                        echo ""
+                        echo "Manual setup required:"
+                        echo "1. Configure GAM: $GAM oauth create"
+                        echo "2. Set DOMAIN and ADMIN_USER in .env file"
+                        echo "3. Restart GWOMBAT"
                     fi
                 fi
                 echo ""
