@@ -257,7 +257,7 @@ show_scuba_status() {
     
     # Check if enabled
     local enabled=$(is_scuba_enabled)
-    echo -e "SCuBA Compliance: $([ "$enabled" == "true" ] && echo "${GREEN}ENABLED${NC}" || echo "${RED}DISABLED${NC}")"
+    echo -e "SCuBA Compliance: $([ "$enabled" == "true" ] && echo -e "${GREEN}ENABLED${NC}" || echo -e "${RED}DISABLED${NC}")"
     
     # Check Python environment
     if check_python_environment >/dev/null 2>&1; then
@@ -326,25 +326,45 @@ show_scuba_menu() {
             status_color="$GREEN"
             status_text="ENABLED"
         fi
+        
+        # Display status prominently at top
+        if [[ "$enabled" == "true" ]]; then
+            echo -e "${GREEN}✓ SCuBA COMPLIANCE IS CURRENTLY ENABLED${NC}"
+        else
+            echo -e "${RED}✗ SCuBA COMPLIANCE IS CURRENTLY DISABLED${NC}"
+            echo -e "${YELLOW}⚠ Enable SCuBA compliance to access all features${NC}"
+        fi
         echo -e "${CYAN}Current Status:${NC} ${status_color}$status_text${NC}"
         echo ""
         
         echo -e "${GREEN}=== COMPLIANCE OPERATIONS ===${NC}"
-        echo "1. 📊 View Compliance Dashboard"
-        echo "2. 🔍 Run Full Compliance Assessment"
-        echo "3. 📋 Run Service-Specific Assessment"
-        echo "4. 📄 Export Compliance Report"
-        echo "5. 📈 View Assessment History"
+        if [[ "$enabled" == "true" ]]; then
+            echo -e "${WHITE}1. 📊 View Compliance Dashboard${NC}"
+            echo -e "${WHITE}2. 🔍 Run Full Compliance Assessment${NC}"
+            echo -e "${WHITE}3. 📋 Run Service-Specific Assessment${NC}"
+            echo -e "${WHITE}4. 📄 Export Compliance Report${NC}"
+            echo -e "${WHITE}5. 📈 View Assessment History${NC}"
+        else
+            echo -e "${GRAY}1. 📊 View Compliance Dashboard ${GRAY}(requires SCuBA enabled)${NC}"
+            echo -e "${GRAY}2. 🔍 Run Full Compliance Assessment ${GRAY}(requires SCuBA enabled)${NC}"
+            echo -e "${GRAY}3. 📋 Run Service-Specific Assessment ${GRAY}(requires SCuBA enabled)${NC}"
+            echo -e "${GRAY}4. 📄 Export Compliance Report ${GRAY}(requires SCuBA enabled)${NC}"
+            echo -e "${GRAY}5. 📈 View Assessment History ${GRAY}(requires SCuBA enabled)${NC}"
+        fi
         echo ""
         echo -e "${YELLOW}=== CONFIGURATION ===${NC}"
-        echo "6. ⚙️  Enable/Disable SCuBA Compliance"
-        echo "7. 🐍 Setup Python Environment"
-        echo "8. 🔧 Check System Status"
-        echo "9. 📚 View Baseline Management"
+        echo -e "${WHITE}6. ⚙️  Enable/Disable SCuBA Compliance${NC}"
+        echo -e "${WHITE}7. 🐍 Setup Python Environment${NC}"
+        echo -e "${WHITE}8. 🔧 Check System Status${NC}"
+        if [[ "$enabled" == "true" ]]; then
+            echo -e "${WHITE}9. 📚 View Baseline Management${NC}"
+        else
+            echo -e "${GRAY}9. 📚 View Baseline Management ${GRAY}(requires SCuBA enabled)${NC}"
+        fi
         echo ""
         echo -e "${PURPLE}=== INFORMATION ===${NC}"
-        echo "10. ℹ️  About SCuBA Compliance"
-        echo "11. 📖 View Documentation"
+        echo -e "${WHITE}10. ℹ️  About SCuBA Compliance${NC}"
+        echo -e "${WHITE}11. 📖 View Documentation${NC}"
         echo ""
         echo "12. ↩️  Return to main menu"
         echo "m. Main menu"
@@ -354,27 +374,69 @@ show_scuba_menu() {
         echo ""
         
         case $scuba_choice in
-            1) show_scuba_dashboard; read -p "Press Enter to continue..." ;;
-            2) run_scuba_assessment ""; read -p "Press Enter to continue..." ;;
+            1) 
+                if [[ "$enabled" == "true" ]]; then
+                    show_scuba_dashboard
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to view dashboard${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
+            2) 
+                if [[ "$enabled" == "true" ]]; then
+                    run_scuba_assessment ""
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to run assessments${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
             3) 
-                echo "Available services: gmail, calendar, drive, meet, chat, groups, classroom, sites, common_controls"
-                read -p "Enter services to assess (space-separated): " services
-                run_scuba_assessment "$services"
+                if [[ "$enabled" == "true" ]]; then
+                    echo "Available services: gmail, calendar, drive, meet, chat, groups, classroom, sites, common_controls"
+                    read -p "Enter services to assess (space-separated): " services
+                    run_scuba_assessment "$services"
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to run assessments${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
                 read -p "Press Enter to continue..."
                 ;;
             4) 
-                read -p "Enter output path (or press Enter for default): " output_path
-                export_scuba_report "$output_path"
+                if [[ "$enabled" == "true" ]]; then
+                    read -p "Enter output path (or press Enter for default): " output_path
+                    export_scuba_report "$output_path"
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to export reports${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
                 read -p "Press Enter to continue..."
                 ;;
-            5) show_assessment_history; read -p "Press Enter to continue..." ;;
+            5) 
+                if [[ "$enabled" == "true" ]]; then
+                    show_assessment_history
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to view assessment history${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
             6) toggle_scuba_settings_menu ;;
             7) 
                 install_python_dependencies
                 read -p "Press Enter to continue..."
                 ;;
             8) show_scuba_status; read -p "Press Enter to continue..." ;;
-            9) show_baseline_management_menu ;;
+            9) 
+                if [[ "$enabled" == "true" ]]; then
+                    show_baseline_management_menu
+                else
+                    echo -e "${YELLOW}⚠ SCuBA compliance must be enabled to manage baselines${NC}"
+                    echo "Enable SCuBA in Configuration (option 6) to access this feature"
+                fi
+                read -p "Press Enter to continue..."
+                ;;
             10) show_scuba_about; read -p "Press Enter to continue..." ;;
             11) show_scuba_documentation; read -p "Press Enter to continue..." ;;
             12|m|M) return ;;
@@ -386,21 +448,51 @@ show_scuba_menu() {
 
 # Toggle SCuBA settings submenu
 toggle_scuba_settings_menu() {
+    clear
     echo -e "${CYAN}⚙️ SCuBA Compliance Settings${NC}"
     echo ""
     
     local enabled=$(is_scuba_enabled)
-    echo "Current Status: $([ "$enabled" == "true" ] && echo "${GREEN}ENABLED${NC}" || echo "${RED}DISABLED${NC}")"
+    
+    # Display status prominently at top
+    if [[ "$enabled" == "true" ]]; then
+        echo -e "${GREEN}✓ SCuBA COMPLIANCE IS CURRENTLY ENABLED${NC}"
+        echo -e "${GREEN}All compliance features are available${NC}"
+    else
+        echo -e "${RED}✗ SCuBA COMPLIANCE IS CURRENTLY DISABLED${NC}"
+        echo -e "${YELLOW}⚠ Most compliance features require SCuBA to be enabled${NC}"
+    fi
     echo ""
-    echo "1. Enable SCuBA compliance"
-    echo "2. Disable SCuBA compliance"
-    echo "3. Return to SCuBA menu"
+    echo -e "Current Status: $([ "$enabled" == "true" ] && echo -e "${GREEN}ENABLED${NC}" || echo -e "${RED}DISABLED${NC}")"
+    echo ""
+    
+    # Show options with appropriate styling
+    if [[ "$enabled" == "true" ]]; then
+        echo -e "${GRAY}1. Enable SCuBA compliance ${GRAY}(already enabled)${NC}"
+        echo -e "${WHITE}2. Disable SCuBA compliance${NC}"
+    else
+        echo -e "${WHITE}1. Enable SCuBA compliance${NC}"
+        echo -e "${GRAY}2. Disable SCuBA compliance ${GRAY}(already disabled)${NC}"
+    fi
+    echo -e "${WHITE}3. Return to SCuBA menu${NC}"
     echo ""
     read -p "Select option (1-3): " choice
     
     case $choice in
-        1) toggle_scuba_compliance "true" ;;
-        2) toggle_scuba_compliance "false" ;;
+        1) 
+            if [[ "$enabled" == "true" ]]; then
+                echo -e "${YELLOW}SCuBA compliance is already enabled${NC}"
+            else
+                toggle_scuba_compliance "true"
+            fi
+            ;;
+        2) 
+            if [[ "$enabled" == "false" ]]; then
+                echo -e "${YELLOW}SCuBA compliance is already disabled${NC}"
+            else
+                toggle_scuba_compliance "false"
+            fi
+            ;;
         3) return ;;
         *) echo -e "${RED}Invalid option${NC}" ;;
     esac

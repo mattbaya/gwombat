@@ -414,7 +414,7 @@ show_scheduler_status() {
     
     # Check if scheduling is enabled
     local scheduling_enabled=$(is_scheduling_enabled)
-    echo -e "Scheduling Enabled: $([ "$scheduling_enabled" == "true" ] && echo "${GREEN}YES${NC}" || echo "${RED}NO${NC}")"
+    echo -e "Scheduling Enabled: $([ "$scheduling_enabled" == "true" ] && echo -e "${GREEN}YES${NC}" || echo -e "${RED}NO${NC}")"
     
     # Check if daemon is running
     local daemon_running="false"
@@ -426,7 +426,7 @@ show_scheduler_status() {
         fi
     fi
     
-    echo -e "Scheduler Daemon: $([ "$daemon_running" == "true" ] && echo "${GREEN}RUNNING${NC} (PID: $daemon_pid)" || echo "${RED}STOPPED${NC}")"
+    echo -e "Scheduler Daemon: $([ "$daemon_running" == "true" ] && echo -e "${GREEN}RUNNING${NC} (PID: $daemon_pid)" || echo -e "${RED}STOPPED${NC}")"
     echo ""
     
     # Show configuration

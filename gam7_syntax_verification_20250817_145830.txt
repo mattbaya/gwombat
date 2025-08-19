@@ -1,0 +1,527 @@
+GWOMBAT GAM7 Syntax Verification Report
+Generated: Sun Aug 17 14:58:30 EDT 2025
+==========================================
+
+This report analyzes all GAM commands in the GWOMBAT codebase for GAM7 compatibility.
+
+[0;36mINFO: Starting GAM7 syntax verification...[0m
+[0;36mINFO: Checking for deprecated GAM syntax patterns...[0m
+[0;36mINFO: Checking shared drive creation syntax...[0m
+[FIXED] ./shared-utilities/gam7_syntax_verifier.sh:65 - Old adminmanaged syntax (should be adminmanagedrestrictions)
+  Command:     grep -rn "create shareddrive.*adminmanaged[^r]" --include="*.sh" . | while read line; do
+
+[0;36mINFO: Checking user suspension syntax...[0m
+[FIXED] ./shared-utilities/gam7_syntax_verifier.sh:74 - Incorrect boolean syntax (should be on/off)
+  Command:     grep -rn "suspended true|suspended false" --include="*.sh" . | while read line; do
+
+[0;36mINFO: Checking suspension reason syntax...[0m
+[FIXED] ./shared-utilities/gam7_syntax_verifier.sh:83 - Incorrect parameter name (should be suspensionReason)
+  Command:     grep -rn "suspendreason" --include="*.sh" . | while read line; do
+
+[0;36mINFO: Checking for potentially risky GAM command patterns...[0m
+[0;36mINFO: Checking for GAM commands without error handling...[0m
+[WARNING] ./gwombat.sh:171 - GAM command without error handling
+  Command: echo "GAM Path: $GAM" >> "$LOG_FILE"
+
+[WARNING] ./gwombat.sh:1222 - GAM command without error handling
+  Command:         echo "  GAM Path: $GAM"
+
+[WARNING] ./gwombat.sh:1445 - GAM command without error handling
+  Command:                 echo "Current GAM path: $GAM"
+
+[WARNING] ./gwombat.sh:1449 - GAM command without error handling
+  Command:                     echo -e "${GREEN}GAM path updated to: $GAM${NC}"
+
+[WARNING] ./gwombat.sh:1450 - GAM command without error handling
+  Command:                     log_info "GAM path updated to: $GAM"
+
+[WARNING] ./gwombat.sh:1457 - GAM command without error handling
+  Command:                         echo -e "${GREEN}GAM path updated to: $GAM${NC}"
+
+[WARNING] ./gwombat.sh:1458 - GAM command without error handling
+  Command:                         log_warning "GAM path updated to non-executable file: $GAM"
+
+[WARNING] ./gwombat.sh:1553 - GAM command without error handling
+  Command:                     echo -e "${RED}✗ GAM not found or not executable at: $GAM${NC}"
+
+[WARNING] ./gwombat.sh:2796 - GAM command without error handling
+  Command:     local user_info=$($GAM info user "$user" 2>&1)
+
+[WARNING] ./gwombat.sh:2828 - GAM command without error handling
+  Command:     local user_info=$($GAM info user "$user" 2>&1)
+
+[WARNING] ./gwombat.sh:3344 - GAM command without error handling
+  Command:                 echo -e "${YELLOW}Executing: $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"${NC}"
+
+[WARNING] ./gwombat.sh:3353 - GAM command without error handling
+  Command:                         echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} process filedrivelabels "$fileid" deletelabelfield xIaFm0zxPw8zVL2nVZEI9L7u9eGOz15AZbJRNNEbbFcb 62BB395EC6${NC}"
+
+[WARNING] ./gwombat.sh:3506 - GAM command without error handling
+  Command:                     echo -e "${YELLOW}Executing: $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print shareddrives name query name contains '$search_name'${NC}"
+
+[WARNING] ./gwombat.sh:4042 - GAM command without error handling
+  Command:     local gam_command="$GAM user "$username" collect orphans targetuserfoldername "$target_folder""
+
+[WARNING] ./gwombat.sh:5166 - GAM command without error handling
+  Command:     $GAM user "$user_email" print filelist ./gwombat.sh:5325:            $GAM update user "$user_email" suspended off
+
+[WARNING] ./gwombat.sh:5335 - GAM command without error handling
+  Command:         $GAM user "$user_email" print filelist fields id,name,owners > "$temp_file"
+
+[WARNING] ./gwombat.sh:5347 - GAM command without error handling
+  Command:                 $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} add drivefile copy "$file_id" parentname "Copied Files from External Accounts"
+
+[WARNING] ./gwombat.sh:5349 - GAM command without error handling
+  Command:                 $GAM user "$user_email" add drivefileacl "$file_id" user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} role owner transferownership true
+
+[WARNING] ./gwombat.sh:5360 - GAM command without error handling
+  Command:             $GAM update user "$user_email" suspended on
+
+[WARNING] ./gwombat.sh:5519 - GAM command without error handling
+  Command:     $GAM user "$user_email" print filelist query "not mimeType contains 'application/vnd.google-apps'" ./gwombat.sh:5570:                $GAM update group "$group" remove member "$user_email"
+
+[WARNING] ./gwombat.sh:5578 - GAM command without error handling
+  Command:                     $GAM update group "$group" add member "$user_email"
+
+[WARNING] ./gwombat.sh:5596 - GAM command without error handling
+  Command:     $GAM user "$user_email" print filelist ./gwombat.sh:5614:        $GAM user "$user_email" update drivefile "$file_id" modifiedtime "$activity_date"
+
+[WARNING] ./gwombat.sh:5700 - GAM command without error handling
+  Command:             $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print filelist query "parents in '$drive_id'" ./gwombat.sh:5706:                    $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} update drivefile "$file_id" name "$new_name"
+
+[WARNING] ./gwombat.sh:5712 - GAM command without error handling
+  Command:             $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} print filelist query "parents in '$drive_id'" ./gwombat.sh:5714:                $GAM user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} add drivefileacl "$file_id" user ${ADMIN_USER:-gwombat@${DOMAIN:-yourdomain.edu}} role writer
+
+[WARNING] ./gwombat.sh:5720 - GAM command without error handling
+  Command:             echo "Command: $GAM_PATH create shareddrive "$drive_name" adminmanagedrestrictions true"
+
+[WARNING] ./gwombat.sh:5723 - GAM command without error handling
+  Command:             local drive_output=$($GAM_PATH create shareddrive "$drive_name" adminmanagedrestrictions true 2>&1)
+
+[WARNING] ./gwombat.sh:5738 - GAM command without error handling
+  Command:                     echo "Command: $GAM_PATH update shareddrive "$new_drive_id" add organizer ${ADMIN_USER}"
+
+[WARNING] ./gwombat.sh:5795 - GAM command without error handling
+  Command:     execute_command "$GAM update user "$user" ou "$target_ou"" "Move user to OU"
+
+[WARNING] ./gwombat.sh:5960 - GAM command without error handling
+  Command:         echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users ou "$OU_TEMPHOLD"${NC}"
+
+[WARNING] ./gwombat.sh:5970 - GAM command without error handling
+  Command:     $GAM print users ou "$OU_TEMPHOLD" firstname lastname
+
+[WARNING] ./gwombat.sh:5978 - GAM command without error handling
+  Command:         echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users ou "$OU_PENDING_DELETION"${NC}"
+
+[WARNING] ./gwombat.sh:5988 - GAM command without error handling
+  Command:     $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+
+[WARNING] ./gwombat.sh:6014 - GAM command without error handling
+  Command:     $GAM print users ou "$OU_SUSPENDED" firstname lastname
+
+[WARNING] ./gwombat.sh:6017 - GAM command without error handling
+  Command:     $GAM print users ou "$OU_TEMPHOLD" firstname lastname
+
+[WARNING] ./gwombat.sh:6020 - GAM command without error handling
+  Command:     $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+
+[WARNING] ./gwombat.sh:6140 - GAM command without error handling
+  Command:         echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users query "department: $department"${NC}"
+
+[WARNING] ./gwombat.sh:6162 - GAM command without error handling
+  Command:     $GAM print users query "department: $department" fields primaryemail,firstname,lastname,department,suspended
+
+[WARNING] ./gwombat.sh:6167 - GAM command without error handling
+  Command:     $GAM print users query "department: $department AND isSuspended=True" fields primaryemail,firstname,lastname,department,suspended
+
+[WARNING] ./gwombat.sh:6188 - GAM command without error handling
+  Command:         echo -e "${CYAN}[DISCOVERY] Would query: $GAM print users query "$custom_query"${NC}"
+
+[WARNING] ./gwombat.sh:6196 - GAM command without error handling
+  Command:     $GAM print users query "$custom_query" fields primaryemail,firstname,lastname,department,suspended,orgunitpath
+
+[WARNING] ./gwombat.sh:6248 - GAM command without error handling
+  Command:                         execute_command "$GAM user "$username" update drivefile "$fileid" newfilename "$new_filename"" "Clean filename: $filename"
+
+[WARNING] ./gwombat.sh:6252 - GAM command without error handling
+  Command:                     execute_command "$GAM user "$username" process filedrivelabels "$fileid" deletelabelfield "$LABEL_ID" "$FIELD_ID"" "Remove drive label"
+
+[WARNING] ./gwombat.sh:6461 - GAM command without error handling
+  Command:         execute_command "$GAM update user "$email" lastname "$new_lastname"" "Update user lastname"
+
+[WARNING] ./gwombat.sh:6498 - GAM command without error handling
+  Command:     $GAM user ${user_email_full} show filelist id title > "$ALL_FILE"
+
+[WARNING] ./gwombat.sh:6539 - GAM command without error handling
+  Command:                 execute_command "$GAM user "$user_email_full" update drivefile "$fileid" newfilename "$new_filename"" "Rename file: $current_filename"
+
+[WARNING] ./gwombat.sh:6573 - GAM command without error handling
+  Command:     execute_command "$GAM user "$user_email_full" add license "Google Workspace for Education Plus"" "Add temporary license"
+
+[WARNING] ./gwombat.sh:6604 - GAM command without error handling
+  Command:             execute_command "$GAM user "$user_email_full" process filedrivelabels "$file_id" addlabelfield "$LABEL_ID" "$FIELD_ID" selection "$SELECTION_ID"" "Add label to file"
+
+[WARNING] ./gwombat.sh:6609 - GAM command without error handling
+  Command:     execute_command "$GAM user "$user_email_full" delete license "Google Workspace for Education Plus"" "Remove temporary license"
+
+[WARNING] ./gwombat.sh:6634 - GAM command without error handling
+  Command:         execute_command "$GAM update user "$email" lastname "$original_lastname"" "Update user lastname"
+
+[WARNING] ./gwombat.sh:6688 - GAM command without error handling
+  Command:             execute_command "$GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"" "Rename file: $filename"
+
+[WARNING] ./gwombat.sh:6694 - GAM command without error handling
+  Command:             execute_command "$GAM user $owner process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
+
+[WARNING] ./gwombat.sh:6734 - GAM command without error handling
+  Command:         execute_command "$GAM update group "$group" remove member "$user"" "Remove from group: $group"
+
+[WARNING] ./gwombat.sh:6773 - GAM command without error handling
+  Command:         execute_command "$GAM update user "$email" lastname "$original_lastname"" "Update user lastname"
+
+[WARNING] ./gwombat.sh:6822 - GAM command without error handling
+  Command:                 execute_command "$GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename (Suspended Account - Temporary Hold)"" "Rename file: $filename"
+
+[WARNING] ./gwombat.sh:6923 - GAM command without error handling
+  Command:             $GAM user "$user_email_full" update drivefile id "$id" newfilename "$new_filename"
+
+[WARNING] ./gwombat.sh:6947 - GAM command without error handling
+  Command:         $GAM update user "$username" lastname "$new_lastname"
+
+[WARNING] ./gwombat.sh:6966 - GAM command without error handling
+  Command:         $GAM update user "$email" lastname "$original_lastname"
+
+[WARNING] ./gwombat.sh:7001 - GAM command without error handling
+  Command:             $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"
+
+[WARNING] ./gwombat.sh:7435 - GAM command without error handling
+  Command:                 $GAM print users fields primaryemail,suspended,orgunitpath
+
+[WARNING] ./gwombat.sh:7439 - GAM command without error handling
+  Command:                 $GAM print users query "isSuspended=false" fields primaryemail,suspended,orgunitpath
+
+[WARNING] ./gwombat.sh:7443 - GAM command without error handling
+  Command:                 $GAM print users query "isSuspended=true" fields primaryemail,suspended,orgunitpath
+
+[WARNING] ./gwombat.sh:9191 - GAM command without error handling
+  Command:     $GAM info user "$email" fields name,primaryemail,recoveryemail
+
+[WARNING] ./gwombat.sh:9210 - GAM command without error handling
+  Command:                 $GAM update user "$email" givenname "$first_name"
+
+[WARNING] ./gwombat.sh:9218 - GAM command without error handling
+  Command:                 $GAM update user "$email" familyname "$last_name"
+
+[WARNING] ./gwombat.sh:9226 - GAM command without error handling
+  Command:                 $GAM update user "$email" recoveryemail "$recovery_email"
+
+[WARNING] ./gwombat.sh:9234 - GAM command without error handling
+  Command:                 $GAM update user "$email" title "$title"
+
+[WARNING] ./gwombat.sh:9242 - GAM command without error handling
+  Command:                 $GAM update user "$email" phone "$phone"
+
+[WARNING] ./gwombat.sh:9250 - GAM command without error handling
+  Command:                 $GAM update user "$email" department "$department"
+
+[WARNING] ./gwombat.sh:9295 - GAM command without error handling
+  Command:             $GAM update user "$email" password "$new_password"
+
+[WARNING] ./gwombat.sh:9307 - GAM command without error handling
+  Command:                 $GAM update user "$email" password "$new_password"
+
+[WARNING] ./gwombat.sh:9316 - GAM command without error handling
+  Command:             $GAM update user "$email" password "$temp_password" changepasswordatnextlogin on
+
+[WARNING] ./gwombat.sh:9361 - GAM command without error handling
+  Command:             $GAM user "$email" turnoff2sv
+
+[WARNING] ./gwombat.sh:9367 - GAM command without error handling
+  Command:             $GAM user "$email" deprovision
+
+[WARNING] ./gwombat.sh:9373 - GAM command without error handling
+  Command:             $GAM user "$email" turnoff2sv
+
+[WARNING] ./gwombat.sh:9374 - GAM command without error handling
+  Command:             $GAM user "$email" deprovision
+
+[WARNING] ./gwombat.sh:9460 - GAM command without error handling
+  Command:         $GAM update user "$email" ou "$new_ou"
+
+[WARNING] ./gwombat.sh:9518 - GAM command without error handling
+  Command:                 $GAM create alias "$new_alias" user "$email"
+
+[WARNING] ./gwombat.sh:9526 - GAM command without error handling
+  Command:                 $GAM delete alias "$remove_alias"
+
+[WARNING] ./gwombat.sh:9580 - GAM command without error handling
+  Command:                 $GAM update group "$group_email" add member user "$email"
+
+[WARNING] ./gwombat.sh:9588 - GAM command without error handling
+  Command:                 $GAM update group "$group_email" remove member "$email"
+
+[WARNING] ./gwombat.sh:9652 - GAM command without error handling
+  Command:             $GAM insert license "$email" sku "$sku"
+
+[WARNING] ./gwombat.sh:9659 - GAM command without error handling
+  Command:                 $GAM delete license "$email" sku "$sku"
+
+[WARNING] ./gwombat.sh:9703 - GAM command without error handling
+  Command:             $GAM update user "$email" suspended off
+
+[WARNING] ./gwombat.sh:9722 - GAM command without error handling
+  Command:                 $GAM update user "$email" suspended on suspensionReason "$reason"
+
+[WARNING] ./gwombat.sh:9724 - GAM command without error handling
+  Command:                 $GAM update user "$email" suspended on
+
+[WARNING] ./gwombat.sh:10723 - GAM command without error handling
+  Command:         echo "Executing: $GAM_PATH update user $email suspended on"
+
+[WARNING] ./gwombat.sh:10763 - GAM command without error handling
+  Command:         echo "Executing: $GAM_PATH update user $email suspended off"
+
+[WARNING] ./gwombat.sh:12290 - GAM command without error handling
+  Command:                 $GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail,givenname,familyname,suspended,lastlogintime
+
+[WARNING] ./gwombat.sh:12347 - GAM command without error handling
+  Command:                 $GAM print users query "orgUnitPath:'/Suspended Accounts/Suspended - Exit Row'" fields primaryemail,givenname,familyname,suspended,lastlogintime,creationtime
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:39 - GAM command without error handling
+  Command: FILES=$(eval "$GAM_CMD")
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:190 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" add drivefileacl $REPORTSFOLDER user "$USER_EMAIL" role writer >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:202 - GAM command without error handling
+  Command: sheet_id=$($GAM user $USER_EMAIL create drivefile drivefilename "$USER_EMAIL File Analysis Report" localfile "$SUMMARY_CSV" mimetype "application/vnd.google-apps.spreadsheet" parentid $REPORTSFOLDER returnidonly)
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:208 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" delete drivefileacl $REPORTSFOLDER "$USER_EMAIL" >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:212 - GAM command without error handling
+  Command:     $GAM user $USER_EMAIL add drivefileacl $sheet_id user "${REPORT_EDITOR_EMAIL}" role writer >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4_sqlite.sh:216 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" show fileinfo $sheet_id fields webViewLink
+
+[WARNING] ./shared-utilities/add-members-to-group.sh:26 - GAM command without error handling
+  Command: $GAM update group $group add member allmail user $username
+
+[WARNING] ./shared-utilities/recent4.sh:26 - GAM command without error handling
+  Command: FILES=$(eval "$GAM_CMD")
+
+[WARNING] ./shared-utilities/recent4.sh:57 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" add drivefileacl $REPORTSFOLDER user "$USER_EMAIL" role writer >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4.sh:60 - GAM command without error handling
+  Command: sheet_id=$($GAM user $USER_EMAIL create drivefile drivefilename "$USER_EMAIL Shared Files" localfile $OUTPUT_FILE mimetype "application/vnd.google-apps.spreadsheet" parentid $REPORTSFOLDER returnidonly)
+
+[WARNING] ./shared-utilities/recent4.sh:62 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" delete drivefileacl $REPORTSFOLDER "$USER_EMAIL" >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4.sh:65 - GAM command without error handling
+  Command: $GAM user $USER_EMAIL add drivefileacl $sheet_id user "your-user@your-domain.edu" role writer >/dev/null 2>&1
+
+[WARNING] ./shared-utilities/recent4.sh:67 - GAM command without error handling
+  Command: $GAM user "$ADMIN_USER_VAR" show fileinfo $sheet_id fields webViewLink
+
+[WARNING] ./shared-utilities/clean-duplicate-sheets.sh:34 - GAM command without error handling
+  Command:   $GAM user "$GAM_USER" print filelist ./shared-utilities/clean-duplicate-sheets.sh:60:    $GAM user "$GAM_USER" show fileinfo "$id" fields createdTime ./shared-utilities/clean-duplicate-sheets.sh:77:  $GAM user "$GAM_USER" delete drivefile "$old_id"
+
+[WARNING] ./shared-utilities/clean-duplicate-sheets.sh:81 - GAM command without error handling
+  Command: $GAM user "$GAM_USER" empty drivetrash
+
+[WARNING] ./shared-utilities/backup_tools.sh:310 - GAM command without error handling
+  Command:         # $GAM user $user_email print filelist > "$drive_backup_path/filelist.csv"
+
+[WARNING] ./shared-utilities/datefix.sh:36 - GAM command without error handling
+  Command: ACTIVITY=$($GAM user $OWNER show driveactivity fileid $FILE_ID )
+
+[WARNING] ./shared-utilities/datefix.sh:77 - GAM command without error handling
+  Command: #$GAM user $ADMINUSER update drivefile id $FILE_ID modifieddate $NEWDATE
+
+[WARNING] ./shared-utilities/datefix.sh:78 - GAM command without error handling
+  Command: $GAM user $OWNER update drivefile id $FILE_ID modifieddate $closestEventTime
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:44 - GAM command without error handling
+  Command: "$GAM" user "$OWNER" add drivefileacl "$FOLDERID" user "$ADMIN_USER" role owner > "$SCRIPTPATH/temp/${FOLDERID}_change-$OWNER-to-gwombat.txt"
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:47 - GAM command without error handling
+  Command: OWNERSHIP_OUTPUT=$("$GAM" user "$ADMIN_USER" claim ownership $FOLDERID)
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:63 - GAM command without error handling
+  Command: "$GAM" user "$ADMIN_USER" print filelist select id "$FOLDERID" showownedby any fields id,owners.emailaddress > "$temp_file"
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:91 - GAM command without error handling
+  Command:             "$GAM" update user "$owner_email" suspended off
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:102 - GAM command without error handling
+  Command:     EXISTING_FOLDER_INFO=$("$GAM" user "$ADMIN_USER" show filelist query "'$FOLDERID' in parents and name='$FOLDER_NAME' and mimeType='application/vnd.google-apps.folder' and trashed=false")
+
+[WARNING] ./shared-utilities/ownership_management_sqlite.sh:106 - GAM command without error handling
+  Command:         CREATECOPYFOLDER=$("$GAM" user "$ADMIN_USER" add drivefile drivefilename "$FOLDER_NAME" mimetype gfolder parentid $FOLDERID)
+
+[WARNING] ./shared-utilities/google_forms_integration.sh:52 - GAM command without error handling
+  Command:         log_forms "GAM not found at $GAM" "ERROR"
+
+[WARNING] ./shared-utilities/clean-duplicate-folders.sh:30 - GAM command without error handling
+  Command:     $GAM user "$GAM_USER" print filelist ./shared-utilities/clean-duplicate-folders.sh:57:    $GAM user "$GAM_USER" show fileinfo "$id" fields createdTime ./shared-utilities/clean-duplicate-folders.sh:72:  $GAM user "$GAM_USER" delete drivefile "$old"
+
+[WARNING] ./shared-utilities/clean-duplicate-folders.sh:74 - GAM command without error handling
+  Command: $GAM user "$GAM_USER" empty drivetrash
+
+[WARNING] ./shared-utilities/ownership_management.sh:20 - GAM command without error handling
+  Command: "$GAM" user "$OWNER" add drivefileacl "$FOLDERID" user "$ADMIN_USER" role owner > "$SCRIPTPATH/temp/${FOLDERID}_change-$OWNER-to-gwombat.txt"
+
+[WARNING] ./shared-utilities/ownership_management.sh:23 - GAM command without error handling
+  Command: "$GAM" user "$ADMIN_USER" claim ownership $FOLDERID >> $SCRIPTPATH/temp/$FOLDERID-ownership-change-tree.csv
+
+[WARNING] ./shared-utilities/ownership_management.sh:26 - GAM command without error handling
+  Command: "$GAM" user "$ADMIN_USER" print filelist select id "$FOLDERID" showownedby any fields id,owners.emailaddress > "$temp_file"
+
+[WARNING] ./shared-utilities/ownership_management.sh:42 - GAM command without error handling
+  Command:             "$GAM" update user "$owner_email" suspended off
+
+[WARNING] ./shared-utilities/ownership_management.sh:52 - GAM command without error handling
+  Command: EXISTING_FOLDER_INFO=$("$GAM" user "$ADMIN_USER" show filelist query "'$FOLDERID' in parents and name='$FOLDER_NAME' and mimeType='application/vnd.google-apps.folder' and trashed=false")
+
+[WARNING] ./shared-utilities/ownership_management.sh:56 - GAM command without error handling
+  Command:     CREATECOPYFOLDER=$("$GAM" user "$ADMIN_USER" add drivefile drivefilename "$FOLDER_NAME" mimetype gfolder parentid $FOLDERID)
+
+[WARNING] ./shared-utilities/scuba_compliance_bridge.sh:179 - GAM command without error handling
+  Command:         cmd="$cmd --gam-path '$GAM_PATH'"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:91 - GAM command without error handling
+  Command: for file in $GAM_FILES; do
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:144 - GAM command without error handling
+  Command: for file in $GAM_FILES; do
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:154 - GAM command without error handling
+  Command: for file in $GAM_FILES; do
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:158 - GAM command without error handling
+  Command:             sed -i.bak 's/$GAM print users$/$GAM print users fields primaryEmail,name.fullName,suspended,orgUnitPath/g' "$file"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:164 - GAM command without error handling
+  Command:             sed -i.bak 's/$GAM print groups$/$GAM print groups fields email,name,description,directMembersCount/g' "$file"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:171 - GAM command without error handling
+  Command: for file in $GAM_FILES; do
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:210 - GAM command without error handling
+  Command:                         "$GAM_PATH" print users fields primaryEmail,name.fullName,suspended,orgUnitPath "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:212 - GAM command without error handling
+  Command:                         "$GAM_PATH" print users "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:218 - GAM command without error handling
+  Command:                         "$GAM_PATH" print groups fields email,name,description,directMembersCount "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:220 - GAM command without error handling
+  Command:                         "$GAM_PATH" print groups "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:226 - GAM command without error handling
+  Command:                     "$GAM_PATH" print shareddrives "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:229 - GAM command without error handling
+  Command:                     "$GAM_PATH" print "$resource" "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:237 - GAM command without error handling
+  Command:             "$GAM_PATH" oauth "$@"
+
+[WARNING] ./shared-utilities/gam7_compatibility_audit.sh:240 - GAM command without error handling
+  Command:             "$GAM_PATH" "$cmd" "$@"
+
+[WARNING] ./shared-utilities/fixshared.sh:25 - GAM command without error handling
+  Command: allfiles="$( $GAM user ${ADMIN_USER:-gwombat@your-domain.edu} show filelist select teamdriveid "$drive_id" fields "id,name" )"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:26 - GAM command without error handling
+  Command:                         "$GAM_PATH" print users fields primaryEmail,name.fullName,suspended,orgUnitPath "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:28 - GAM command without error handling
+  Command:                         "$GAM_PATH" print users "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:34 - GAM command without error handling
+  Command:                         "$GAM_PATH" print groups fields email,name,description,directMembersCount "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:36 - GAM command without error handling
+  Command:                         "$GAM_PATH" print groups "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:42 - GAM command without error handling
+  Command:                     "$GAM_PATH" print shareddrives "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:45 - GAM command without error handling
+  Command:                     "$GAM_PATH" print "$resource" "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:53 - GAM command without error handling
+  Command:             "$GAM_PATH" oauth "$@"
+
+[WARNING] ./shared-utilities/gam7_wrapper.sh:56 - GAM command without error handling
+  Command:             "$GAM_PATH" "$cmd" "$@"
+
+[0;36mINFO: Checking for hardcoded domain references...[0m
+[0;36mINFO: Checking GAM command best practices...[0m
+[0;36mINFO: Checking print commands for field specifications...[0m
+[SUGGESTION] ./gwombat.sh:11094 - Print users command without fields specification (may be slow)
+  Command:     suspended_users=$($GAM_PATH print users suspended 2>/dev/null)
+
+[SUGGESTION] ./gwombat.sh:11125 - Print users command without fields specification (may be slow)
+  Command:     all_users=$($GAM_PATH print users 2>/dev/null)
+
+[SUGGESTION] ./gwombat.sh:11187 - Print users command without fields specification (may be slow)
+  Command:     suspended_users=$($GAM_PATH print users suspended 2>/dev/null)
+
+[0;36mINFO: Checking for bulk operations...[0m
+[SUGGESTION] ./shared-utilities/gam7_compatibility_audit.sh:91 - Loop with GAM commands (consider batch processing)
+  Command: for file in $GAM_FILES; do
+
+[SUGGESTION] ./shared-utilities/gam7_compatibility_audit.sh:144 - Loop with GAM commands (consider batch processing)
+  Command: for file in $GAM_FILES; do
+
+[SUGGESTION] ./shared-utilities/gam7_compatibility_audit.sh:154 - Loop with GAM commands (consider batch processing)
+  Command: for file in $GAM_FILES; do
+
+[SUGGESTION] ./shared-utilities/gam7_compatibility_audit.sh:171 - Loop with GAM commands (consider batch processing)
+  Command: for file in $GAM_FILES; do
+
+[SUGGESTION] ./shared-utilities/gam7_syntax_verifier.sh:129 - Loop with GAM commands (consider batch processing)
+  Command:     grep -rn "for.*in.*$GAM" --include="*.sh" . | while read line; do
+
+[0;36mINFO: Checking for GAM7 feature usage...[0m
+[0;32m✓ Found GAM7 CSV processing usage[0m
+[0;32m✓ Found GAM7 batch processing usage[0m
+[0;36mINFO: Checking authentication and configuration...[0m
+[0;32m✓ Found GAM_PATH configuration[0m
+[0;32m✓ Found ADMIN_USER configuration[0m
+[0;32m✓ Found DOMAIN configuration[0m
+[0;36mINFO: Analyzing GAM command usage by category...[0m
+GAM Command Usage Analysis:
+===========================
+User management commands:      286
+Group management commands:       41
+Drive/file management commands:      123
+Information/reporting commands:      199
+Shared drive commands:       14
+
+[0;36mINFO: Generating GAM7 optimization recommendations...[0m
+GAM7 Optimization Recommendations:
+===================================
+1. ✅ COMPLETED: Updated shared drive creation syntax
+2. ✅ COMPLETED: Fixed user suspension syntax (on/off)
+3. ✅ COMPLETED: Corrected suspension reason parameter
+4. 🔄 IN PROGRESS: Systematic GAM command verification
+5. 📋 TODO: Implement GAM7 batch processing for bulk operations
+6. 📋 TODO: Add comprehensive error handling to all GAM commands
+7. 📋 TODO: Optimize print commands with specific field selections
+8. 📋 TODO: Implement GAM7 CSV processing for data operations
+9. 📋 TODO: Add authentication verification checks
+10. 📋 TODO: Create GAM7 performance monitoring
+
+Verification Summary:
+====================
+Total issues found: 0
+Report saved to: gam7_syntax_verification_20250817_145830.txt
+Verification completed: Sun Aug 17 14:58:38 EDT 2025
+[0;32m✓ No syntax issues found! GAM7 compatibility looks good.[0m

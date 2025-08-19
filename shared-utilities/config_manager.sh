@@ -373,11 +373,11 @@ opt_out_preferences_menu() {
     local opt_out_cleanup=$(get_preference "scheduling" "opt_out_cleanup_tasks" "NULL" "false")
     
     echo "Current Opt-Out Status:"
-    echo "  All Tasks: $([ "$opt_out_all" == "true" ] && echo "${RED}OPTED OUT${NC}" || echo "${GREEN}ENABLED${NC}")"
-    echo "  Dashboard Refresh: $([ "$opt_out_dashboard" == "true" ] && echo "${RED}OPTED OUT${NC}" || echo "${GREEN}ENABLED${NC}")"
-    echo "  Security Scans: $([ "$opt_out_security" == "true" ] && echo "${RED}OPTED OUT${NC}" || echo "${GREEN}ENABLED${NC}")"
-    echo "  Backup Operations: $([ "$opt_out_backup" == "true" ] && echo "${RED}OPTED OUT${NC}" || echo "${GREEN}ENABLED${NC}")"
-    echo "  Cleanup Tasks: $([ "$opt_out_cleanup" == "true" ] && echo "${RED}OPTED OUT${NC}" || echo "${GREEN}ENABLED${NC}")"
+    echo -e "  All Tasks: $([ "$opt_out_all" == "true" ] && echo -e "${RED}OPTED OUT${NC}" || echo -e "${GREEN}ENABLED${NC}")"
+    echo -e "  Dashboard Refresh: $([ "$opt_out_dashboard" == "true" ] && echo -e "${RED}OPTED OUT${NC}" || echo -e "${GREEN}ENABLED${NC}")"
+    echo -e "  Security Scans: $([ "$opt_out_security" == "true" ] && echo -e "${RED}OPTED OUT${NC}" || echo -e "${GREEN}ENABLED${NC}")"
+    echo -e "  Backup Operations: $([ "$opt_out_backup" == "true" ] && echo -e "${RED}OPTED OUT${NC}" || echo -e "${GREEN}ENABLED${NC}")"
+    echo -e "  Cleanup Tasks: $([ "$opt_out_cleanup" == "true" ] && echo -e "${RED}OPTED OUT${NC}" || echo -e "${GREEN}ENABLED${NC}")"
     echo ""
     
     echo "1. Toggle opt-out from ALL scheduled tasks"
@@ -502,7 +502,7 @@ scheduling_settings_menu() {
     local log_retention=$(get_config "scheduling" "log_retention_days" "30")
     
     echo "Current Settings:"
-    echo "  Master Scheduler: $([ "$scheduler_enabled" == "true" ] && echo "${GREEN}ENABLED${NC}" || echo "${RED}DISABLED${NC}")"
+    echo -e "  Master Scheduler: $([ "$scheduler_enabled" == "true" ] && echo -e "${GREEN}ENABLED${NC}" || echo -e "${RED}DISABLED${NC}")"
     echo "  Max Concurrent Tasks: $max_concurrent"
     echo "  Task Timeout: $task_timeout minutes"
     echo "  Log Retention: $log_retention days"

@@ -14,29 +14,76 @@
 ## Key Components
 
 ### 1. Dynamic Menu System (`gwombat.sh`)
-**SQLite-Driven Architecture**:
-- **User & Group Management** (20 options): Account lifecycle, scanning, management, groups, licenses
-- **Data & File Operations** (11 options): File management, analysis, list operations
-- **System & Monitoring** (9 options): Dashboard, reports, administration
-- **Security & Compliance** (3 options): SCuBA compliance management
-- **Configuration Management**: External tools (GAM, GYB, rclone) domain synchronization
+**SQLite-Driven Architecture (January 2025 Major Overhaul)**:
+- **User & Group Management** (23 options): Account lifecycle, scanning, storage management, group operations, suspended account workflows
+- **File & Drive Operations** (3 streamlined sections): File Operations, Shared Drive Management, Permission Management  
+- **Backup & Recovery** (13 options): Remote storage, policies, scheduling, restore, verification, monitoring
+- **Dashboard & Statistics** (18 options): System overview (12 options), statistics & metrics (8 options) - all functional features only
+- **Analysis & Discovery**: Account analysis, diagnostics, system monitoring
+- **Security & Compliance**: SCuBA compliance, permission auditing, security operations
+- **System Administration**: Database operations, performance monitoring, log management
 
-**Menu Features**:
-- **Dynamic Generation**: All menus generated from database tables
-- **Intelligent Search**: Keyword search across 43+ options with contextual results
-- **Alphabetical Index**: Complete menu catalog with navigation paths
-- **Self-Maintaining**: Zero hardcoded structures - automatically current
+**Menu Architecture Details**:
+- **Database Tables**: menu_sections, menu_items, menu_navigation, menu_hierarchy with 80+ items
+- **Dynamic Generation**: All major menus generated from SQLite database queries
+- **Intelligent Search**: Keyword search across all menu options with contextual results  
+- **Breadcrumb Navigation**: Clear path display (e.g., "/ File & Drive Operations / File Operations")
+- **Status Indicators**: Real-time system health checks in menu headers
+- **Consistent Navigation**: Standardized 'p' (previous), 'm' (main), 's' (search), 'x' (exit)
+- **Production-Ready Focus**: All "coming soon" placeholders removed - only functional features displayed
 
 ### 2. Database Architecture (`shared-utilities/database_functions.sh`)
 **Multi-Schema Design**:
 - **Primary Schema**: Account lifecycle tracking, list management, verification, audit logging
-- **Menu Schema**: Dynamic menu system with search optimization
+- **Menu Schema**: Dynamic menu system with search optimization (`local-config/menu_schema.sql`)
 - **Specialized Schemas**: SCuBA compliance, configuration management, security reports, backup tracking
 
 **Core Functions**:
 - `generate_main_menu()`, `generate_submenu()` - Dynamic menu generation
 - `search_menu_database()`, `show_menu_database_index()` - Advanced search and indexing
 - `get_menu_function()` - Dynamic function resolution from database
+
+**Menu Database Schema** (`local-config/menu_schema.sql`):
+- **menu_sections**: Main categories (id, name, display_name, section_order, icon, color_code, is_active)
+- **menu_items**: Individual options (section_id, name, display_name, function_name, item_order, icon, keywords, is_active)
+- **menu_navigation**: Special navigation options (key_char, display_name, function_name, is_global)
+- **menu_hierarchy**: Submenu relationships (parent_item_id, child_section_id)
+- **menu_search_cache**: Performance optimization for search functionality
+
+**Menu Population & Management**:
+- **Data Loading**: `shared-utilities/menu_data_loader.sh` populates initial menu structure
+- **Dynamic Updates**: Menu items can be added/modified via SQL without code changes
+- **Search Integration**: Full-text search across display names, descriptions, and keywords
+
+**Navigation Standards (Fully Implemented)**:
+- **'p'** = Previous menu (back) - replaces old 'b' for consistency
+- **'m'** = Main menu - direct return to top level
+- **'s'** = Search all menu options - database-driven search
+- **'i'** = Index of all menus (where available)
+- **'x'** = Exit application
+
+**SQLite-Driven Menu Implementation Status**:
+- ✅ **file_operations_menu** (3 streamlined options with 3-step workflow)
+- ✅ **shared_drive_menu** (19 comprehensive shared drive operations)  
+- ✅ **permission_management_menu** (20 security-focused permission tools)
+- ✅ **backup_operations_main_menu** (13 enterprise backup & recovery options)
+- ✅ **user_group_management_menu** (23 user lifecycle & group management tools)
+- ⏳ **Remaining Hardcoded**: system_overview_menu, statistics_menu, dashboard_menu
+
+**Menu Database Sections Created**:
+- **file_operations**: Streamlined file management with Google Drive integration
+- **shared_drives**: Complete shared drive lifecycle management  
+- **permission_management**: Security-focused access control and auditing
+- **backup_operations_main**: Enterprise backup system with remote storage
+- **user_group_management**: Comprehensive account lifecycle management
+
+**Enhanced Menu Features**:
+- **Breadcrumb Navigation**: Path display shows current location in menu hierarchy
+- **Status Indicators**: Real-time health checks (GAM, database, domain, storage)
+- **Error Handling**: 3-attempt input validation with progressive feedback
+- **Category Organization**: Visual grouping with color-coded section headers
+- **Function Resolution**: Dynamic function calling based on database function_name field
+- **Export Integration**: CSV and Google Sheets export capabilities built into workflows
 
 ### 3. Configuration & External Tools (`shared-utilities/config_manager.sh`)
 **External Tools Integration**:
@@ -120,5 +167,7 @@ gwombat/
 ✅ **Security Verification**: Domain mismatch protection and automated verification
 ✅ **Python Integration**: Advanced compliance modules and dashboard capabilities
 ✅ **Deployment Automation**: Secure SSH key-based deployment with environment configuration
+✅ **Production-Ready Menus**: All "coming soon" placeholders removed - system shows only working features
+✅ **Menu Consolidation**: Dashboard & Statistics reduced from 20 options to 18 focused, functional options
 
 **GWOMBAT** is a comprehensive, enterprise-ready Google Workspace management platform with cutting-edge database-driven interfaces, intelligent automation, and robust security features.
