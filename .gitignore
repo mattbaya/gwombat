@@ -9,9 +9,9 @@
 *.sqlite
 *.sqlite3
 account_lifecycle.db
-# Exception: menu database contains no sensitive data
-!local-config/menu.db
-!local-config/menu_schema.sql
+# Exception: shared-config menu files contain no sensitive data
+!shared-config/menu.db
+!shared-config/menu_schema.sql
 
 # SSH Keys and authentication
 *.key
@@ -115,11 +115,9 @@ reports/*
 
 # Local configuration and data (contains sensitive domain/account data)
 local-config/
-# Exception: templates and menu files contain no sensitive data
+# Exception: templates contain no sensitive data
 !local-config/.gitkeep
 !local-config/.env.template
-!local-config/menu.db
-!local-config/menu_schema.sql
 
 # Python virtual environments
 python-modules/venv/

@@ -70,7 +70,7 @@ mkdir -p "$CONFIG_DIR"
 # Database paths
 DB_FILE="local-config/gwombat.db"
 DATABASE_PATH="local-config/gwombat.db"
-MENU_DB="local-config/menu.db"
+MENU_DB="shared-config/menu.db"
 
 # Load configuration from file or set defaults
 load_configuration() {
@@ -224,7 +224,7 @@ sanitize_gam_input() {
 # Initialize the main database with all required tables
 initialize_database() {
     local db_file="${DB_FILE:-local-config/gwombat.db}"
-    local menu_db="${MENU_DB:-local-config/menu.db}"
+    local menu_db="${MENU_DB:-shared-config/menu.db}"
     
     echo -e "${CYAN}Initializing GWOMBAT databases...${NC}"
     
@@ -266,9 +266,9 @@ initialize_database() {
     fi
     
     # Initialize menu database
-    if [[ -f "local-config/menu_schema.sql" ]]; then
+    if [[ -f "shared-config/menu_schema.sql" ]]; then
         echo "  Loading menu database schema..."
-        if sqlite3 "$menu_db" < "local-config/menu_schema.sql" 2>/dev/null; then
+        if sqlite3 "$menu_db" < "shared-config/menu_schema.sql" 2>/dev/null; then
             echo -e "${GREEN}  ✓ Menu database initialized${NC}"
             
             # Load menu data if available
@@ -21606,11 +21606,11 @@ system_diagnostics_menu() {
                 fi
                 
                 # Menu Database
-                if [[ -f "local-config/menu.db" ]]; then
-                    local menu_db_size=$(du -h local-config/menu.db | cut -f1)
-                    echo "✅ Menu Database: local-config/menu.db ($menu_db_size)"
+                if [[ -f "shared-config/menu.db" ]]; then
+                    local menu_db_size=$(du -h shared-config/menu.db | cut -f1)
+                    echo "✅ Menu Database: shared-config/menu.db ($menu_db_size)"
                 else
-                    echo "❌ Menu Database: local-config/menu.db (missing)"
+                    echo "❌ Menu Database: shared-config/menu.db (missing)"
                 fi
                 
                 # Shared Utilities
@@ -21836,7 +21836,7 @@ system_diagnostics_menu() {
                     ((config_issues++))
                 fi
                 
-                if [[ -f "local-config/menu.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "  ✅ Menu database accessible"
                 else
                     echo "  ⚠️ Menu database not found"
@@ -24288,7 +24288,7 @@ main() {
     fi
     
     # Initialize databases if they don't exist
-    if [[ ! -f "local-config/gwombat.db" ]] || [[ ! -f "local-config/menu.db" ]]; then
+    if [[ ! -f "local-config/gwombat.db" ]] || [[ ! -f "shared-config/menu.db" ]]; then
         echo ""
         initialize_database
         echo ""
