@@ -1081,9 +1081,10 @@ configure_gam_for_domain() {
     echo "1. Create new OAuth configuration for this domain"
     echo "2. Show current GAM configuration"
     echo "3. Verify GAM domain matches GWOMBAT"
-    echo "4. Return to external tools menu"
+    echo "4. 🔧 OAuth Troubleshooting Guide"
+    echo "5. Return to external tools menu"
     echo ""
-    read -p "Select option (1-4): " gam_option
+    read -p "Select option (1-5): " gam_option
     
     case $gam_option in
         1)
@@ -1108,18 +1109,37 @@ configure_gam_for_domain() {
                 echo ""
                 read -p "Press Enter to start GAM OAuth setup..."
                 
-                # Run GAM oauth create
-                "$gam_path" oauth create
-                
-                echo ""
-                echo -e "${GREEN}OAuth configuration completed${NC}"
-                echo "Verifying configuration..."
-                
-                # Test the configuration
-                if "$gam_path" info domain >/dev/null 2>&1; then
-                    echo -e "${GREEN}✓ GAM successfully configured for $current_domain${NC}"
+                # Run GAM oauth create with error handling
+                echo "Attempting OAuth configuration..."
+                if "$gam_path" oauth create; then
+                    echo ""
+                    echo -e "${GREEN}OAuth configuration completed${NC}"
+                    echo "Verifying configuration..."
+                    
+                    # Test the configuration
+                    if "$gam_path" info domain >/dev/null 2>&1; then
+                        echo -e "${GREEN}✓ GAM successfully configured for $current_domain${NC}"
+                    else
+                        echo -e "${YELLOW}⚠️  Configuration may need additional setup${NC}"
+                    fi
                 else
-                    echo -e "${YELLOW}⚠️  Configuration may need additional setup${NC}"
+                    echo ""
+                    echo -e "${RED}❌ OAuth configuration failed${NC}"
+                    echo ""
+                    echo -e "${YELLOW}Common causes and solutions:${NC}"
+                    echo "• ${CYAN}admin_policy_enforced${NC}: Organization blocks OAuth apps"
+                    echo "  → Contact Google Workspace admin to whitelist GAM"
+                    echo "  → Use option 4 for detailed troubleshooting"
+                    echo ""
+                    echo "• ${CYAN}access_denied${NC}: User denied authorization"
+                    echo "  → Re-run with different admin account"
+                    echo "  → Ensure account has super admin privileges"
+                    echo ""
+                    echo "• ${CYAN}invalid_client${NC}: GAM OAuth client issue"
+                    echo "  → Update GAM to latest version"
+                    echo "  → Check GAM installation"
+                    echo ""
+                    echo "See option 4 for complete troubleshooting guide."
                 fi
             fi
             ;;
@@ -1152,6 +1172,41 @@ configure_gam_for_domain() {
             fi
             ;;
         4)
+            echo ""
+            echo -e "${CYAN}=== GAM OAuth Troubleshooting Guide ===${NC}"
+            echo ""
+            echo -e "${YELLOW}📖 For detailed troubleshooting information, see:${NC}"
+            echo "   docs/OAUTH_TROUBLESHOOTING.md"
+            echo ""
+            echo -e "${CYAN}🔧 Quick Solutions:${NC}"
+            echo ""
+            echo -e "${WHITE}Error: admin_policy_enforced${NC}"
+            echo "   Problem: Organization blocks OAuth apps"
+            echo "   Solution: Contact Google Workspace Super Admin to:"
+            echo "   • Go to Security > API Controls > App access control"
+            echo "   • Add GAM OAuth client to trusted apps:"
+            echo "     ${CYAN}591136899245-3p91hir237nvvn71vkl1vetndgeg360v.apps.googleusercontent.com${NC}"
+            echo ""
+            echo -e "${WHITE}Error: access_denied${NC}"
+            echo "   Problem: User denied OAuth consent"
+            echo "   Solution: Re-run OAuth with super admin account"
+            echo ""
+            echo -e "${WHITE}Error: invalid_client${NC}"
+            echo "   Problem: GAM OAuth client not recognized"
+            echo "   Solution: Update GAM to latest version"
+            echo ""
+            echo -e "${CYAN}🔄 Alternative Methods:${NC}"
+            echo "   • Service Account Authentication (recommended for production)"
+            echo "   • Domain-wide Delegation (for strict security policies)"
+            echo "   • Different admin account (bypass user-specific restrictions)"
+            echo ""
+            echo -e "${GREEN}💡 Need immediate help?${NC}"
+            echo "   1. Check if GAM is updated: ${WHITE}$gam_path version${NC}"
+            echo "   2. Test with different admin: Re-run OAuth setup"
+            echo "   3. Contact IT admin: Request OAuth policy changes"
+            echo ""
+            ;;
+        5)
             return
             ;;
     esac

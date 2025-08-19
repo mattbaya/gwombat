@@ -126,6 +126,7 @@ s → "security"  # Find compliance and security features
 - **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment procedures
 - **[REQUIREMENTS.md](docs/REQUIREMENTS.md)** - System requirements and dependencies
 - **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Testing procedures and validation
+- **[OAUTH_TROUBLESHOOTING.md](docs/OAUTH_TROUBLESHOOTING.md)** - Google Workspace OAuth authentication issues
 - **[CLAUDE.md](CLAUDE.md)** - AI development context and architecture
 
 ## 🌟 Latest Enhancements (v4.0 - August 2025)
@@ -156,6 +157,7 @@ s → "security"  # Find compliance and security features
 - **Domain Security Verification** - Prevents operations on wrong domains
 - **Multi-Schema Architecture** - Specialized databases for different functions
 - **Python Integration** - Compliance dashboards and API interfaces
+- **OAuth Troubleshooting** - Comprehensive guide for Google Workspace authentication issues
 
 ## 📊 Project Statistics
 
