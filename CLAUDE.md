@@ -34,16 +34,20 @@
 
 ### 2. Database Architecture (`shared-utilities/database_functions.sh`)
 **Multi-Schema Design**:
-- **Primary Schema**: Account lifecycle tracking, list management, verification, audit logging
-- **Menu Schema**: Dynamic menu system with search optimization (`local-config/menu_schema.sql`)
+- **Primary Schema**: Account lifecycle tracking, list management, verification, audit logging (`local-config/gwombat.db`)
+- **Menu Schema**: Dynamic menu system with search optimization (`shared-config/menu.db`)
 - **Specialized Schemas**: SCuBA compliance, configuration management, security reports, backup tracking
+
+**Database Organization**:
+- **`local-config/`**: Instance-specific data (account data, configurations, logs)
+- **`shared-config/`**: Application-level structure (menu definitions, schemas)
 
 **Core Functions**:
 - `generate_main_menu()`, `generate_submenu()` - Dynamic menu generation
 - `search_menu_database()`, `show_menu_database_index()` - Advanced search and indexing
 - `get_menu_function()` - Dynamic function resolution from database
 
-**Menu Database Schema** (`local-config/menu_schema.sql`):
+**Menu Database Schema** (`shared-config/menu.db`):
 - **menu_sections**: Main categories (id, name, display_name, section_order, icon, color_code, is_active)
 - **menu_items**: Individual options (section_id, name, display_name, function_name, item_order, icon, keywords, is_active)
 - **menu_navigation**: Special navigation options (key_char, display_name, function_name, is_global)

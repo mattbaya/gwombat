@@ -1324,25 +1324,26 @@ configuration_menu() {
         echo -e "${CYAN}Configuration Options:${NC}"
         echo "1. 🧙 Setup Wizard (First-time or reconfiguration)"
         echo "2. 🔄 Configure New Domain (backup current config)"
-        echo "3. 🐍 Setup Python Environment"
-        echo "4. 💾 Backup Current Configuration"
-        echo "5. 📁 Restore Configuration from Backup"
-        echo "6. View full configuration file"
-        echo "7. Create default configuration file"
-        echo "8. Edit GAM path"
-        echo "9. Edit script paths"
-        echo "10. Toggle progress display"
-        echo "11. Change confirmation level"
-        echo "12. Set log retention"
-        echo "13. Test configuration"
-        echo "14. 🔒 Show GAM configuration and domain info"
-        echo "15. Reset to defaults"
+        echo "3. 🧪 Test Domain Management"
+        echo "4. 🐍 Setup Python Environment"
+        echo "5. 💾 Backup Current Configuration"
+        echo "6. 📁 Restore Configuration from Backup"
+        echo "7. View full configuration file"
+        echo "8. Create default configuration file"
+        echo "9. Edit GAM path"
+        echo "10. Edit script paths"
+        echo "11. Toggle progress display"
+        echo "12. Change confirmation level"
+        echo "13. Set log retention"
+        echo "14. Test configuration"
+        echo "15. 🔒 Show GAM configuration and domain info"
+        echo "16. Reset to defaults"
         echo ""
         echo "p. Previous menu"
         echo "m. Main menu"
         echo "x. Exit"
         echo ""
-        read -p "Select an option (1-15, p, m, x): " config_choice
+        read -p "Select an option (1-16, p, m, x): " config_choice
         echo ""
         
         case $config_choice in
@@ -1415,6 +1416,17 @@ configuration_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             3)
+                # Test Domain Management
+                echo -e "${CYAN}Test Domain Management${NC}"
+                if [[ -x "./shared-utilities/test_domain_manager.sh" ]]; then
+                    ./shared-utilities/test_domain_manager.sh
+                else
+                    echo -e "${RED}Test domain manager not found at ./shared-utilities/test_domain_manager.sh${NC}"
+                fi
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            4)
                 # Python Environment Setup
                 echo -e "${CYAN}Setting up Python Environment...${NC}"
                 if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
@@ -1427,7 +1439,7 @@ configuration_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            4)
+            5)
                 # Backup Current Configuration
                 echo -e "${CYAN}Backup Current Configuration${NC}"
                 echo ""
@@ -2472,8 +2484,16 @@ dashboard_menu() {
     done
 }
 
-# System Overview Menu
+# System Overview Menu - SQLite-driven implementation
 system_overview_menu() {
+    # Source database functions if not already loaded
+    if ! type generate_submenu >/dev/null 2>&1; then
+        source "$SHARED_UTILITIES_PATH/database_functions.sh" 2>/dev/null || {
+            echo -e "${RED}Error: Cannot load database functions${NC}"
+            return 1
+        }
+    fi
+    
     while true; do
         clear
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
@@ -7417,13 +7437,37 @@ query_all_suspended_users() {
     fi
     
     echo "=== Users in General Suspended OU ==="
-    $GAM print users ou "$OU_SUSPENDED" firstname lastname
+    local suspended_users=$($GAM print users ou "$OU_SUSPENDED" firstname lastname 2>/dev/null)
+    echo "$suspended_users"
     echo ""
+    
     echo "=== Users in Temporary Hold OU ==="
-    $GAM print users ou "$OU_TEMPHOLD" firstname lastname
+    local temphold_users=$($GAM print users ou "$OU_TEMPHOLD" firstname lastname 2>/dev/null)
+    echo "$temphold_users"
     echo ""
+    
     echo "=== Users in Pending Deletion OU ==="
-    $GAM print users ou "$OU_PENDING_DELETION" firstname lastname
+    local pending_users=$($GAM print users ou "$OU_PENDING_DELETION" firstname lastname 2>/dev/null)
+    echo "$pending_users"
+    
+    # Offer CSV export option
+    local combined_data=""
+    if [[ -n "$suspended_users" ]]; then
+        combined_data+="# Users in General Suspended OU ($OU_SUSPENDED)"$'\n'
+        combined_data+="$suspended_users"$'\n'$'\n'
+    fi
+    if [[ -n "$temphold_users" ]]; then
+        combined_data+="# Users in Temporary Hold OU ($OU_TEMPHOLD)"$'\n'
+        combined_data+="$temphold_users"$'\n'$'\n'
+    fi
+    if [[ -n "$pending_users" ]]; then
+        combined_data+="# Users in Pending Deletion OU ($OU_PENDING_DELETION)"$'\n'
+        combined_data+="$pending_users"$'\n'
+    fi
+    
+    if [[ -n "$combined_data" ]] && type quick_export >/dev/null 2>&1; then
+        quick_export "$combined_data" "suspended_users" "All suspended users across all suspended account OUs"
+    fi
 }
 
 # Function to scan active accounts for orphaned pending deletion files
@@ -7565,12 +7609,29 @@ query_users_by_department() {
     fi
     
     echo "=== $department Users ==="
-    $GAM print users query "department: $department" fields primaryemail,firstname,lastname,department,suspended
+    local active_users=$($GAM print users query "department: $department" fields primaryemail,firstname,lastname,department,suspended 2>/dev/null)
+    echo "$active_users"
     
     # Also show suspended users in this department
     echo ""
     echo "=== Suspended $department Users ==="
-    $GAM print users query "department: $department AND isSuspended=True" fields primaryemail,firstname,lastname,department,suspended
+    local suspended_users=$($GAM print users query "department: $department AND isSuspended=True" fields primaryemail,firstname,lastname,department,suspended 2>/dev/null)
+    echo "$suspended_users"
+    
+    # Offer CSV export option
+    local combined_data=""
+    if [[ -n "$active_users" ]]; then
+        combined_data+="# Active $department Users"$'\n'
+        combined_data+="$active_users"$'\n'$'\n'
+    fi
+    if [[ -n "$suspended_users" ]]; then
+        combined_data+="# Suspended $department Users"$'\n'
+        combined_data+="$suspended_users"$'\n'
+    fi
+    
+    if [[ -n "$combined_data" ]] && type quick_export >/dev/null 2>&1; then
+        quick_export "$combined_data" "${department}_users" "$department users (active and suspended)"
+    fi
 }
 
 # Function for custom user queries
@@ -7599,7 +7660,14 @@ query_users_custom() {
     echo "=== Custom Query Results ==="
     echo "Query: $custom_query"
     echo ""
-    $GAM print users query "$custom_query" fields primaryemail,firstname,lastname,department,suspended,orgunitpath
+    local query_results=$($GAM print users query "$custom_query" fields primaryemail,firstname,lastname,department,suspended,orgunitpath 2>/dev/null)
+    echo "$query_results"
+    
+    # Offer CSV export option
+    if [[ -n "$query_results" ]] && type quick_export >/dev/null 2>&1; then
+        local sanitized_query=$(echo "$custom_query" | sed 's/[^a-zA-Z0-9_-]/_/g')
+        quick_export "$query_results" "custom_query_${sanitized_query}" "Custom GAM query: $custom_query"
+    fi
 }
 
 # Function to bulk cleanup orphaned pending deletion files
@@ -15393,6 +15461,11 @@ source "${SCRIPTPATH}/shared-utilities/database_functions.sh" 2>/dev/null || {
     echo -e "${YELLOW}Warning: Database functions not available. Some features may be limited.${NC}"
 }
 
+# Source export functions
+source "${SCRIPTPATH}/shared-utilities/export_functions.sh" 2>/dev/null || {
+    echo -e "${YELLOW}Warning: Export functions not available. CSV export features may be limited.${NC}"
+}
+
 # List Management Menu
 list_management_menu() {
     while true; do
@@ -17798,6 +17871,7 @@ file_drive_operations_menu() {
         echo "  3. 💾 Backup Operations"
         # Removed: Drive Cleanup Operations
         echo "  4. 🔐 Permission Management"
+        echo "  5. 📊 CSV Data Export"
         echo ""
         echo -e "${YELLOW}Navigation:${NC}"
         echo " 99. Return to Main Menu"
@@ -17830,6 +17904,9 @@ file_drive_operations_menu() {
                 ;;
             4)
                 permission_management_menu
+                ;;
+            5)
+                export_data_menu
                 ;;
             99|p|m)
                 return 0

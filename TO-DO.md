@@ -1,12 +1,22 @@
-# GWOMBAT Menu Implementation TODO List
+# GWOMBAT Development To-Do List
 
 ## Progress Status  
-- **Last worked on**: File Discovery cleanup and architectural refinement (FINAL)
-- **Session**: COMPLETE - All major menu functionality implemented with comprehensive working tools
-- **Completed**: 33/33 major items (100% COMPLETE) - ALL FEATURES IMPLEMENTED ✅
-- **Major Change**: File Discovery functionality moved to standalone-file-analysis-tools.sh for better architectural separation (local filesystem vs Google Drive/Shared Drive management)
+- **Last worked on**: CSV Export Integration and Test Domain Management (August 2025)
+- **Session**: High Priority Tasks Completion - CSV Export, Test Domain Management, Menu Enhancements  
+- **Recently Completed**: 2/3 high priority tasks (CSV Export ✅, Test Domain Management ✅)
+- **Major Achievement**: Added comprehensive CSV export functionality and test domain management system
 
-## Priority-Ordered Task List
+## Current High Priority Tasks (August 2025)
+
+### ✅ **RECENTLY COMPLETED**
+- [x] **Integrate CSV export functionality into existing GWOMBAT menus** - COMPLETED: Added export functions source, integrated quick_export into user query functions (query_all_suspended_users, query_users_by_department, query_users_custom), and added CSV Data Export menu option to File & Drive Operations
+- [x] **Implement test domain functionality** - COMPLETED: Created comprehensive test domain management system with shared-utilities/test_domain_manager.sh and integrated into configuration menu option 3 for safe testing and development
+
+### ⏳ **PENDING HIGH PRIORITY**
+- [ ] **Replace hardcoded system_overview_menu with SQLite-driven version** - Ready to deploy the new function when safe to implement
+- [ ] **Implement Account Storage Size Calculation** - Research correct GAM7 commands for retrieving user storage quota information, update function with proper syntax, test with Google Workspace environment
+
+## Legacy Completed Tasks
 
 ### ✅ **COMPLETED - Critical Issues Fixed**
 35. ✅ Fix GAM7 shared drive creation errors and invalid argument handling

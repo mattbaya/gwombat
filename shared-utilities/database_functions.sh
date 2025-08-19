@@ -6,7 +6,7 @@
 # Database configuration
 SCRIPTPATH="${SCRIPTPATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DB_FILE="${SCRIPTPATH}/local-config/gwombat.db"
-MENU_DB_FILE="${SCRIPTPATH}/local-config/menu.db"
+MENU_DB_FILE="${SCRIPTPATH}/shared-config/menu.db"
 DB_SCHEMA_FILE="${SCRIPTPATH}/local-config/database_schema.sql"
 
 # Color definitions (fallback if not defined elsewhere)
@@ -841,7 +841,7 @@ generate_submenu() {
     fi
     
     # Get section info
-    local section_info=$(sqlite3 "$DB_FILE" "
+    local section_info=$(sqlite3 "$MENU_DB_FILE" "
         SELECT display_name, description, icon, color_code 
         FROM menu_sections 
         WHERE name = '$section_name' AND is_active = 1;
@@ -893,7 +893,7 @@ generate_submenu() {
         echo "$item_order. $icon $display_name"
         ((item_count++))
         
-    done < <(sqlite3 "$DB_FILE" "
+    done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT item_order, display_name, description, icon, keywords
         FROM menu_items 
         WHERE section_id = (SELECT id FROM menu_sections WHERE name = '$section_name')
