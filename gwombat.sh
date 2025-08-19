@@ -67,6 +67,11 @@ CONFIG_FILE="./config/gwombat-config.json"
 CONFIG_DIR="./config"
 mkdir -p "$CONFIG_DIR"
 
+# Database paths
+DB_FILE="local-config/gwombat.db"
+DATABASE_PATH="local-config/gwombat.db"
+MENU_DB="local-config/menu.db"
+
 # Load configuration from file or set defaults
 load_configuration() {
     # Set default values
@@ -80,9 +85,12 @@ load_configuration() {
     DEFAULT_OPERATION_TIMEOUT="300"
     
     # Load .env file if it exists
-    if [[ -f ".env" ]]; then
+    if [[ -f "local-config/.env" ]]; then
+        source local-config/.env
+        echo "Loaded environment configuration from local-config/.env"
+    elif [[ -f ".env" ]]; then
         source .env
-        echo "Loaded environment configuration from .env"
+        echo "Loaded environment configuration from .env (legacy location)"
     fi
     
     # Override with environment variables if set
@@ -213,10 +221,78 @@ sanitize_gam_input() {
     echo "$sanitized"
 }
 
+# Initialize the main database with all required tables
+initialize_database() {
+    local db_file="${DB_FILE:-local-config/gwombat.db}"
+    local menu_db="${MENU_DB:-local-config/menu.db}"
+    
+    echo -e "${CYAN}Initializing GWOMBAT databases...${NC}"
+    
+    # Create local-config directory if it doesn't exist
+    mkdir -p "$(dirname "$db_file")"
+    
+    # Initialize main database with schema
+    if [[ -f "local-config/main_schema.sql" ]]; then
+        echo "  Loading main database schema..."
+        if sqlite3 "$db_file" < "local-config/main_schema.sql" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Main database initialized${NC}"
+            log_info "Main database initialized at $db_file"
+        else
+            echo -e "${YELLOW}  ⚠ Main database initialization had warnings${NC}"
+            log_error "Main database initialization warnings"
+        fi
+    else
+        echo -e "${YELLOW}  ⚠ Main schema file not found, creating basic tables${NC}"
+        # Create minimal accounts table if schema file is missing
+        sqlite3 "$db_file" "CREATE TABLE IF NOT EXISTS accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            full_name TEXT,
+            ou_path TEXT,
+            current_stage TEXT,
+            is_suspended INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );" 2>/dev/null
+        
+        sqlite3 "$db_file" "CREATE TABLE IF NOT EXISTS account_operations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_email TEXT NOT NULL,
+            operation_type TEXT NOT NULL,
+            operation_status TEXT NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP
+        );" 2>/dev/null
+    fi
+    
+    # Initialize menu database
+    if [[ -f "local-config/menu_schema.sql" ]]; then
+        echo "  Loading menu database schema..."
+        if sqlite3 "$menu_db" < "local-config/menu_schema.sql" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Menu database initialized${NC}"
+            
+            # Load menu data if available
+            if [[ -x "shared-utilities/menu_data_loader.sh" ]]; then
+                echo "  Loading menu data..."
+                if ./shared-utilities/menu_data_loader.sh >/dev/null 2>&1; then
+                    echo -e "${GREEN}  ✓ Menu data loaded${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Menu data loading had issues${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Menu database initialization had warnings${NC}"
+        fi
+    fi
+    
+    echo -e "${GREEN}✓ Database initialization complete${NC}"
+    return 0
+}
+
 # Enhanced dependency check function with logging and optional tools
 store_domain_in_database() {
     local domain="$1"
-    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
+    local db_file="${SCRIPTPATH}/local-config/gwombat.db"
     
     if [[ -f "$db_file" && -n "$domain" ]]; then
         sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$domain');" 2>/dev/null
@@ -227,7 +303,7 @@ store_domain_in_database() {
 reset_database_for_domain_change() {
     local new_domain="$1"
     local old_domain="$2"
-    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
+    local db_file="${SCRIPTPATH}/local-config/gwombat.db"
     
     echo -e "${YELLOW}⚠️  Domain change detected!${NC}"
     echo -e "${YELLOW}   Old domain: $old_domain${NC}"
@@ -488,32 +564,50 @@ check_dependencies() {
     local gam_path="${GAM:-${GAM_PATH:-/usr/local/bin/gam}}"
     if [[ -x "$gam_path" ]]; then
         local gam_version=$($gam_path version 2>/dev/null | head -n1 || echo "unknown")
-        echo -e "${GREEN}✓ GAM: $gam_version${NC}"
-        echo -e "${GREEN}  Path: $gam_path${NC}"
-        log_info "GAM found: $gam_version at $gam_path"
         
-        # Check if GAM is configured (with timeout handling)
-        echo -e "${YELLOW}  Checking GAM configuration...${NC}"
-        if command -v timeout >/dev/null 2>&1; then
-            # Use timeout if available (Linux)
-            if timeout 10 $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
-                echo -e "${GREEN}  ✓ GAM is configured${NC}"
-                log_info "GAM is configured and working"
-            else
-                recommendations+=("GAM needs configuration: Run 'gam info domain' to verify setup")
-                echo -e "${YELLOW}  ○ GAM found but not configured or timed out${NC}"
-                log_info "GAM found but not configured or configuration check timed out"
-            fi
+        # Check if this is GAM7
+        local is_gam7=false
+        if echo "$gam_version" | grep -q "GAM 7\|GAM7\|^7\." 2>/dev/null; then
+            is_gam7=true
+            echo -e "${GREEN}✓ GAM7: $gam_version${NC}"
+            echo -e "${GREEN}  Path: $gam_path${NC}"
+            log_info "GAM7 found: $gam_version at $gam_path"
         else
-            # Fallback for macOS - skip configuration check to avoid hang
-            echo -e "${YELLOW}  ○ GAM found - configuration check skipped (run 'gam info domain' to verify)${NC}"
-            recommendations+=("Verify GAM configuration: Run 'gam info domain' manually")
-            log_info "GAM found but configuration check skipped (timeout not available)"
+            echo -e "${YELLOW}⚠ GAM found but not GAM7: $gam_version${NC}"
+            echo -e "${RED}  GWOMBAT requires GAM7 for compatibility${NC}"
+            echo -e "${YELLOW}  Please upgrade to GAM7: https://github.com/GAM-team/GAM/wiki${NC}"
+            missing_deps+=("GAM7 (Current version: $gam_version)")
+            log_error "GAM version is not GAM7: $gam_version"
+            recommendations+=("Upgrade to GAM7 for full compatibility: https://github.com/GAM-team/GAM/wiki")
+        fi
+        
+        # Only check configuration if GAM7 is installed
+        if [[ "$is_gam7" == "true" ]]; then
+            # Check if GAM is configured (with timeout handling)
+            echo -e "${YELLOW}  Checking GAM configuration...${NC}"
+            if command -v timeout >/dev/null 2>&1; then
+                # Use timeout if available (Linux)
+                if timeout 10 $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
+                    echo -e "${GREEN}  ✓ GAM7 is configured${NC}"
+                    log_info "GAM7 is configured and working"
+                else
+                    recommendations+=("GAM7 needs configuration: Run 'gam info domain' to verify setup")
+                    echo -e "${YELLOW}  ○ GAM7 found but not configured or timed out${NC}"
+                    log_info "GAM7 found but not configured or configuration check timed out"
+                fi
+            else
+                # Fallback for macOS - skip configuration check to avoid hang
+                echo -e "${YELLOW}  ○ GAM7 found - configuration check skipped (run 'gam info domain' to verify)${NC}"
+                recommendations+=("Verify GAM7 configuration: Run 'gam info domain' manually")
+                log_info "GAM7 found but configuration check skipped (timeout not available)"
+            fi
         fi
     else
-        missing_deps+=("GAM (Google Apps Manager)")
-        echo -e "${RED}✗ GAM not found at: $gam_path${NC}"
-        log_error "GAM not found at: $gam_path"
+        missing_deps+=("GAM7 (Google Apps Manager 7)")
+        echo -e "${RED}✗ GAM7 not found at: $gam_path${NC}"
+        echo -e "${YELLOW}  Install GAM7: https://github.com/GAM-team/GAM/wiki${NC}"
+        log_error "GAM7 not found at: $gam_path"
+        recommendations+=("Install GAM7: https://github.com/GAM-team/GAM/wiki")
     fi
     
     echo ""
@@ -867,7 +961,7 @@ cleanup_logs() {
 create_database_backup() {
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local backup_file="${BACKUP_DIR}/account_lifecycle_${timestamp}.db.gz"
-    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
+    local db_file="${SCRIPTPATH}/local-config/gwombat.db"
     
     echo -e "${CYAN}Creating database backup...${NC}"
     
@@ -989,7 +1083,7 @@ restore_database_backup() {
     fi
     
     local selected_backup="${backups[$((backup_choice-1))]}"
-    local db_file="${SCRIPTPATH}/local-config/local-config/gwombat.db"
+    local db_file="${SCRIPTPATH}/local-config/gwombat.db"
     local backup_of_current="${db_file}.backup_$(date +%Y%m%d_%H%M%S)"
     
     echo ""
@@ -1255,142 +1349,66 @@ configuration_menu() {
             1)
                 # Setup Wizard
                 echo -e "${CYAN}Running Setup Wizard...${NC}"
-                if [[ -x "./setup_wizard.sh" ]]; then
-                    ./setup_wizard.sh
+                if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+                    ./shared-utilities/setup_wizard.sh
                 else
-                    echo -e "${RED}Setup wizard not found at ./setup_wizard.sh${NC}"
+                    echo -e "${RED}Setup wizard not found at ./shared-utilities/setup_wizard.sh${NC}"
                 fi
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
             2)
-                # Configure New Domain with Proper GAM Reconfiguration
-                echo -e "${CYAN}=== Configure New Domain ===${NC}"
+                # Configure New Domain with Backup
+                echo -e "${CYAN}Configure New Domain${NC}"
                 echo ""
                 if [[ -n "$DOMAIN" ]]; then
-                    echo -e "${YELLOW}⚠️  Current domain: $DOMAIN${NC}"
+                    echo -e "${YELLOW}⚠️ Current domain: $DOMAIN${NC}"
                     echo ""
-                    echo "Changing domains requires several steps:"
-                    echo "1. 💾 Backup current configuration and database"
-                    echo "2. 🔧 Reconfigure GAM for new domain"
-                    echo "3. ⚙️  Update GWOMBAT configuration"
-                    echo "4. 🔄 Restart GWOMBAT with new domain"
+                    echo "Configuring a new domain will:"
+                    echo "• Backup current configuration and database"
+                    echo "• Reset GWOMBAT for the new domain"
+                    echo "• Preserve all existing data safely"
                     echo ""
                     read -p "Continue with domain change? (y/N): " confirm_domain_change
                     if [[ "$confirm_domain_change" =~ ^[Yy]$ ]]; then
-                        
-                        # Step 1: Create backup
-                        echo ""
-                        echo -e "${CYAN}Step 1: Creating backup...${NC}"
-                        local backup_timestamp=$(date +%Y%m%d_%H%M%S)
+                        # Create backup
+                        local backup_timestamp=$(date +%Y%m%d-%H%M%S)
                         local backup_dir="./backups/domain-backup-${DOMAIN}-${backup_timestamp}"
                         mkdir -p "$backup_dir"
                         
+                        echo "Creating backup in $backup_dir..."
+                        
                         # Backup configuration files
-                        [[ -f ".env" ]] && cp ".env" "$backup_dir/.env.backup.$backup_timestamp"
+                        [[ -f ".env" ]] && cp ".env" "$backup_dir/"
                         [[ -f "local-config/server.env" ]] && cp "local-config/server.env" "$backup_dir/"
                         [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$backup_dir/"
                         
                         # Backup database
                         [[ -f "local-config/gwombat.db" ]] && cp "local-config/gwombat.db" "$backup_dir/"
                         
-                        # Backup any reports/logs
-                        [[ -d "reports" ]] && cp -r "reports" "$backup_dir/" 2>/dev/null || true
+                        # Backup any local-config/reports/logs
+                        [[ -d "reports" ]] && cp -r "reports" "$backup_dir/"
                         [[ -d "logs" ]] && cp -r "logs" "$backup_dir/" 2>/dev/null || true
                         
                         echo -e "${GREEN}✓ Backup created: $backup_dir${NC}"
                         echo ""
                         
-                        # Step 2: GAM Reconfiguration Guide
-                        echo -e "${CYAN}Step 2: GAM Reconfiguration Required${NC}"
-                        echo ""
-                        echo -e "${WHITE}You must reconfigure GAM for the new domain BEFORE proceeding.${NC}"
-                        echo ""
-                        echo -e "${YELLOW}GAM Reconfiguration Steps:${NC}"
-                        echo "1. Run: ${WHITE}$GAM oauth create${NC}"
-                        echo "2. Follow the OAuth setup process"
-                        echo "3. Authenticate with the NEW domain's super admin account"
-                        echo "4. Test with: ${WHITE}$GAM info domain${NC}"
-                        echo ""
-                        echo -e "${RED}⚠️  IMPORTANT: Use the super admin account of your NEW domain${NC}"
-                        echo ""
-                        
-                        read -p "Have you completed GAM reconfiguration for the new domain? (y/N): " gam_configured
-                        if [[ "$gam_configured" =~ ^[Yy]$ ]]; then
-                            
-                            # Step 3: Verify GAM configuration
-                            echo ""
-                            echo -e "${CYAN}Step 3: Verifying GAM configuration...${NC}"
-                            local new_domain_test
-                            if new_domain_test=$($GAM info domain 2>&1); then
-                                local detected_domain=$(echo "$new_domain_test" | grep -i "domain:" | head -1 | sed 's/.*domain[: ]*//i' | tr -d ' \t\r\n')
-                                if [[ -n "$detected_domain" ]]; then
-                                    echo -e "${GREEN}✓ GAM is now configured for domain: $detected_domain${NC}"
-                                    echo ""
-                                    
-                                    # Step 4: Update GWOMBAT configuration
-                                    echo -e "${CYAN}Step 4: Updating GWOMBAT configuration...${NC}"
-                                    read -p "Enter the admin user email for $detected_domain: " new_admin_user
-                                    
-                                    # Update .env file
-                                    if [[ -f ".env" ]]; then
-                                        # Create backup of current .env
-                                        cp ".env" ".env.backup.$backup_timestamp"
-                                        
-                                        # Update domain and admin user
-                                        sed -i.bak "s/^DOMAIN=.*/DOMAIN=\"$detected_domain\"/" ".env"
-                                        if [[ -n "$new_admin_user" ]]; then
-                                            sed -i.bak "s/^ADMIN_USER=.*/ADMIN_USER=\"$new_admin_user\"/" ".env"
-                                        fi
-                                        
-                                        echo -e "${GREEN}✓ Updated .env configuration${NC}"
-                                    fi
-                                    
-                                    echo ""
-                                    echo -e "${GREEN}=== Domain Change Completed Successfully ===${NC}"
-                                    echo -e "${WHITE}Old domain:${NC} $DOMAIN (backed up)"
-                                    echo -e "${WHITE}New domain:${NC} $detected_domain"
-                                    echo -e "${WHITE}Backup location:${NC} $backup_dir"
-                                    echo ""
-                                    echo -e "${YELLOW}GWOMBAT will now restart with the new domain configuration.${NC}"
-                                    echo ""
-                                    read -p "Press Enter to restart GWOMBAT..."
-                                    
-                                    # Restart GWOMBAT
-                                    exec "$0" "$@"
-                                else
-                                    echo -e "${RED}✗ Could not detect domain from GAM output${NC}"
-                                    echo "GAM output: $new_domain_test"
-                                fi
-                            else
-                                echo -e "${RED}✗ GAM domain verification failed${NC}"
-                                echo "Error: $new_domain_test"
-                                echo ""
-                                echo "Please ensure GAM is properly configured with: $GAM oauth create"
-                            fi
+                        # Run setup wizard for new domain
+                        echo "Starting setup wizard for new domain..."
+                        if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+                            ./shared-utilities/setup_wizard.sh
                         else
-                            echo ""
-                            echo -e "${YELLOW}Domain change cancelled. Please reconfigure GAM first.${NC}"
-                            echo ""
-                            echo "To reconfigure GAM manually:"
-                            echo "1. Run: $GAM oauth create"
-                            echo "2. Complete OAuth setup for new domain"
-                            echo "3. Return to this menu to complete domain change"
+                            echo -e "${RED}Setup wizard not found${NC}"
                         fi
                     else
                         echo "Domain change cancelled."
                     fi
                 else
                     echo "No current domain configured. Running setup wizard..."
-                    if [[ -x "./setup_wizard.sh" ]]; then
-                        ./setup_wizard.sh
+                    if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+                        ./shared-utilities/setup_wizard.sh
                     else
                         echo -e "${RED}Setup wizard not found${NC}"
-                        echo ""
-                        echo "Manual setup required:"
-                        echo "1. Configure GAM: $GAM oauth create"
-                        echo "2. Set DOMAIN and ADMIN_USER in .env file"
-                        echo "3. Restart GWOMBAT"
                     fi
                 fi
                 echo ""
@@ -1399,10 +1417,10 @@ configuration_menu() {
             3)
                 # Python Environment Setup
                 echo -e "${CYAN}Setting up Python Environment...${NC}"
-                if [[ -x "./setup_wizard.sh" ]]; then
-                    ./setup_wizard.sh python
+                if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+                    ./shared-utilities/setup_wizard.sh python
                 else
-                    echo -e "${RED}Setup wizard not found at ./setup_wizard.sh${NC}"
+                    echo -e "${RED}Setup wizard not found at ./shared-utilities/setup_wizard.sh${NC}"
                     echo "You can install Python packages manually with:"
                     echo "pip3 install -r python-modules/requirements.txt"
                 fi
@@ -2046,7 +2064,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            6)
+            15)
                 # Security Scans
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Scans Menu${NC}"
@@ -2077,7 +2095,7 @@ dashboard_menu() {
                             days="${days:-7}"
                             $SHARED_UTILITIES_PATH/security_reports.sh scan-all "$days"
                             ;;
-                        6) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
+                        15) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
                         *) echo -e "${RED}Invalid option${NC}" ;;
                     esac
                     echo ""
@@ -2101,7 +2119,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            7)
+            16)
                 # Generate Security Report
                 if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
                     echo -e "${CYAN}Security Report Generation${NC}"
@@ -2136,7 +2154,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            8)
+            14)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     $SHARED_UTILITIES_PATH/backup_tools.sh status
                     echo ""
@@ -2160,7 +2178,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            9)
+            15)
                 if [[ "$gyb_available" == "true" ]]; then
                     echo -e "${CYAN}Gmail Backup Operations${NC}"
                     read -p "Enter user email for Gmail backup: " user_email
@@ -2203,7 +2221,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            10)
+            16)
                 if [[ "$rclone_available" == "true" ]]; then
                     echo -e "${CYAN}Cloud Storage Operations${NC}"
                     read -p "Enter source path: " source_path
@@ -2254,7 +2272,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            11)
+            14)
                 if [[ "$backup_tools_available" == "true" ]]; then
                     echo -e "${CYAN}Backup User on Suspension${NC}"
                     read -p "Enter user email to backup: " user_email
@@ -2301,7 +2319,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            12)
+            15)
                 # Configuration Management
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
                     source "$SHARED_UTILITIES_PATH/config_manager.sh"
@@ -2328,7 +2346,7 @@ dashboard_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            13)
+            16)
                 # Scheduler Management
                 if [[ -x "$SHARED_UTILITIES_PATH/scheduler.sh" ]]; then
                     echo -e "${CYAN}🕐 Scheduler Management${NC}"
@@ -7813,7 +7831,7 @@ diagnose_account() {
     echo ""
     echo -e "${MAGENTA}=== DIAGNOSIS SUMMARY ===${NC}"
     echo "OU Status: $([ "$current_ou" == "$OU_TEMPHOLD" ] && echo "✅ Correct" || echo "❌ Incorrect")"
-    echo "Name Status: $([ "$lastname" == *"(Suspended Account - Temporary Hold)" ] && echo "✅ Correct" || echo "❌ Missing suffix")"
+    echo "Name Status: $([[ "$lastname" == *"(Suspended Account - Temporary Hold)" ]] && echo "✅ Correct" || echo "❌ Missing suffix")"
     echo "Files with suffix: $files_with_suffix"
     echo "Files without suffix: $files_without_suffix"
     
@@ -8816,19 +8834,19 @@ list_accounts_filtered() {
                 ;;
         esac
     else
-        # Use fresh GAM data
+        # Use fresh GAM data - GAM7 syntax
         case $filter_type in
             "all")
-                echo "Getting fresh account list from GAM..."
-                $GAM print users fields primaryemail,suspended,orgunitpath
+                echo "Getting fresh account list from GAM7..."
+                $GAM print users allfields name,primaryemail,suspended,orgunitpath,lastlogintime
                 ;;
             "active")
-                echo "Getting active accounts from GAM..."
-                $GAM print users query "isSuspended=false" fields primaryemail,suspended,orgunitpath
+                echo "Getting active accounts from GAM7..."
+                $GAM print users query "isSuspended=false" allfields name,primaryemail,suspended,orgunitpath,lastlogintime
                 ;;
             "suspended")
-                echo "Getting suspended accounts from GAM..."
-                $GAM print users query "isSuspended=true" fields primaryemail,suspended,orgunitpath
+                echo "Getting suspended accounts from GAM7..."
+                $GAM print users query "isSuspended=true" allfields name,primaryemail,suspended,orgunitpath,lastlogintime
                 ;;
         esac
     fi
@@ -8872,26 +8890,143 @@ calculate_account_sizes_menu() {
 
 # Function to calculate storage for all accounts
 calculate_all_account_sizes() {
-    echo -e "${YELLOW}⚠️  Account Storage Calculation Currently Unavailable${NC}"
+    echo -e "${CYAN}Calculating storage sizes for all accounts...${NC}"
     echo ""
-    echo -e "${WHITE}Issue:${NC} The storage calculation feature needs to be updated"
-    echo "for compatibility with GAM7 command syntax."
+    
+    # Generate unique scan session ID
+    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)"
+    
+    # Choose data source for account list
+    if choose_data_source "storage calculation"; then
+        # Use database
+        local account_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts ORDER BY email;" 2>/dev/null)
+    else
+        # Use fresh GAM data
+        local account_list=$($GAM print users fields primaryemail 2>/dev/null | tail -n +2 | cut -d',' -f1)
+    fi
+    
+    if [[ -z "$account_list" ]]; then
+        echo -e "${RED}No accounts found.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    local counter=0
+    local total_accounts=$(echo "$account_list" | wc -l)
+    local accounts_processed=0
+    local errors=0
+    
+    echo "Processing $total_accounts accounts with session ID: $scan_session_id"
     echo ""
-    echo -e "${WHITE}Current Status:${NC}"
-    echo "• The GAM7 commands for retrieving user storage quota information"
-    echo "  differ from the legacy GAM commands used in this function"
-    echo "• Research is needed to identify the correct GAM7 syntax"
-    echo "• This feature is tracked in the development roadmap"
+    
+    # Process accounts and store in new schema
+    echo "$account_list" | while read email; do
+        [[ -z "$email" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $total_accounts "Analyzing: $email"
+        
+        # Get storage info from GAM with quota information
+        local user_info=$($GAM info user "$email" fields quota 2>/dev/null)
+        
+        if [[ -z "$user_info" ]]; then
+            ((errors++))
+            continue
+        fi
+        
+        # Extract storage information
+        local storage_used_bytes=0
+        local storage_quota_bytes=0
+        local display_name=""
+        
+        # Get display name
+        display_name=$($GAM info user "$email" fields name 2>/dev/null | grep "Full Name:" | cut -d':' -f2 | xargs)
+        
+        # Parse storage used (try multiple patterns)
+        if echo "$user_info" | grep -q "Storage Used:"; then
+            local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+            local size_value=$(echo "$storage_line" | grep -o '[0-9.]*[0-9]' | head -1)
+            local size_unit=$(echo "$storage_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            case "${size_unit,,}" in
+                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes") storage_used_bytes="$size_value" ;;
+                *) storage_used_bytes=0 ;;
+            esac
+        fi
+        
+        # Parse storage quota 
+        if echo "$user_info" | grep -q "Storage Limit:"; then
+            local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
+            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*[0-9]' | head -1)
+            local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            case "${quota_unit,,}" in
+                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes") storage_quota_bytes="$quota_value" ;;
+                *) storage_quota_bytes=0 ;;
+            esac
+        fi
+        
+        # Calculate derived values
+        local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local usage_percentage=0
+        
+        if [[ $storage_quota_bytes -gt 0 ]]; then
+            usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
+        fi
+        
+        # Store in new account_storage_sizes table
+        sqlite3 local-config/gwombat.db "
+            INSERT OR REPLACE INTO account_storage_sizes (
+                email, display_name, storage_used_bytes, storage_used_gb,
+                storage_quota_bytes, storage_quota_gb, usage_percentage,
+                measurement_date, scan_session_id
+            ) VALUES (
+                '$(echo "$email" | sed "s/'/''/g")',
+                '$(echo "$display_name" | sed "s/'/''/g")',
+                $storage_used_bytes,
+                $storage_used_gb,
+                $storage_quota_bytes,
+                $storage_quota_gb,
+                $usage_percentage,
+                DATE('now'),
+                '$scan_session_id'
+            );
+        " 2>/dev/null && ((accounts_processed++))
+    done
+    
     echo ""
-    echo -e "${CYAN}Recommended Actions:${NC}"
-    echo "1. Check GAM7 documentation for storage/quota commands"
-    echo "2. Update the function with correct GAM7 syntax"
-    echo "3. Test with your Google Workspace environment"
+    echo -e "${GREEN}✅ Storage analysis completed!${NC}"
+    echo "   Accounts processed: $accounts_processed"
+    echo "   Session ID: $scan_session_id"
     echo ""
-    echo -e "${WHITE}Alternative:${NC} Use Google Admin Console for storage information"
+    
+    # Display top 10 largest accounts
+    echo -e "${CYAN}📊 Top 10 Largest Accounts:${NC}"
+    echo ""
+    
+    sqlite3 local-config/gwombat.db -header "
+        SELECT 
+            SUBSTR(email, 1, 30) as Email,
+            PRINTF('%.2f GB', storage_used_gb) as 'Storage Used',
+            PRINTF('%.1f%%', usage_percentage) as 'Usage %',
+            measurement_date as 'Measured'
+        FROM account_storage_sizes 
+        WHERE measurement_date = DATE('now')
+        ORDER BY storage_used_gb DESC 
+        LIMIT 10;
+    " 2>/dev/null
+    
+    echo ""
+    echo -e "${YELLOW}💡 Use menu option 'View Account Storage Sizes' for filtering and detailed analysis${NC}"
     echo ""
     read -p "Press Enter to continue..."
-    return
 }
 
 # Function to view account storage sizes with filtering and sorting
@@ -15074,19 +15209,22 @@ user_group_management_menu() {
             if [[ $item_order -le 2 && "$current_category" != "discovery" ]]; then
                 echo -e "${BLUE}=== ACCOUNT DISCOVERY & SCANNING ===${NC}"
                 current_category="discovery"
-            elif [[ $item_order -eq 3 && "$current_category" != "tools" ]]; then
+            elif [[ $item_order -ge 3 && $item_order -le 6 && "$current_category" != "storage" ]]; then
+                echo -e "${PURPLE}=== STORAGE MANAGEMENT ===${NC}"
+                current_category="storage"
+            elif [[ $item_order -eq 7 && "$current_category" != "tools" ]]; then
                 echo -e "${CYAN}=== ACCOUNT TOOLS ===${NC}"
                 current_category="tools"
-            elif [[ $item_order -ge 4 && $item_order -le 6 && "$current_category" != "management" ]]; then
+            elif [[ $item_order -ge 8 && $item_order -le 10 && "$current_category" != "management" ]]; then
                 echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
                 current_category="management"
-            elif [[ $item_order -ge 7 && $item_order -le 8 && "$current_category" != "groups" ]]; then
+            elif [[ $item_order -ge 11 && $item_order -le 12 && "$current_category" != "groups" ]]; then
                 echo -e "${YELLOW}=== GROUP & LICENSE MANAGEMENT ===${NC}"
                 current_category="groups"
-            elif [[ $item_order -ge 9 && $item_order -le 16 && "$current_category" != "lifecycle" ]]; then
+            elif [[ $item_order -ge 13 && $item_order -le 20 && "$current_category" != "lifecycle" ]]; then
                 echo -e "${RED}=== SUSPENDED ACCOUNT LIFECYCLE ===${NC}"
                 current_category="lifecycle"
-            elif [[ $item_order -ge 17 && "$current_category" != "reports" ]]; then
+            elif [[ $item_order -ge 21 && "$current_category" != "reports" ]]; then
                 echo -e "${CYAN}=== REPORTS & ANALYTICS ===${NC}"
                 current_category="reports"
             fi
@@ -23956,12 +24094,19 @@ scuba_compliance_menu() {
 # Check if first time setup is needed
 check_first_time_setup() {
     # Check if .env file exists
-    if [[ ! -f "./.env" ]]; then
+    if [[ ! -f "./local-config/.env" ]] && [[ ! -f "./.env" ]]; then
         return 0  # First time setup needed
     fi
     
     # Check if setup was completed
-    if [[ -f "./.env" ]] && grep -q "SETUP_COMPLETED=.*true" "./.env"; then
+    local env_file=""
+    if [[ -f "./local-config/.env" ]]; then
+        env_file="./local-config/.env"
+    elif [[ -f "./.env" ]]; then
+        env_file="./.env"
+    fi
+    
+    if [[ -n "$env_file" ]] && grep -q "SETUP_COMPLETED=.*true" "$env_file"; then
         return 1  # Setup already completed
     fi
     
@@ -24009,95 +24154,7 @@ search_menu_options() {
 }
 # Main script execution
 main() {
-    # Critical security check: Verify GAM domain matches configuration
-    echo -e "${BLUE}=== GWOMBAT Security Verification ===${NC}"
-    if ! verify_gam_domain; then
-        echo ""
-        echo -e "${RED}❌ CRITICAL SECURITY ERROR: Cannot proceed with domain mismatch${NC}"
-        echo ""
-        echo "This prevents potential data operations on the wrong domain."
-        echo ""
-        echo -e "${CYAN}Would you like me to help you fix this now?${NC}"
-        echo ""
-        echo "1. 🔧 Reconfigure GAM for domain: ${DOMAIN}"
-        echo "2. 📝 Update .env to match GAM domain"
-        echo "3. 🚪 Exit to fix manually"
-        echo ""
-        
-        local fix_choice
-        while true; do
-            read -p "Select option (1-3): " fix_choice
-            case "$fix_choice" in
-                1)
-                    echo ""
-                    echo -e "${CYAN}Starting GAM reconfiguration for domain: ${DOMAIN}${NC}"
-                    echo ""
-                    
-                    # Source config manager functions
-                    if [[ -f "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                        source "$SHARED_UTILITIES_PATH/config_manager.sh"
-                        configure_gam_for_domain
-                    else
-                        echo -e "${YELLOW}Configuration manager not found. Manual GAM setup required:${NC}"
-                        echo ""
-                        echo "1. Run: ${WHITE}$GAM oauth create${NC}"
-                        echo "2. Follow the authentication prompts"
-                        echo "3. Verify with: ${WHITE}$GAM info domain${NC}"
-                        echo "4. Restart GWOMBAT"
-                        echo ""
-                        read -p "Press Enter when GAM is configured..."
-                    fi
-                    
-                    # Verify the fix worked
-                    echo ""
-                    echo -e "${CYAN}Testing GAM configuration...${NC}"
-                    if verify_gam_domain; then
-                        echo -e "${GREEN}✓ GAM domain configuration fixed!${NC}"
-                        echo ""
-                        break
-                    else
-                        echo -e "${RED}Domain mismatch still exists. Please check GAM configuration.${NC}"
-                        echo ""
-                        exit 1
-                    fi
-                    ;;
-                2)
-                    echo ""
-                    echo -e "${CYAN}Updating .env file to match GAM domain...${NC}"
-                    
-                    # Get GAM domain
-                    local gam_domain=$(${GAM:-gam} info domain 2>/dev/null | grep -E "^Primary Domain|^Domain:" | head -1 | awk '{print $NF}' | tr -d ' ')
-                    if [[ -n "$gam_domain" ]]; then
-                        # Create backup
-                        cp .env ".env.backup.$(date +%Y%m%d_%H%M%S)"
-                        
-                        # Update domain
-                        sed -i.tmp "s/^DOMAIN=.*/DOMAIN=\"$gam_domain\"/" .env && rm .env.tmp
-                        
-                        echo -e "${GREEN}✓ Updated DOMAIN in .env to: $gam_domain${NC}"
-                        echo -e "${YELLOW}⚠️  Please restart GWOMBAT to apply changes${NC}"
-                        echo ""
-                        exit 0
-                    else
-                        echo -e "${RED}Could not detect GAM domain. Please configure GAM first.${NC}"
-                        exit 1
-                    fi
-                    ;;
-                3)
-                    echo ""
-                    echo "Exiting for manual configuration."
-                    echo ""
-                    exit 1
-                    ;;
-                *)
-                    echo -e "${RED}Invalid option. Please select 1, 2, or 3.${NC}"
-                    ;;
-            esac
-        done
-    fi
-    echo ""
-    
-    # Check for first-time setup
+    # Check for first-time setup BEFORE verifying domains
     if check_first_time_setup; then
         echo -e "${BLUE}=== GWOMBAT First-Time Setup ===${NC}"
         echo ""
@@ -24124,8 +24181,8 @@ main() {
                 1)
                     echo ""
                     echo -e "${CYAN}Starting setup wizard...${NC}"
-                    if [[ -x "./setup_wizard.sh" ]]; then
-                        ./setup_wizard.sh
+                    if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+                        ./shared-utilities/setup_wizard.sh
                         # After setup wizard completes, continue to main menu
                         break
                     else
@@ -24135,7 +24192,7 @@ main() {
                     ;;
                 2)
                     echo ""
-                    echo -e "${YELLOW}Skipping setup wizard. You can run it later with: ./setup_wizard.sh${NC}"
+                    echo -e "${YELLOW}Skipping setup wizard. You can run it later with: ./shared-utilities/setup_wizard.sh${NC}"
                     echo ""
                     break
                     ;;
@@ -24151,6 +24208,29 @@ main() {
         
         echo ""
         read -p "Press Enter to continue to GWOMBAT main menu..."
+    fi
+    
+    # Initialize databases if they don't exist
+    if [[ ! -f "local-config/gwombat.db" ]] || [[ ! -f "local-config/menu.db" ]]; then
+        echo ""
+        initialize_database
+        echo ""
+    fi
+    
+    # After setup is complete, verify GAM domain matches configuration
+    # Only do this if .env exists (not first-time setup)
+    if [[ -f ".env" ]]; then
+        echo -e "${BLUE}=== GWOMBAT Security Verification ===${NC}"
+        if ! verify_gam_domain; then
+            echo ""
+            echo -e "${RED}❌ CRITICAL SECURITY ERROR: Cannot proceed with domain mismatch${NC}"
+            echo ""
+            echo "This prevents potential data operations on the wrong domain."
+            echo "Please fix the domain configuration and try again."
+            echo ""
+            exit 1
+        fi
+        echo ""
     fi
     
     # Run dependency check on startup
@@ -35896,9 +35976,7 @@ backup_operations_main_menu() {
                 ;;
         esac
     done
-}
-
-# Improved input handling function
+}# Improved input handling function
 # Usage: get_user_input "prompt" "valid_options" "max_attempts"
 get_user_input() {
     local prompt="$1"
@@ -35946,30 +36024,7 @@ handle_menu_choice() {
     get_user_input "$prompt" "$valid_options" "$max_attempts"
 }
 
-# Workflow manager integration
-workflow_manager_menu() {
-    if [[ -x "$SHARED_UTILITIES_PATH/workflow_manager.sh" ]]; then
-        "$SHARED_UTILITIES_PATH/workflow_manager.sh"
-    else
-        echo -e "${YELLOW}=== Suspension Workflow Manager Setup Required ===${NC}"
-        echo ""
-        echo "The Suspension Workflow Manager allows you to:"
-        echo "• Configure custom suspension lifecycle stages"
-        echo "• Set up automated stage transitions"
-        echo "• Define stage-specific actions and requirements"
-        echo "• Track account progression through workflow stages"
-        echo "• Generate workflow reports and analytics"
-        echo ""
-        echo -e "${CYAN}To enable this feature:${NC}"
-        echo "1. Ensure workflow_manager.sh exists in shared-utilities/"
-        echo "2. Run database initialization from the workflow manager"
-        echo "3. Configure your organization's suspension stages"
-        echo ""
-        echo -e "${GREEN}Once configured, you'll have a fully customizable suspension workflow.${NC}"
-        echo ""
-        read -p "Press Enter to continue..."
-    fi
-}
+# Call main function to start the application
+load_configuration
+main
 
-# Execute main function with all arguments
-main "$@"

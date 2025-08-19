@@ -14,10 +14,10 @@ NC='\033[0m' # No Color
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GWOMBAT_ROOT="$SCRIPT_DIR"
+GWOMBAT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Configuration files
-ENV_FILE="$GWOMBAT_ROOT/.env"
+ENV_FILE="$GWOMBAT_ROOT/local-config/.env"
 ENV_TEMPLATE="$GWOMBAT_ROOT/.env.template"
 SERVER_ENV_TEMPLATE="$GWOMBAT_ROOT/server.env.template"
 
