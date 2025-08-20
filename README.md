@@ -33,8 +33,9 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 - **Analysis & Discovery** - File sharing analysis, account discovery, diagnostics
 - **Account List Management** - Database-driven batch operations with progress tracking
 
-### 📊 System & Monitoring (18 operations)
-- **Dashboard & Statistics** - System overview (12 options) and statistics & metrics (8 options) 
+### 📊 System & Monitoring (32 operations) 
+- **System Overview** - 15 system monitoring, health checks, and maintenance tools (SQLite-driven)
+- **Dashboard & Statistics** - 17 dashboard operations, security reports, backup tools, and database management (SQLite-driven)
 - **Production-Ready Focus** - Only working features displayed, all placeholders removed
 - **Reports & Monitoring** - Activity reports, log management, performance analysis
 - **System Administration** - Configuration, maintenance, and backup operations
@@ -47,7 +48,13 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 - **Test Domain Management** - Production/test domain switching with backup/restore
 - **System Setup & Settings** - Environment configuration and deployment management
 
-## 🎯 New Feature Highlights
+## 🎯 Recent Feature Updates (August 2025)
+
+### 🔄 SQLite Menu Conversions
+- **System Overview Menu** - Converted from hardcoded to SQLite-driven with 15 monitoring options
+- **Dashboard & Statistics Menu** - Converted with 17 organized dashboard operations  
+- **Function Dispatchers** - Dynamic function resolution and execution
+- **Configuration Cleanup** - Removed all server.env references, unified to local-config/.env
 
 ### 📊 CSV Export System
 Export any GWOMBAT data to CSV format for external analysis:
@@ -70,10 +77,11 @@ Safely switch between production and test Google Workspace domains:
 ## 🏗️ Revolutionary Architecture
 
 ### SQLite-Driven Dynamic Interfaces
-- **Zero Hardcoded Menus** - All interfaces generated from database tables
+- **7 Converted Menus** - system_overview_menu, dashboard_menu, and 5 others now SQLite-driven
+- **Dynamic Function Resolution** - Menu choices resolved via database with function dispatchers  
 - **Self-Maintaining** - Menus automatically reflect database changes
 - **Intelligent Search** - Advanced keyword matching with relevance scoring
-- **Database Integration** - Menu choices resolved via database queries
+- **Category Organization** - Automatic section headers and visual grouping
 - **Performance Optimized** - Cached search results and indexed lookups
 
 ### Multi-Schema Database Design

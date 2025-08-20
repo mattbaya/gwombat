@@ -13,9 +13,34 @@
 - [x] **Implement test domain functionality** - COMPLETED: Created comprehensive test domain management system with shared-utilities/test_domain_manager.sh and integrated into configuration menu option 3 for safe testing and development
 - [x] **Configuration File Organization & Setup Wizard Integration** - COMPLETED: Moved .env to local-config/ for consistency, fixed setup wizard GWOMBAT_ROOT path resolution, updated all documentation, maintained backward compatibility with legacy .env location
 
-### ⏳ **PENDING HIGH PRIORITY**
-- [ ] **Replace hardcoded system_overview_menu with SQLite-driven version** - Ready to deploy the new function when safe to implement
+### ⏳ **PENDING HIGH PRIORITY - SQLite Menu Conversions**
+- [x] **Replace hardcoded system_overview_menu with SQLite-driven version** - ✅ COMPLETED (August 2025)
+- [x] **Replace hardcoded dashboard_menu with SQLite-driven version** - ✅ COMPLETED (August 2025)
+- [ ] **Convert statistics_menu() to SQLite-driven (HIGH PRIORITY)** - Core statistics interface
+- [ ] **Convert show_main_menu() to SQLite-driven (HIGH PRIORITY)** - Primary navigation interface
+- [ ] **Convert file_operations_menu() to SQLite-driven (MEDIUM PRIORITY)** - File management operations
+- [ ] **Convert permission_management_menu() to SQLite-driven (MEDIUM PRIORITY)** - Security access control
+- [ ] **Convert shared_drive_menu() to SQLite-driven (MEDIUM PRIORITY)** - Shared drive management
+- [ ] **Convert backup_operations_main_menu() to SQLite-driven (MEDIUM PRIORITY)** - Backup system interface
+- [ ] **Review and convert remaining specialized menus (LOWER PRIORITY)** - Workflow-specific and administrative menus
+
+### ⏳ **PENDING HIGH PRIORITY - Other Tasks**
 - [ ] **Implement Account Storage Size Calculation** - Research correct GAM7 commands for retrieving user storage quota information, update function with proper syntax, test with Google Workspace environment
+
+## Recent Completed Tasks (August 2025)
+
+### ✅ **COMPLETED - SQLite Menu System Conversions**
+- [x] **System Overview Menu SQLite Conversion** - Converted hardcoded system_overview_menu to database-driven with 15 monitoring options, system health checks, and maintenance tools
+- [x] **Dashboard Menu SQLite Conversion** - Converted dashboard_menu with 17 organized operations including dashboard, security reports, backup tools, and database management  
+- [x] **Function Dispatcher Architecture** - Created system_overview_function_dispatcher() and dashboard_function_dispatcher() for dynamic function resolution
+- [x] **Configuration System Cleanup** - Removed all server.env references, unified configuration system to use local-config/.env exclusively
+- [x] **Menu Database Enhancement** - Added system_overview and dashboard_menu sections with full menu item definitions, keywords, and function mappings
+
+### ✅ **COMPLETED - System Architecture Improvements**
+- [x] **Dynamic Menu Generation** - Both new menus use SQLite-driven menu generation with category organization
+- [x] **Database Integration** - Menu choices resolved via database queries with fallback support
+- [x] **Configuration Consolidation** - Updated backup/restore operations, shared-utilities scripts, and setup wizard to use unified config approach
+- [x] **Error Handling** - Added proper error handling and fallback options for database unavailability
 
 ## Legacy Completed Tasks
 

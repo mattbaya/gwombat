@@ -142,17 +142,17 @@ Configure additional tools through GWOMBAT's centralized system:
 
 ### Production Server Setup
 
-For deployment to production servers, create a `server.env` file:
+For deployment to production servers, configure your `local-config/.env` file:
 
 ```bash
-# Copy template
-cp server.env.template server.env
+# Ensure local-config directory exists
+mkdir -p local-config
 
 # Configure for your production environment
-nano server.env
+nano local-config/.env
 ```
 
-**server.env content:**
+**local-config/.env content:**
 ```bash
 # Server-specific configuration
 GWOMBAT_PATH="/opt/production/path/gwombat"
@@ -305,9 +305,9 @@ GWOMBAT creates detailed logs in the `logs/` directory:
 
 ### File Permissions
 ```bash
-# Secure the .env file  
+# Secure the configuration files
 chmod 600 local-config/.env
-chmod 600 server.env
+chmod 700 local-config/
 
 # Secure SSH keys
 chmod 600 ~/.ssh/gwombatgit-key
@@ -323,7 +323,6 @@ chmod 644 ~/.ssh/gwombatgit-key.pub
 ```bash
 # Backup your configuration
 cp local-config/.env local-config/.env.backup
-cp server.env server.env.backup
 
 # Store backups securely (outside the git repository)
 ```
@@ -363,7 +362,7 @@ tail -f logs/session_*.log
 ### Key Files
 - `local-config/.env` - Main configuration (created by setup wizard)
 - `.env.template` - Configuration template (version controlled)
-- `config/gwombat.db` - SQLite database
+- `local-config/gwombat.db` - SQLite database
 - `logs/` - Application logs
 - `shared-utilities/database_functions.sh` - Database operations
 - `database_schema.sql` - Database schema

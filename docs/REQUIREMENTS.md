@@ -82,7 +82,7 @@ gam info domain
 ### 3. Configure GWOMBAT for GAM
 Update your environment configuration:
 ```bash
-# In local-config/.env or server.env
+# In local-config/.env
 GAM_PATH="/path/to/your/gam"  # Common: /usr/local/bin/gam
 GAM_CONFIG_PATH="/home/your-user/.gam"  # Your GAM config directory
 ADMIN_USER="your-admin@your-domain.edu"  # Your actual admin account
@@ -120,7 +120,7 @@ The account configured as ADMIN_USER in your local-config/.env file requires:
 ├── gwombat.sh               # Main application
 ├── database_functions.sh    # Database operations
 ├── database_schema.sql      # SQLite schema
-├── server.env              # Server configuration
+├── local-config/.env       # Main configuration
 ├── logs/                   # Application logs
 ├── reports/                # Generated reports
 ├── tmp/                    # Temporary files
@@ -167,8 +167,8 @@ The account configured as ADMIN_USER in your local-config/.env file requires:
 ### File Permissions
 ```bash
 # Secure configuration files
-chmod 600 server.env local-config/.env
-chmod 700 logs/ tmp/ backups/
+chmod 600 local-config/.env
+chmod 700 local-config/ logs/ tmp/ backups/
 chmod 755 *.sh
 ```
 
@@ -192,7 +192,7 @@ chmod 755 *.sh
 which gam
 gam version
 
-# Update PATH or GAM_PATH in local-config/.env or server.env
+# Update PATH or GAM_PATH in local-config/.env
 ```
 
 **SQLite missing**

@@ -117,7 +117,7 @@ TEST_MODE_DRY_RUN="true"
 TEST_MODE_CONFIRMATION_REQUIRED="true"
 ```
 
-### Environment Configuration (`local-config/server.env`)
+### Environment Configuration (`local-config/.env`)
 The main environment file is automatically updated when switching domains:
 ```bash
 DOMAIN="current-active-domain.edu"
@@ -131,7 +131,7 @@ GAM_PATH="/path/to/current/gam"
 ### 1. Pre-Switch Backup
 ```bash
 # Automatic backup creation
-backup_file="server.env.backup.20250819_103045"
+backup_file=".env.backup.20250819_103045"
 ```
 
 ### 2. Configuration Update  
@@ -286,7 +286,7 @@ If domain switching fails:
 
 2. **Manual Configuration Reset**  
    ```bash
-   # Edit local-config/server.env manually
+   # Edit local-config/.env manually
    # Restore known-good values
    ```
 
