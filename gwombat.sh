@@ -4054,6 +4054,338 @@ statistics_menu() {
     done
 }
 
+# Individual Statistics Functions
+domain_overview_statistics() {
+    echo -e "${CYAN}📊 Domain Overview Statistics${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    echo -e "${WHITE}Domain Summary:${NC}"
+    if [[ -x "$GAM" ]]; then
+        # Get domain information
+        local domain_info=$($GAM info domain 2>/dev/null)
+        if [[ -n "$domain_info" ]]; then
+            echo "$domain_info" | grep -E "(Primary Domain|User Count|Admin Count)" | sed 's/^/  /'
+        else
+            echo "  Domain information unavailable"
+        fi
+        
+        echo ""
+        echo -e "${WHITE}Account Distribution:${NC}"
+        
+        # Get user counts by type
+        if [[ -f "local-config/gwombat.db" ]]; then
+            echo "  Account Status Distribution:"
+            sqlite3 local-config/gwombat.db "
+                SELECT 
+                    '    ' || current_stage || ': ' || COUNT(*) || ' accounts'
+                FROM accounts 
+                GROUP BY current_stage 
+                ORDER BY COUNT(*) DESC;
+            " 2>/dev/null | head -10
+        fi
+        
+        echo ""
+        echo -e "${WHITE}Organizational Units:${NC}"
+        # Get OU statistics
+        local ou_stats=$($GAM print orgs 2>/dev/null | tail -n +2 | wc -l)
+        echo "  Total OUs: $ou_stats"
+        
+        echo ""
+        echo -e "${WHITE}Groups Statistics:${NC}"
+        local group_count=$($GAM print groups 2>/dev/null | tail -n +2 | wc -l)
+        echo "  Total Groups: $group_count"
+        
+        # Group membership statistics
+        if [[ -f "local-config/gwombat.db" ]]; then
+            local avg_membership=$(sqlite3 local-config/gwombat.db "
+                SELECT ROUND(AVG(member_count), 1) 
+                FROM (SELECT COUNT(*) as member_count FROM accounts GROUP BY email);
+            " 2>/dev/null || echo "0")
+            echo "  Average memberships per user: $avg_membership"
+        fi
+        
+    else
+        echo "  GAM not available - cannot retrieve domain statistics"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+user_account_statistics() {
+    echo -e "${CYAN}👥 User Account Statistics${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    if [[ -f "local-config/gwombat.db" ]]; then
+        echo -e "${WHITE}Account Lifecycle Statistics:${NC}"
+        
+        # Detailed stage breakdown
+        sqlite3 local-config/gwombat.db "
+            SELECT 
+                CASE 
+                    WHEN current_stage = 'active' THEN '✅ Active Accounts'
+                    WHEN current_stage = 'recently_suspended' THEN '⚠️ Recently Suspended'
+                    WHEN current_stage = 'pending_deletion' THEN '🔄 Pending Deletion'
+                    WHEN current_stage = 'temporary_hold' THEN '⏸️ Temporary Hold'
+                    WHEN current_stage = 'exit_row' THEN '🚪 Exit Row'
+                    ELSE '❓ ' || current_stage
+                END || ': ' || COUNT(*) || ' accounts (' || 
+                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts), 1) || '%)'
+            FROM accounts 
+            GROUP BY current_stage 
+            ORDER BY COUNT(*) DESC;
+        " 2>/dev/null | while read -r line; do
+            echo "  $line"
+        done
+        
+        echo ""
+        echo -e "${WHITE}Account Creation Patterns:${NC}"
+        
+        # Recent account activity
+        local recent_changes=$(sqlite3 local-config/gwombat.db "
+            SELECT COUNT(*) FROM stage_history 
+            WHERE changed_at > datetime('now', '-30 days');
+        " 2>/dev/null || echo "0")
+        echo "  Stage changes (last 30 days): $recent_changes"
+        
+        # Most common stage transitions
+        echo ""
+        echo -e "${WHITE}Common Stage Transitions (last 90 days):${NC}"
+        sqlite3 local-config/gwombat.db "
+            SELECT 
+                '  ' || from_stage || ' → ' || to_stage || ': ' || COUNT(*) || ' transitions'
+            FROM stage_history 
+            WHERE changed_at > datetime('now', '-90 days')
+            GROUP BY from_stage, to_stage 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5;
+        " 2>/dev/null
+        
+    else
+        echo "  Database not available - cannot show lifecycle statistics"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+historical_trends_statistics() {
+    echo -e "${CYAN}📈 Historical Trends${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    if [[ -f "local-config/gwombat.db" ]]; then
+        echo -e "${WHITE}Account Changes Over Time:${NC}"
+        
+        # Monthly trends
+        echo "  Monthly Stage Changes (last 12 months):"
+        sqlite3 local-config/gwombat.db "
+            SELECT 
+                '    ' || strftime('%Y-%m', changed_at) || ': ' || COUNT(*) || ' changes'
+            FROM stage_history 
+            WHERE changed_at > datetime('now', '-12 months')
+            GROUP BY strftime('%Y-%m', changed_at)
+            ORDER BY strftime('%Y-%m', changed_at) DESC 
+            LIMIT 12;
+        " 2>/dev/null
+        
+        echo ""
+        echo -e "${WHITE}Suspension Trends:${NC}"
+        
+        # Suspension patterns
+        sqlite3 local-config/gwombat.db "
+            SELECT 
+                '  Suspensions this month: ' || COUNT(*) || ' accounts'
+            FROM stage_history 
+            WHERE to_stage IN ('recently_suspended', 'pending_deletion') 
+            AND changed_at > datetime('now', 'start of month');
+        " 2>/dev/null
+        
+    else
+        echo "  Database not available - cannot show historical trends"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+storage_analytics_statistics() {
+    echo -e "${CYAN}💾 Storage Analytics${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    if [[ -f "local-config/gwombat.db" ]]; then
+        echo -e "${WHITE}Storage Usage Patterns:${NC}"
+        
+        # Storage statistics if available
+        local storage_records=$(sqlite3 local-config/gwombat.db "
+            SELECT COUNT(*) FROM account_storage_sizes;
+        " 2>/dev/null || echo "0")
+        
+        if [[ "$storage_records" -gt 0 ]]; then
+            echo "  Storage records available: $storage_records accounts"
+            
+            # Top storage users
+            echo ""
+            echo -e "${WHITE}Top Storage Users:${NC}"
+            sqlite3 local-config/gwombat.db "
+                SELECT 
+                    '    ' || email || ': ' || ROUND(storage_gb, 2) || ' GB'
+                FROM account_storage_sizes 
+                ORDER BY storage_gb DESC 
+                LIMIT 10;
+            " 2>/dev/null
+        else
+            echo "  No storage data available. Run storage size calculation first."
+        fi
+        
+    else
+        echo "  Database not available - cannot show storage analytics"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+group_statistics_analysis() {
+    echo -e "${CYAN}📋 Group Statistics${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    if [[ -x "$GAM" ]]; then
+        echo -e "${WHITE}Group Analysis:${NC}"
+        
+        # Basic group count
+        local group_count=$($GAM print groups 2>/dev/null | tail -n +2 | wc -l)
+        echo "  Total Groups: $group_count"
+        
+        echo ""
+        echo -e "${WHITE}Group Membership Distribution:${NC}"
+        
+        # Group membership analysis would require more detailed GAM queries
+        echo "  (Detailed group membership analysis requires extended GAM queries)"
+        echo "  Use 'Group Operations' menu for detailed group management"
+        
+    else
+        echo "  GAM not available - cannot retrieve group statistics"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+system_performance_metrics() {
+    echo -e "${CYAN}⚡ System Performance${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    echo -e "${WHITE}System Response Metrics:${NC}"
+    
+    # Basic system metrics
+    echo "  System uptime: $(uptime | cut -d' ' -f4-5 | sed 's/,//')"
+    echo "  Load average: $(uptime | awk -F'load average:' '{print $2}')"
+    
+    if [[ -f "local-config/gwombat.db" ]]; then
+        echo ""
+        echo -e "${WHITE}Database Performance:${NC}"
+        
+        # Database size
+        local db_size=$(ls -lh local-config/gwombat.db 2>/dev/null | awk '{print $5}')
+        echo "  Database size: $db_size"
+        
+        # Record counts
+        local total_records=$(sqlite3 local-config/gwombat.db "
+            SELECT COUNT(*) FROM accounts;
+        " 2>/dev/null || echo "0")
+        echo "  Total account records: $total_records"
+        
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+database_performance_metrics() {
+    echo -e "${CYAN}📊 Database Performance${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    if [[ -f "local-config/gwombat.db" ]]; then
+        echo -e "${WHITE}Database Metrics:${NC}"
+        
+        # Database file information
+        local db_size=$(ls -lh local-config/gwombat.db 2>/dev/null | awk '{print $5}')
+        local db_modified=$(ls -l local-config/gwombat.db 2>/dev/null | awk '{print $6, $7, $8}')
+        echo "  Database size: $db_size"
+        echo "  Last modified: $db_modified"
+        
+        echo ""
+        echo -e "${WHITE}Record Counts:${NC}"
+        
+        # Table record counts
+        local accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
+        local history=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM stage_history;" 2>/dev/null || echo "0")
+        echo "  Accounts: $accounts"
+        echo "  Stage history records: $history"
+        
+        echo ""
+        echo -e "${WHITE}Query Performance:${NC}"
+        echo "  (Basic query timing - for detailed analysis use database tools)"
+        
+    else
+        echo "  Database not available - cannot show performance metrics"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+gam_operation_metrics() {
+    echo -e "${CYAN}🔧 GAM Operation Metrics${NC}"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    
+    echo -e "${WHITE}GAM Status:${NC}"
+    
+    if [[ -x "$GAM" ]]; then
+        echo "  ✅ GAM Available: $GAM"
+        
+        # Get GAM version
+        local gam_version=$($GAM version 2>/dev/null | head -1 || echo "Unknown")
+        echo "  📋 Version: $gam_version"
+        
+        # Get domain info
+        local domain_info=$($GAM info domain 2>/dev/null | grep "Primary Domain:" | cut -d: -f2 | tr -d ' ' || echo "Not configured")
+        echo "  🌐 Domain: $domain_info"
+        
+        echo ""
+        echo -e "${WHITE}Operation Metrics:${NC}"
+        echo "  (Detailed GAM timing metrics require performance logging)"
+        echo "  Use individual GAM operations to test response times"
+        
+    else
+        echo "  ❌ GAM not available at: ${GAM:-not set}"
+        echo "  Configure GAM path in local-config/.env"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Statistics Function Dispatcher
+statistics_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        "domain_overview_statistics") domain_overview_statistics ;;
+        "user_account_statistics") user_account_statistics ;;
+        "historical_trends_statistics") historical_trends_statistics ;;
+        "storage_analytics_statistics") storage_analytics_statistics ;;
+        "group_statistics_analysis") group_statistics_analysis ;;
+        "system_performance_metrics") system_performance_metrics ;;
+        "database_performance_metrics") database_performance_metrics ;;
+        "gam_operation_metrics") gam_operation_metrics ;;
+        *)
+            echo -e "${RED}Unknown statistics function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Function to let user choose between database or fresh GAM data
 choose_data_source() {
     local operation_name="$1"
