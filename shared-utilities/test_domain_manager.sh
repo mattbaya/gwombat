@@ -8,8 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}}")" && pwd)"
 GWOMBAT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Load configuration
-if [[ -f "$GWOMBAT_ROOT/local-config/server.env" ]]; then
-    source "$GWOMBAT_ROOT/local-config/server.env"
+if [[ -f "$GWOMBAT_ROOT/local-config/.env" ]]; then
+    source "$GWOMBAT_ROOT/local-config/.env"
 fi
 
 # Color definitions
@@ -141,10 +141,10 @@ switch_to_domain() {
         sed -i.bak "s|PRODUCTION_GAM_PATH=\"\"|PRODUCTION_GAM_PATH=\"$GAM_PATH\"|" "$TEST_CONFIG_FILE"
     fi
     
-    # Backup current server.env
-    local backup_file="$GWOMBAT_ROOT/local-config/server.env.backup.$(date +%Y%m%d_%H%M%S)"
-    if [[ -f "$GWOMBAT_ROOT/local-config/server.env" ]]; then
-        cp "$GWOMBAT_ROOT/local-config/server.env" "$backup_file"
+    # Backup current configuration
+    local backup_file="$GWOMBAT_ROOT/local-config/.env.backup.$(date +%Y%m%d_%H%M%S)"
+    if [[ -f "$GWOMBAT_ROOT/local-config/.env" ]]; then
+        cp "$GWOMBAT_ROOT/local-config/.env" "$backup_file"
         echo -e "${GREEN}✓ Backed up current config to: $(basename "$backup_file")${NC}"
     fi
     
@@ -228,7 +228,7 @@ switch_to_domain() {
 update_env_file() {
     local key="$1"
     local value="$2"
-    local env_file="$GWOMBAT_ROOT/local-config/server.env"
+    local env_file="$GWOMBAT_ROOT/local-config/.env"
     
     if [[ -f "$env_file" ]]; then
         if grep -q "^${key}=" "$env_file"; then
@@ -654,8 +654,8 @@ backup_restore_configs() {
                 cp "$TEST_CONFIG_FILE" "$backup_dir/${backup_name}_test-domains.env"
             fi
             
-            if [[ -f "$GWOMBAT_ROOT/local-config/server.env" ]]; then
-                cp "$GWOMBAT_ROOT/local-config/server.env" "$backup_dir/${backup_name}_server.env"
+            if [[ -f "$GWOMBAT_ROOT/local-config/.env" ]]; then
+                cp "$GWOMBAT_ROOT/local-config/.env" "$backup_dir/${backup_name}_config.env"
             fi
             
             echo -e "${GREEN}✓ Backup created in: $backup_dir${NC}"

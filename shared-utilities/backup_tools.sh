@@ -783,7 +783,7 @@ EOF
     
     # Copy all configuration files
     [[ -f "$gwombat_root/.env" ]] && cp "$gwombat_root/.env" "$system_staging/config/"
-    [[ -f "$gwombat_root/server.env" ]] && cp "$gwombat_root/server.env" "$system_staging/config/"
+    [[ -f "$gwombat_root/local-config/.env" ]] && cp "$gwombat_root/local-config/.env" "$system_staging/config/"
     [[ -d "$gwombat_root/config" ]] && rsync -av "$gwombat_root/config/" "$system_staging/config/"
     
     # Backup SSH keys if they exist
@@ -886,7 +886,7 @@ cp databases/gwombat.db config/
 ```bash
 # Restore environment files
 cp config/.env ./
-cp config/server.env ./
+cp config/.env ./local-config/
 
 # Restore SSH keys (if used)
 mkdir -p ~/.ssh

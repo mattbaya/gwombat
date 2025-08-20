@@ -19,7 +19,7 @@ GWOMBAT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Configuration files
 ENV_FILE="$GWOMBAT_ROOT/local-config/.env"
 ENV_TEMPLATE="$GWOMBAT_ROOT/.env.template"
-SERVER_ENV_TEMPLATE="$GWOMBAT_ROOT/server.env.template"
+# SERVER_ENV_TEMPLATE removed - all configuration now in local-config/.env
 
 # Log file for setup process
 SETUP_LOG="$GWOMBAT_ROOT/logs/setup-$(date +%Y%m%d-%H%M%S).log"
