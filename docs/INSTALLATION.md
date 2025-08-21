@@ -160,9 +160,9 @@ GAM_PATH="/usr/local/bin/gam"
 DOMAIN="your-domain.edu"
 ADMIN_USER="your-actual-admin@your-domain.edu"
 
-# Server-specific paths
-SCRIPT_TEMP_PATH="./tmp"
-SCRIPT_LOGS_PATH="./logs"
+# Server-specific paths (automatically set to local-config)
+SCRIPT_TEMP_PATH="./local-config/tmp"
+SCRIPT_LOGS_PATH="./local-config/logs"
 ```
 
 ### SSH Key Setup (for deployment)
@@ -283,7 +283,7 @@ chmod +x shared-utilities/*.sh
 # Check SQLite installation
 sqlite3 --version
 # Ensure write permissions in config directory
-chmod 755 config/
+chmod 755 local-config/
 ```
 
 **Google Workspace API errors:**
@@ -296,10 +296,10 @@ gam info domain
 
 ### Log Files
 
-GWOMBAT creates detailed logs in the `logs/` directory:
-- `logs/session_YYYYMMDD_HHMMSS.log` - Session logs
-- `logs/operations.log` - Operation history
-- `logs/errors.log` - Error logs
+GWOMBAT creates detailed logs in the `local-config/logs/` directory:
+- `local-config/logs/session_YYYYMMDD_HHMMSS.log` - Session logs
+- `local-config/logs/operations.log` - Operation history
+- `local-config/logs/errors.log` - Error logs
 
 ## Security Considerations
 
@@ -339,7 +339,7 @@ For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instr
 
 - Check the [main README](README.md) for feature overview
 - Review [DEPLOYMENT.md](DEPLOYMENT.md) for production setup
-- Check log files in `logs/` directory for detailed error information
+- Check log files in `local-config/logs/` directory for detailed error information
 - Ensure all prerequisites are properly installed and configured
 
 ## Quick Reference
@@ -353,7 +353,7 @@ For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instr
 # Navigate to: System Administration → Check dependencies
 
 # View logs
-tail -f logs/session_*.log
+tail -f local-config/logs/session_*.log
 
 # Database maintenance
 # Navigate to: Account List Management → Database maintenance
@@ -363,6 +363,6 @@ tail -f logs/session_*.log
 - `local-config/.env` - Main configuration (created by setup wizard)
 - `.env.template` - Configuration template (version controlled)
 - `local-config/gwombat.db` - SQLite database
-- `logs/` - Application logs
+- `local-config/logs/` - Application logs
 - `shared-utilities/database_functions.sh` - Database operations
 - `database_schema.sql` - Database schema

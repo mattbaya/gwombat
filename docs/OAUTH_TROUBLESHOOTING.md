@@ -195,7 +195,7 @@ https://www.googleapis.com/auth/gmail.settings.sharing
 cat ~/.gam/debug.log | grep -i oauth
 
 # Check GWOMBAT authentication logs
-cat logs/operations-$(date +%Y%m%d).log | grep -i auth
+cat local-config/logs/operations-$(date +%Y%m%d).log | grep -i auth
 ```
 
 ---

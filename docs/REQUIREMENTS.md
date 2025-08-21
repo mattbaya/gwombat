@@ -118,13 +118,16 @@ The account configured as ADMIN_USER in your local-config/.env file requires:
 ```
 /path/to/gwombat/
 ├── gwombat.sh               # Main application
-├── database_functions.sh    # Database operations
-├── database_schema.sql      # SQLite schema
-├── local-config/.env       # Main configuration
-├── logs/                   # Application logs
-├── reports/                # Generated reports
-├── tmp/                    # Temporary files
-└── backups/                # Data backups
+├── shared-utilities/        # All utility scripts
+├── local-config/           # Instance-specific private data
+│   ├── .env                # Main configuration
+│   ├── logs/               # Application logs
+│   ├── reports/            # Generated reports
+│   ├── tmp/                # Temporary files
+│   └── backups/            # Data backups
+└── shared-config/          # Application configuration
+    ├── menu.db             # Menu database
+    └── *.sql               # Database schemas and migrations
 ```
 
 ### Permissions
@@ -168,7 +171,7 @@ The account configured as ADMIN_USER in your local-config/.env file requires:
 ```bash
 # Secure configuration files
 chmod 600 local-config/.env
-chmod 700 local-config/ logs/ tmp/ backups/
+chmod 700 local-config/
 chmod 755 *.sh
 ```
 
@@ -210,7 +213,7 @@ sqlite3 --version
 chmod +x gwombat.sh database_functions.sh
 
 # Fix directory permissions
-chmod 755 logs reports tmp backups
+chmod 755 local-config/logs local-config/reports local-config/tmp local-config/backups
 ```
 
 **Database initialization fails**
@@ -226,7 +229,7 @@ touch test.db && rm test.db
 ```
 
 ### Getting Help
-- **Application logs**: Check `logs/` directory for errors
+- **Application logs**: Check `local-config/logs/` directory for errors
 - **GAM debugging**: Add `-d` flag to GAM commands
 - **Verbose mode**: Enable debug logging in configuration
 

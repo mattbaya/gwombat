@@ -42,6 +42,11 @@
 - **`local-config/`**: Instance-specific data (account data, configurations, logs)
 - **`shared-config/`**: Application-level structure (menu definitions, schemas)
 
+**⚠️ CRITICAL DATABASE LOCATIONS**:
+- **`shared-config/menu.db`**: ALL menu system data (menu_sections, menu_items, menu_search)
+- **`local-config/gwombat.db`**: User data, accounts, operations, audit logs (instance-specific)
+- **NEVER store menus in local-config** - menus are shared application structure, not private data
+
 **Configuration File Organization**:
 - **`local-config/.env`**: Main environment configuration (gitignored, instance-specific)
 - **`.env.template`**: Configuration template (version controlled, repo root)  
@@ -162,29 +167,64 @@ SSH_KEY_PATH="$HOME/.ssh/gwombatgit-key"    # Deployment SSH key
 ```
 
 ## File Organization
+
+### ⚠️ CRITICAL ORGANIZATIONAL PRINCIPLES ⚠️
+**Perfect Security-Conscious File Organization**:
+- **`shared-utilities/`**: ALL 48+ utility scripts belong here - zero scripts in root directory
+- **`shared-config/`**: Application-level configuration (menu database, ALL 11 SQL schemas) - version controlled
+- **`local-config/`**: ALL private data (logs, exports, backups, tmp, instance configs) - git ignored  
+- **Root directory**: Only main application (gwombat.sh), documentation, and templates
+
+**Zero Data Leakage Policy**:
+- ✅ **Code & Schemas**: Version controlled (shared-utilities/, shared-config/, docs/)
+- ✅ **Private Data**: Completely isolated (local-config/ - excluded from git)
+- ✅ **Clean Separation**: No private files outside local-config, no schemas in local-config
+- ✅ **Deployment Ready**: Only application code and configuration in version control
 ```
 gwombat/
 ├── gwombat.sh                           # Main application (9000+ lines)
+├── .env-template                        # Configuration template (version controlled)
 ├── CLAUDE.md                            # AI development context  
 ├── TO-DO.md                             # Development task tracking
-├── shared-utilities/
+├── README.md                            # Project overview and documentation
+│
+├── shared-utilities/                    # All utility scripts (48+ scripts total)
 │   ├── database_functions.sh            # Database operations (1000+ lines)
 │   ├── export_functions.sh             # CSV export system
 │   ├── test_domain_manager.sh          # Test domain management
 │   ├── menu_data_loader.sh             # Menu database population
 │   ├── config_manager.sh               # Configuration management
-│   └── [30+ utility scripts]           # Specialized operations
-├── shared-config/
-│   ├── menu.db                         # Application-level menu database
-│   └── menu_schema.sql                 # Menu management schema
-├── local-config/
+│   ├── setup_wizard.sh                 # Interactive setup and configuration
+│   ├── deploy.sh                       # Production deployment script
+│   ├── standalone-file-analysis-tools.sh # File system analysis tools
+│   ├── test_*.sh                       # Testing and QA scripts (15+ scripts)
+│   └── [30+ specialized utilities]      # All other operational scripts
+│
+├── shared-config/                       # Application-level configuration (13 files)
+│   ├── menu.db                         # Dynamic menu database
+│   ├── menu_schema.sql                 # Menu management schema
+│   └── *.sql                           # ALL database schemas (11 schema files)
+│
+├── local-config/                       # Instance-specific private data
 │   ├── .env                            # Main configuration file (instance-specific)
 │   ├── gwombat.db                      # Instance-specific database
 │   ├── test-domains.env                # Test domain configurations
+│   ├── logs/                           # Session and operation logs
+│   ├── reports/                        # Generated reports and analytics
 │   ├── exports/                        # CSV export output directory
-│   └── [multiple specialized schemas]   # Domain-specific schemas
-├── python-modules/                     # Advanced Python integrations
-└── docs/                              # Documentation
+│   ├── backups/                        # Database backups
+│   └── tmp/                            # Temporary files
+│
+├── python-modules/                      # Advanced Python integrations
+│   ├── compliance_dashboard.py          # SCuBA compliance dashboard
+│   ├── scuba_compliance.py             # Security baseline monitoring
+│   └── venv/                           # Python virtual environment
+│
+└── docs/                               # Documentation
+    ├── INSTALLATION.md                  # Setup instructions
+    ├── DEPLOYMENT.md                    # Production deployment guide
+    ├── CSV_EXPORT_SYSTEM.md             # Export system documentation
+    └── [additional technical guides]    # Specialized documentation
 ```
 
 ## Current Integration Status

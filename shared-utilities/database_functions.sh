@@ -5,9 +5,13 @@
 
 # Database configuration
 SCRIPTPATH="${SCRIPTPATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Ensure we're in the gwombat directory if not already set correctly
+if [[ "$(basename "$SCRIPTPATH")" != "gwombat" ]]; then
+    SCRIPTPATH="${SCRIPTPATH}/gwombat"
+fi
 DB_FILE="${SCRIPTPATH}/local-config/gwombat.db"
 MENU_DB_FILE="${SCRIPTPATH}/shared-config/menu.db"
-DB_SCHEMA_FILE="${SCRIPTPATH}/local-config/database_schema.sql"
+DB_SCHEMA_FILE="${SCRIPTPATH}/shared-config/database_schema.sql"
 
 # Color definitions (fallback if not defined elsewhere)
 if [[ -z "$RED" ]]; then
@@ -27,6 +31,184 @@ if ! command -v log_info >/dev/null 2>&1; then
         echo "[INFO] $1" >&2
     }
 fi
+
+# Secure database query function to prevent SQL injection
+secure_sqlite_query() {
+    local db_file="$1"
+    local query="$2"
+    shift 2
+    local params=("$@")
+    
+    # Basic input validation
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${RED}Error: Database file does not exist: $db_file${NC}" >&2
+        return 1
+    fi
+    
+    # Sanitize parameters by escaping single quotes
+    local sanitized_params=()
+    for param in "${params[@]}"; do
+        # Escape single quotes and control characters
+        sanitized_param=$(printf '%s\n' "$param" | sed "s/'/''/g" | tr -d '\0-\37\177-\377')
+        sanitized_params+=("$sanitized_param")
+    done
+    
+    # Execute query with sanitized parameters
+    # Note: This is a basic implementation. For production use, consider prepared statements
+    printf -v formatted_query "$query" "${sanitized_params[@]}"
+    sqlite3 "$db_file" "$formatted_query"
+}
+
+# Database backup function
+create_database_backup() {
+    local db_file="$1"
+    local backup_name="$2"
+    local backup_dir="${SCRIPTPATH}/local-config/backups"
+    
+    # Validate inputs
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${RED}Error: Database file does not exist: $db_file${NC}" >&2
+        return 1
+    fi
+    
+    # Create backup directory if it doesn't exist
+    mkdir -p "$backup_dir"
+    
+    # Generate backup filename with timestamp
+    local timestamp=$(date '+%Y%m%d_%H%M%S')
+    local backup_filename="${backup_name:-gwombat}_backup_${timestamp}.db"
+    local backup_path="$backup_dir/$backup_filename"
+    
+    # Create backup
+    if cp "$db_file" "$backup_path"; then
+        echo -e "${GREEN}✓ Database backup created: $backup_path${NC}"
+        
+        # Verify backup integrity
+        if sqlite3 "$backup_path" "PRAGMA integrity_check;" | grep -q "ok"; then
+            echo -e "${GREEN}✓ Backup integrity verified${NC}"
+            
+            # Create backup manifest
+            echo "Backup created: $(date)" > "$backup_path.manifest"
+            echo "Source database: $db_file" >> "$backup_path.manifest"
+            echo "Backup size: $(stat -f%z "$backup_path" 2>/dev/null || stat -c%s "$backup_path" 2>/dev/null) bytes" >> "$backup_path.manifest"
+            
+            return 0
+        else
+            echo -e "${RED}❌ Backup integrity check failed${NC}" >&2
+            rm -f "$backup_path"
+            return 1
+        fi
+    else
+        echo -e "${RED}❌ Failed to create backup${NC}" >&2
+        return 1
+    fi
+}
+
+# Database restore function
+restore_database_backup() {
+    local backup_file="$1"
+    local target_db="$2"
+    
+    # Validate inputs
+    if [[ ! -f "$backup_file" ]]; then
+        echo -e "${RED}Error: Backup file does not exist: $backup_file${NC}" >&2
+        return 1
+    fi
+    
+    if [[ -z "$target_db" ]]; then
+        echo -e "${RED}Error: Target database path required${NC}" >&2
+        return 1
+    fi
+    
+    # Verify backup integrity before restore
+    if ! sqlite3 "$backup_file" "PRAGMA integrity_check;" | grep -q "ok"; then
+        echo -e "${RED}❌ Backup file is corrupted, cannot restore${NC}" >&2
+        return 1
+    fi
+    
+    # Create backup of current database if it exists
+    if [[ -f "$target_db" ]]; then
+        echo -e "${YELLOW}Creating backup of current database before restore...${NC}"
+        create_database_backup "$target_db" "pre_restore"
+    fi
+    
+    # Perform restore
+    if cp "$backup_file" "$target_db"; then
+        echo -e "${GREEN}✓ Database restored from: $backup_file${NC}"
+        echo -e "${GREEN}✓ Restored to: $target_db${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Failed to restore database${NC}" >&2
+        return 1
+    fi
+}
+
+# List available backups
+list_database_backups() {
+    local backup_dir="${SCRIPTPATH}/local-config/backups"
+    
+    if [[ ! -d "$backup_dir" ]]; then
+        echo -e "${YELLOW}No backup directory found${NC}"
+        return 1
+    fi
+    
+    local backups=($(find "$backup_dir" -name "*.db" -type f 2>/dev/null | sort -r))
+    
+    if [[ ${#backups[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No database backups found${NC}"
+        return 1
+    fi
+    
+    echo -e "${CYAN}Available database backups:${NC}"
+    local i=1
+    for backup in "${backups[@]}"; do
+        local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+        local date=$(stat -f%Sm "$backup" 2>/dev/null || stat -c%y "$backup" 2>/dev/null)
+        echo "  $i. $(basename "$backup") (${size} bytes, $date)"
+        ((i++))
+    done
+    
+    return 0
+}
+
+# Validate database integrity
+validate_database() {
+    local db_file="$1"
+    
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${RED}Error: Database file does not exist: $db_file${NC}" >&2
+        return 1
+    fi
+    
+    echo -e "${CYAN}Validating database: $db_file${NC}"
+    
+    # Check integrity
+    local integrity_result=$(sqlite3 "$db_file" "PRAGMA integrity_check;" 2>&1)
+    if [[ "$integrity_result" == "ok" ]]; then
+        echo -e "${GREEN}✓ Database integrity check passed${NC}"
+    else
+        echo -e "${RED}❌ Database integrity check failed:${NC}"
+        echo "$integrity_result"
+        return 1
+    fi
+    
+    # Check table counts
+    local table_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM sqlite_master WHERE type='table';" 2>/dev/null)
+    echo -e "${CYAN}Tables found: $table_count${NC}"
+    
+    # Check if main tables exist
+    local main_tables=("accounts" "account_lists" "stage_history")
+    for table in "${main_tables[@]}"; do
+        if sqlite3 "$db_file" "SELECT COUNT(*) FROM $table;" >/dev/null 2>&1; then
+            local count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM $table;" 2>/dev/null)
+            echo -e "${GREEN}✓ Table $table: $count records${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Table $table: not found or empty${NC}"
+        fi
+    done
+    
+    return 0
+}
 
 # Initialize database
 init_database() {
@@ -99,18 +281,12 @@ db_add_account() {
         return 1
     fi
     
-    # Sanitize all inputs
-    email=$(sanitize_sql_input "$email")
-    stage=$(sanitize_sql_input "$stage")
-    display_name=$(sanitize_sql_input "$display_name")
-    ou_path=$(sanitize_sql_input "$ou_path")
+    # Input validation handled by secure_sqlite_query
     
     init_database || return 1
     
-    sqlite3 "$DB_FILE" <<EOF
-INSERT OR REPLACE INTO accounts (email, current_stage, display_name, ou_path, updated_at)
-VALUES ('$email', '$stage', '$display_name', '$ou_path', CURRENT_TIMESTAMP);
-EOF
+    # Use secure query to prevent SQL injection
+    secure_sqlite_query "$DB_FILE" "INSERT OR REPLACE INTO accounts (email, current_stage, display_name, ou_path, updated_at) VALUES ('%s', '%s', '%s', '%s', CURRENT_TIMESTAMP);" "$email" "$stage" "$display_name" "$ou_path"
     
     if [[ $? -eq 0 ]]; then
         log_info "Account added/updated in database: $email -> $stage"
@@ -139,10 +315,8 @@ db_create_list() {
     
     init_database || return 1
     
-    sqlite3 "$DB_FILE" <<EOF
-INSERT INTO account_lists (name, description, target_stage)
-VALUES ('$list_name', '$description', '$target_stage');
-EOF
+    # Use secure query to prevent SQL injection
+    secure_sqlite_query "$DB_FILE" "INSERT INTO account_lists (name, description, target_stage) VALUES ('%s', '%s', '%s');" "$list_name" "$description" "$target_stage"
     
     if [[ $? -eq 0 ]]; then
         echo -e "${GREEN}Account list created: $list_name${NC}"
@@ -206,16 +380,13 @@ db_record_stage_change() {
     
     init_database || return 1
     
-    # Update account stage
-    sqlite3 "$DB_FILE" <<EOF
-UPDATE accounts 
-SET current_stage = '$to_stage', updated_at = CURRENT_TIMESTAMP 
-WHERE email = '$email';
-
-INSERT INTO stage_history (account_id, from_stage, to_stage, operation_details, session_id)
-SELECT id, '$from_stage', '$to_stage', '$operation_details', '$SESSION_ID'
-FROM accounts WHERE email = '$email';
-EOF
+    # Update account stage (secure queries to prevent SQL injection)
+    secure_sqlite_query "$DB_FILE" "UPDATE accounts SET current_stage = '%s', updated_at = CURRENT_TIMESTAMP WHERE email = '%s';" "$to_stage" "$email"
+    
+    if [[ $? -eq 0 ]]; then
+        # Record stage history
+        secure_sqlite_query "$DB_FILE" "INSERT INTO stage_history (account_id, from_stage, to_stage, operation_details, session_id) SELECT id, '%s', '%s', '%s', '%s' FROM accounts WHERE email = '%s';" "$from_stage" "$to_stage" "$operation_details" "$SESSION_ID" "$email"
+    fi
     
     if [[ $? -eq 0 ]]; then
         log_info "Stage change recorded: $email: $from_stage -> $to_stage"
@@ -348,7 +519,7 @@ verify_account_state() {
     
     # Sanitize all inputs
     email=$(sanitize_sql_input "$email")
-    expected_stage=$(sanitize_sql_input "$expected_stage")
+    # Input validation will be handled by secure_sqlite_query
     
     echo -e "${CYAN}Verifying account state: $email (expected: $expected_stage)${NC}"
     
@@ -446,8 +617,8 @@ verify_account_state() {
             ;;
     esac
     
-    # Update overall verification timestamp
-    sqlite3 "$DB_FILE" "UPDATE accounts SET last_verified_at = CURRENT_TIMESTAMP WHERE email = '$email';"
+    # Update overall verification timestamp (SQL injection safe)
+    secure_sqlite_query "$DB_FILE" "UPDATE accounts SET last_verified_at = CURRENT_TIMESTAMP WHERE email = '%s';" "$email"
     
     echo ""
     echo -e "${CYAN}Verification Summary: $verification_passed checks passed${NC}"
@@ -471,11 +642,11 @@ bulk_verify_list() {
     
     # Sanitize all inputs
     list_name=$(sanitize_sql_input "$list_name")
-    expected_stage=$(sanitize_sql_input "$expected_stage")
+    # Input validation will be handled by secure_sqlite_query
     
     # If no stage provided, get from list definition
     if [[ -z "$expected_stage" ]]; then
-        expected_stage=$(sqlite3 "$DB_FILE" "SELECT target_stage FROM account_lists WHERE name = '$list_name';")
+        expected_stage=$(secure_sqlite_query "$DB_FILE" "SELECT target_stage FROM account_lists WHERE name = '%s';" "$list_name")
         if [[ -z "$expected_stage" ]]; then
             echo -e "${RED}Error: No target stage found for list $list_name${NC}"
             return 1
@@ -486,7 +657,7 @@ bulk_verify_list() {
     echo ""
     
     # Get all accounts in list
-    local accounts=($(sqlite3 "$DB_FILE" "SELECT a.email FROM accounts a JOIN account_list_memberships alm ON a.id = alm.account_id JOIN account_lists l ON alm.list_id = l.id WHERE l.name = '$list_name';"))
+    local accounts=($(secure_sqlite_query "$DB_FILE" "SELECT a.email FROM accounts a JOIN account_list_memberships alm ON a.id = alm.account_id JOIN account_lists l ON alm.list_id = l.id WHERE l.name = '%s';" "$list_name"))
     
     if [[ ${#accounts[@]} -eq 0 ]]; then
         echo -e "${YELLOW}No accounts found in list: $list_name${NC}"
@@ -748,7 +919,7 @@ auto_create_stage_lists() {
     
     # Create lists for each stage that has accounts
     for stage in recently_suspended pending_deletion temporary_hold exit_row; do
-        local count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM accounts WHERE current_stage = '$stage';" 2>/dev/null || echo "0")
+        local count=$(secure_sqlite_query "$DB_FILE" "SELECT COUNT(*) FROM accounts WHERE current_stage = '%s';" "$stage" 2>/dev/null || echo "0")
         
         if [[ $count -gt 0 ]]; then
             local list_name="${list_prefix}_${stage}"
@@ -757,12 +928,7 @@ auto_create_stage_lists() {
             # Create the list
             if db_create_list "$list_name" "$description" "$stage"; then
                 # Add all accounts of this stage to the list
-                sqlite3 "$DB_FILE" <<EOF
-INSERT INTO account_list_memberships (account_id, list_id)
-SELECT a.id, l.id
-FROM accounts a, account_lists l
-WHERE a.current_stage = '$stage' AND l.name = '$list_name';
-EOF
+                secure_sqlite_query "$DB_FILE" "INSERT INTO account_list_memberships (account_id, list_id) SELECT a.id, l.id FROM accounts a, account_lists l WHERE a.current_stage = '%s' AND l.name = '%s';" "$stage" "$list_name"
                 echo -e "${GREEN}✅ Created list '$list_name' with $count accounts${NC}"
             else
                 echo -e "${RED}❌ Failed to create list for stage: $stage${NC}"
@@ -781,7 +947,7 @@ EOF
 
 # Initialize menu database schema
 init_menu_database() {
-    local menu_schema_file="${SCRIPTPATH}/local-config/menu_schema.sql"
+    local menu_schema_file="${SCRIPTPATH}/shared-config/menu_schema.sql"
     
     if [[ ! -f "$menu_schema_file" ]]; then
         echo -e "${RED}Error: Menu schema file not found: $menu_schema_file${NC}"
@@ -807,8 +973,18 @@ generate_main_menu() {
     while IFS='|' read -r section_id section_name display_name description icon color_code; do
         [[ -z "$section_id" ]] && continue
         
-        # Display section header
-        echo -e "${!color_code}=== ${display_name^^} ===${NC}"
+        # Display section header (bash 3.2 compatible)
+        case "$color_code" in
+            "GREEN") color_var="$GREEN" ;;
+            "BLUE") color_var="$BLUE" ;;
+            "PURPLE") color_var="$PURPLE" ;;
+            "CYAN") color_var="$CYAN" ;;
+            "YELLOW") color_var="$YELLOW" ;;
+            "RED") color_var="$RED" ;;
+            *) color_var="$GRAY" ;;
+        esac
+        display_upper=$(echo "$display_name" | tr '[:lower:]' '[:upper:]')
+        echo -e "${color_var}=== ${display_upper} ===${NC}"
         echo "$section_id. $icon $display_name"
         echo ""
     done < <(sqlite3 "$MENU_DB_FILE" "
@@ -919,11 +1095,7 @@ get_menu_function() {
     fi
     
     # Check if it's a navigation option first
-    local nav_function=$(sqlite3 "$DB_FILE" "
-        SELECT function_name 
-        FROM menu_navigation 
-        WHERE key_char = '$choice' AND is_active = 1;
-    ")
+    local nav_function=$(secure_sqlite_query "$MENU_DB_FILE" "SELECT function_name FROM menu_navigation WHERE key_char = '%s' AND is_active = 1;" "$choice")
     
     if [[ -n "$nav_function" ]]; then
         echo "$nav_function"
@@ -931,13 +1103,7 @@ get_menu_function() {
     fi
     
     # Check if it's a menu item
-    local item_function=$(sqlite3 "$DB_FILE" "
-        SELECT function_name 
-        FROM menu_items 
-        WHERE section_id = (SELECT id FROM menu_sections WHERE name = '$section_name')
-        AND item_order = '$choice' 
-        AND is_active = 1;
-    ")
+    local item_function=$(secure_sqlite_query "$MENU_DB_FILE" "SELECT function_name FROM menu_items WHERE section_id = (SELECT id FROM menu_sections WHERE name = '%s') AND item_order = '%s' AND is_active = 1;" "$section_name" "$choice")
     
     if [[ -n "$item_function" ]]; then
         echo "$item_function"
@@ -995,7 +1161,7 @@ search_menu_database() {
             fi
             echo ""
         fi
-    done < <(sqlite3 "$DB_FILE" "SELECT * FROM menu_search ORDER BY sort_order;")
+    done < <(sqlite3 "$MENU_DB_FILE" "SELECT * FROM menu_search ORDER BY sort_order;")
     
     if [[ "$found" != "true" ]]; then
         echo -e "${YELLOW}No menu options found matching '$search_term'${NC}"
@@ -1025,7 +1191,7 @@ show_menu_database_index() {
             echo -e "${GRAY}   $description${NC}"
         fi
         echo ""
-    done < <(sqlite3 "$DB_FILE" "
+    done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT mi.display_name, ms.display_name, mi.icon, mi.description
         FROM menu_items mi
         JOIN menu_sections ms ON mi.section_id = ms.id
@@ -1040,7 +1206,7 @@ show_menu_database_index() {
         if [[ -n "$description" ]]; then
             echo -e "${GRAY}   $description${NC}"
         fi
-    done < <(sqlite3 "$DB_FILE" "
+    done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT key_char, display_name, icon, description
         FROM menu_navigation
         WHERE is_active = 1

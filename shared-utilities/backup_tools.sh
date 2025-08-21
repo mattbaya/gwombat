@@ -19,7 +19,7 @@ RESTIC_PATH="${RESTIC_PATH:-restic}"
 BACKUP_BASE_PATH="${BACKUP_BASE_PATH:-./backups}"
 GMAIL_BACKUP_PATH="${GMAIL_BACKUP_PATH:-$BACKUP_BASE_PATH/gmail}"
 DRIVE_BACKUP_PATH="${DRIVE_BACKUP_PATH:-$BACKUP_BASE_PATH/drive}"
-STAGING_PATH="${STAGING_PATH:-./tmp/backup_staging}"
+STAGING_PATH="${STAGING_PATH:-./local-config/tmp/backup_staging}"
 
 # S3-compatible provider endpoints
 declare -A S3_ENDPOINTS=(
@@ -743,7 +743,7 @@ create_gwombat_system_backup() {
     mkdir -p "$system_staging/gwombat"
     
     # Copy essential GWOMBAT files (excluding temporary data)
-    rsync -av --exclude='tmp/' \
+    rsync -av --exclude='local-config/tmp/' \
               --exclude='logs/*.log' \
               --exclude='backups/gmail/' \
               --exclude='backups/drive/' \
@@ -775,7 +775,7 @@ EOF
     fi
     
     # Backup any other database files found
-    find "$gwombat_root" -name "*.db" -not -path "*/tmp/*" -exec cp {} "$system_staging/databases/" \;
+    find "$gwombat_root" -name "*.db" -not -path "*/local-config/tmp/*" -exec cp {} "$system_staging/databases/" \;
     
     # 3. Configuration files and credentials
     echo "• Backing up configuration files and credentials..."
@@ -871,7 +871,7 @@ chmod +x gwombat.sh
 chmod +x shared-utilities/*.sh
 
 # Create necessary directories
-mkdir -p logs tmp backups config reports
+mkdir -p local-config/logs local-config/tmp local-config/backups local-config/config local-config/reports
 ```
 
 ### 3. Restore Databases

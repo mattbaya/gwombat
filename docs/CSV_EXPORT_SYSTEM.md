@@ -172,7 +172,7 @@ custom_query_sanitized_20250819_103330.csv # Custom GAM query
 
 ## Technical Implementation
 
-### Core Functions
+### Core Functions (in shared-utilities/export_functions.sh)
 - **export_to_csv()** - General-purpose CSV export function
 - **export_users_csv()** - User-specific export with GAM integration
 - **export_shared_drives_csv()** - Shared drive export
@@ -216,7 +216,7 @@ fi
 ### Common Issues
 
 #### "Export functions not available"
-- **Cause**: export_functions.sh not loaded properly
+- **Cause**: shared-utilities/export_functions.sh not loaded properly
 - **Solution**: Restart GWOMBAT or check shared-utilities/export_functions.sh exists
 
 #### "No data to export" 

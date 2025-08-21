@@ -3564,7 +3564,7 @@ transfer_ownership_to_gwombat() {
     fi
     
     # Get list of files owned by user
-    local temp_file="${SCRIPTPATH}/tmp/${user_email}_ownership_transfer.csv"
+    local temp_file="${SCRIPTPATH}/local-config/tmp/${user_email}_ownership_transfer.csv"
     if [[ "$dry_run" == "false" ]]; then
         $GAM user "$user_email" print filelist fields id,name,owners > "$temp_file"
         local file_count=$(tail -n +2 "$temp_file" | wc -l)
@@ -3789,7 +3789,7 @@ analyze_file_activity() {
 manage_suspension_groups() {
     local user_email="$1"
     local operation="$2"  # "backup" or "restore"
-    local groups_file="${SCRIPTPATH}/tmp/${user_email}_groups_backup.txt"
+    local groups_file="${SCRIPTPATH}/local-config/tmp/${user_email}_groups_backup.txt"
     
     case $operation in
         "backup")
@@ -3826,7 +3826,7 @@ restore_file_dates() {
     echo -e "${GREEN}Restoring file modification dates for $user_email...${NC}"
     
     # Get files that were modified after the target date
-    local files_to_fix="${SCRIPTPATH}/tmp/${user_email}_date_fix.csv"
+    local files_to_fix="${SCRIPTPATH}/local-config/tmp/${user_email}_date_fix.csv"
     $GAM user "$user_email" print filelist \
         query "modifiedTime>'$target_date'" \
         fields id,name,modifiedTime > "$files_to_fix"
@@ -3886,7 +3886,7 @@ bulk_add_to_group() {
 # Function to remove user from all their groups
 remove_user_from_all_groups() {
     local user_email="$1"
-    local log_file="${SCRIPTPATH}/tmp/${user_email}_groups_removed.log"
+    local log_file="${SCRIPTPATH}/local-config/tmp/${user_email}_groups_removed.log"
     
     echo -e "${GREEN}Removing $user_email from all groups...${NC}"
     
@@ -4771,13 +4771,13 @@ add_pending_to_files() {
                 new_filename="${current_filename} (PENDING DELETION - CONTACT OIT)"
                 # Update the filename in Google Drive
                 execute_command "$GAM user \"$user_email_full\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $current_filename"
-                echo "Renamed file: $fileid, $current_filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-added.txt"
+                echo "Renamed file: $fileid, $current_filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-pending-added.txt"
             fi
         fi
     done < <(cat "$TEMP_FILE" | egrep -v "PENDING DELETION" | egrep -v "Owner,id,name" | awk -F, '{print $2","$3}')
     
     echo "Completed adding pending deletion to files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-added.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-pending-added.txt for details"
 }
 
 # Function to add drive labels to files
@@ -4899,8 +4899,8 @@ remove_pending_from_files() {
     fi
     
     # Query the user's files and output only the files with (PENDING DELETION - CONTACT OIT) in the name
-    $GAM user "$user_email_full" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt"
-    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt" | wc -l)
+    $GAM user "$user_email_full" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt" | wc -l)
     counter=0
     
     if [[ $TOTAL -eq 0 ]]; then
@@ -4920,17 +4920,17 @@ remove_pending_from_files() {
         if [[ "$new_filename" != "$filename" ]]; then
             # Rename the file
             execute_command "$GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $filename"
-            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-removed.txt"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-pending-removed.txt"
         fi
         
         # Remove drive label from file
         if [[ -n "$fileid" ]]; then
             execute_command "$GAM user $owner process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
         fi
-    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt") # Skip the first line (header)
+    done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt") # Skip the first line (header)
     
     echo "Completed removing pending deletion from files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-removed.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-pending-removed.txt for details"
 }
 
 # Function to remove user from all groups
@@ -5033,8 +5033,8 @@ fix_filenames() {
             sleep 0.1  # Brief pause for visual effect
         done
     else
-        $GAM user "$user" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/tmp/gam_output_$user.txt"
-        TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_$user.txt" | wc -l)
+        $GAM user "$user" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt"
+        TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt" | wc -l)
         counter=0
         
         if [[ $TOTAL -eq 0 ]]; then
@@ -5054,14 +5054,14 @@ fix_filenames() {
             if [[ "$new_filename" != "$filename" ]]; then
                 # If the filename has been changed, rename the file and print a message
                 execute_command "$GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename (Suspended Account - Temporary Hold)\"" "Rename file: $filename"
-                echo "Renamed file: $fileid, $filename -> $new_filename (Suspended Account - Temporary Hold)" >> "${SCRIPTPATH}/tmp/$user-fixed.txt"
+                echo "Renamed file: $fileid, $filename -> $new_filename (Suspended Account - Temporary Hold)" >> "${SCRIPTPATH}/local-config/tmp/$user-fixed.txt"
             fi
-        done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_$user.txt") # Skip the first line (header)
+        done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt") # Skip the first line (header)
     fi
     
     echo "Completed renaming files for $user"
     if [[ "$DRY_RUN" != "true" ]]; then
-        echo "See ${SCRIPTPATH}/tmp/$user-fixed.txt for details"
+        echo "See ${SCRIPTPATH}/local-config/tmp/$user-fixed.txt for details"
     fi
 }
 
@@ -5214,8 +5214,8 @@ remove_gwombat_hold_from_files() {
     mkdir -p "${SCRIPTPATH}/tmp"
     
     # Query the user's files and output only the files with (Suspended Account - Temporary Hold) in the name
-    $GAM user "$user_email_full" show filelist id name | grep "(Suspended Account - Temporary Hold)" > "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt"
-    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt" | wc -l)
+    $GAM user "$user_email_full" show filelist id name | grep "(Suspended Account - Temporary Hold)" > "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt" | wc -l)
     counter=0
     
     if [[ $TOTAL -eq 0 ]]; then
@@ -5234,12 +5234,12 @@ remove_gwombat_hold_from_files() {
             # If the filename has been changed, rename the file and print a message
             $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"
             echo "$counter of $TOTAL - Renamed file: $filename -> $new_filename"
-            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-removal.txt"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-removal.txt"
         fi
-    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt") # Skip the first line (header)
+    done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt") # Skip the first line (header)
     
     echo "Completed removing temporary hold from files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-removal.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-removal.txt for details"
 }
 
 # Function to remove temporary hold from a single user
@@ -15306,7 +15306,7 @@ file_discovery_removed_notice() {
     echo "• 📁 File Operations Suite (10 tools, 50+ operations)"
     echo "• 🛡️ File Security Scanner (5 security scans)"
     echo ""
-    echo -e "${GREEN}Available in: ${WHITE}./standalone-file-analysis-tools.sh${NC}"
+    echo -e "${GREEN}Available in: ${WHITE}./shared-utilities/standalone-file-analysis-tools.sh${NC}"
     echo ""
     echo -e "${YELLOW}Reason for move:${NC}"
     echo "These tools focus on local filesystem analysis rather than"

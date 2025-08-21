@@ -35,10 +35,10 @@ OU_ACTIVE="${DOMAIN:-yourdomain.edu}"
 LABEL_ID="${DRIVE_LABEL_ID:-default-label-id}"
 
 # Advanced Logging and Reporting Configuration
-LOG_DIR="${LOG_PATH:-./logs}"
-BACKUP_DIR="${BACKUPS_PATH:-./backups}"
-REPORT_DIR="${REPORTS_PATH:-./reports}"
-TMP_DIR="${TMP_PATH:-./tmp}"
+LOG_DIR="${LOG_PATH:-./local-config/logs}"
+BACKUP_DIR="${BACKUPS_PATH:-./local-config/backups}"
+REPORT_DIR="${REPORTS_PATH:-./local-config/reports}"
+TMP_DIR="${TMP_PATH:-./local-config/tmp}"
 mkdir -p "$LOG_DIR" "$BACKUP_DIR" "$REPORT_DIR" "$TMP_DIR"
 
 # Log files
@@ -128,8 +128,8 @@ create_default_config() {
   "created": "$(date -Iseconds)",
   "settings": {
     "gam_path": "/usr/local/bin/gam",
-    "script_path": "${SCRIPT_TEMP_PATH:-./tmp}/suspended",
-    "listshared_path": "${SCRIPT_TEMP_PATH:-./tmp}/listshared",
+    "script_path": "${SCRIPT_TEMP_PATH:-./local-config/tmp}/suspended",
+    "listshared_path": "${SCRIPT_TEMP_PATH:-./local-config/tmp}/listshared",
     "progress_enabled": "true",
     "confirmation_level": "normal",
     "log_retention_days": "30",
@@ -224,9 +224,9 @@ initialize_database() {
     mkdir -p "$(dirname "$db_file")"
     
     # Initialize main database with schema
-    if [[ -f "local-config/main_schema.sql" ]]; then
+    if [[ -f "shared-config/main_schema.sql" ]]; then
         echo "  Loading main database schema..."
-        if sqlite3 "$db_file" < "local-config/main_schema.sql" 2>/dev/null; then
+        if sqlite3 "$db_file" < "shared-config/main_schema.sql" 2>/dev/null; then
             echo -e "${GREEN}  ✓ Main database initialized${NC}"
             log_info "Main database initialized at $db_file"
         else
@@ -333,9 +333,9 @@ reset_database_for_domain_change() {
         fi
         
         # Initialize fresh database with new domain
-        if [[ -f "${SCRIPTPATH}/local-config/database_schema.sql" ]]; then
+        if [[ -f "${SCRIPTPATH}/shared-config/database_schema.sql" ]]; then
             echo -e "${CYAN}Initializing fresh database...${NC}"
-            sqlite3 "$db_file" < "${SCRIPTPATH}/local-config/database_schema.sql"
+            sqlite3 "$db_file" < "${SCRIPTPATH}/shared-config/database_schema.sql"
             sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$new_domain');"
             sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('domain_changed_at', datetime('now'));"
             echo -e "${GREEN}✓ Fresh database initialized for: $new_domain${NC}"
@@ -883,6 +883,16 @@ generate_operation_summary() {
 generate_daily_report() {
     local report_date=$(date +%Y-%m-%d)
     
+    # Define log file paths with fallbacks
+    local log_dir="${LOG_DIR:-${SCRIPTPATH}/local-config/logs}"
+    local operation_log="${OPERATION_LOG:-${log_dir}/operations.log}"
+    local error_log="${ERROR_LOG:-${log_dir}/errors.log}"
+    local performance_log="${PERFORMANCE_LOG:-${log_dir}/performance.log}"
+    local daily_summary="${DAILY_SUMMARY:-${log_dir}/daily-summary-${report_date}.txt}"
+    
+    # Ensure log directory exists
+    mkdir -p "$log_dir"
+    
     {
         echo "=== DAILY ACTIVITY REPORT ==="
         echo "Date: $report_date"
@@ -890,32 +900,35 @@ generate_daily_report() {
         echo ""
         
         echo "=== SESSION SUMMARY ==="
-        local session_count=$(grep -c "SESSION START" "${LOG_DIR}"/session-*-*.log 2>/dev/null || echo "0")
+        local session_count=0
+        if [[ -d "$log_dir" ]]; then
+            session_count=$(find "$log_dir" -name "session-*-*.log" -exec grep -c "SESSION START" {} \; 2>/dev/null | awk '{sum += $1} END {print sum+0}')
+        fi
         echo "Total Sessions: $session_count"
         echo ""
         
         echo "=== OPERATIONS SUMMARY ==="
-        if [[ -f "$OPERATION_LOG" ]]; then
-            echo "Total Operations: $(wc -l < "$OPERATION_LOG" 2>/dev/null || echo "0")"
+        if [[ -f "$operation_log" ]]; then
+            echo "Total Operations: $(wc -l < "$operation_log" 2>/dev/null || echo "0")"
             echo ""
             echo "Operations by Type:"
-            grep -o "add_gwombat_hold\|remove_gwombat_hold\|add_pending\|remove_pending" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
+            grep -o "add_gwombat_hold\|remove_gwombat_hold\|add_pending\|remove_pending" "$operation_log" 2>/dev/null | sort | uniq -c | sort -nr || echo "No operations found"
             echo ""
             echo "Operations by Status:"
-            grep -o "SUCCESS\|ERROR\|SKIPPED" "$OPERATION_LOG" 2>/dev/null | sort | uniq -c | sort -nr || echo "No status data"
+            grep -o "SUCCESS\|ERROR\|SKIPPED" "$operation_log" 2>/dev/null | sort | uniq -c | sort -nr || echo "No status data"
         else
             echo "No operations logged today"
         fi
         echo ""
         
         echo "=== ERROR SUMMARY ==="
-        if [[ -f "$ERROR_LOG" ]]; then
-            local error_count=$(wc -l < "$ERROR_LOG" 2>/dev/null || echo "0")
+        if [[ -f "$error_log" ]]; then
+            local error_count=$(wc -l < "$error_log" 2>/dev/null || echo "0")
             echo "Total Errors: $error_count"
             if [[ $error_count -gt 0 ]]; then
                 echo ""
                 echo "Recent Errors:"
-                tail -10 "$ERROR_LOG" 2>/dev/null || echo "Cannot read error log"
+                tail -10 "$error_log" 2>/dev/null || echo "Cannot read error log"
             fi
         else
             echo "No errors logged today"
@@ -923,18 +936,18 @@ generate_daily_report() {
         echo ""
         
         echo "=== PERFORMANCE SUMMARY ==="
-        if [[ -f "$PERFORMANCE_LOG" ]]; then
+        if [[ -f "$performance_log" ]]; then
             echo "Performance Data Available: Yes"
-            local avg_duration=$(awk -F'Duration: |s' '{sum += $2; count++} END {print (count > 0 ? sum/count : 0)}' "$PERFORMANCE_LOG" 2>/dev/null || echo "N/A")
+            local avg_duration=$(awk -F'Duration: |s' '{sum += $2; count++} END {print (count > 0 ? sum/count : 0)}' "$performance_log" 2>/dev/null || echo "N/A")
             echo "Average Operation Duration: ${avg_duration}s"
         else
             echo "No performance data available"
         fi
         
-    } > "$DAILY_SUMMARY"
+    } > "$daily_summary"
     
-    log_info "Daily report generated: $DAILY_SUMMARY"
-    echo -e "${GREEN}Daily report generated: $DAILY_SUMMARY${NC}"
+    log_info "Daily report generated: $daily_summary"
+    echo -e "${GREEN}Daily report generated: $daily_summary${NC}"
 }
 
 cleanup_logs() {
@@ -1115,22 +1128,78 @@ restore_database_backup() {
     fi
 }
 
+# Reports and Cleanup Function Dispatcher - handles database-driven function calls
+reports_cleanup_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        "generate_daily_report") generate_daily_report ;;
+        "generate_session_summary") generate_session_summary ;;
+        "view_current_session_log") view_current_session_log ;;
+        "view_recent_errors") view_recent_errors ;;
+        "view_performance_stats") view_performance_stats ;;
+        "cleanup_logs_default") cleanup_logs 30 ;;
+        "cleanup_logs_custom") cleanup_logs_custom ;;
+        "database_backup_menu") database_backup_submenu ;;
+        "configuration_menu") configuration_menu ;;
+        "audit_file_ownership_menu") audit_file_ownership_menu ;;
+        *)
+            echo -e "${RED}Unknown reports/cleanup function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Function for reports and cleanup menu
 reports_and_cleanup_menu() {
     while true; do
         clear
         echo -e "${BLUE}=== Reports and Maintenance ===${NC}"
         echo ""
-        echo "1. Generate daily activity report"
-        echo "2. Generate operation summary for current session"
-        echo "3. View current session log"
-        echo "4. View error log"
-        echo "5. View performance statistics"
-        echo "6. Clean up old logs (30+ days)"
-        echo "7. Clean up old logs (custom days)"
-        echo "8. Database backup management"
-        echo "9. Configuration management"
-        echo "10. Audit file ownership locations"
+        
+        # Generate dynamic menu from database
+        local section_name="reports_cleanup"
+        if [[ -f "shared-config/menu.db" ]]; then
+            # Load menu items from database (bash 3.2 compatible)
+            local menu_items=() function_names=() descriptions=() icons=()
+            local counter=1
+            
+            while IFS='|' read -r name display_name description function_name icon; do
+                [[ -n "$name" ]] || continue
+                menu_items[$counter]="$display_name"
+                function_names[$counter]="$function_name"
+                descriptions[$counter]="$description"
+                icons[$counter]="$icon"
+                ((counter++))
+            done < <(sqlite3 shared-config/menu.db "
+                SELECT mi.name, mi.display_name, mi.description, mi.function_name, mi.icon
+                FROM menu_items mi 
+                JOIN menu_sections ms ON mi.section_id = ms.id 
+                WHERE ms.name = '$section_name' AND mi.is_active = 1
+                ORDER BY mi.item_order;
+            " 2>/dev/null)
+            
+            # Display menu items
+            for i in $(seq 1 10); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    echo "$i. ${icons[$i]} ${menu_items[$i]}"
+                fi
+            done
+        else
+            # Fallback menu when database is not available
+            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
+            echo "1. Generate daily activity report"
+            echo "2. Generate operation summary for current session"
+            echo "3. View current session log"
+            echo "4. View error log"
+            echo "5. View performance statistics"
+            echo "6. Clean up old logs (30+ days)"
+            echo "7. Clean up old logs (custom days)"
+            echo "8. Database backup management"
+            echo "9. Configuration management"
+            echo "10. Audit file ownership locations"
+        fi
+        
         echo ""
         echo "p. Previous menu (Main menu)"
         echo "m. Main menu"
@@ -1140,136 +1209,33 @@ reports_and_cleanup_menu() {
         echo ""
         
         case $report_choice in
-            1)
-                echo -e "${CYAN}Generating daily activity report...${NC}"
-                generate_daily_report
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                echo -e "${CYAN}Generating operation summary for session $SESSION_ID...${NC}"
-                # Count operations from current session
-                local session_ops=$(grep "Session: $SESSION_ID" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
-                local success_count=$(grep "Session: $SESSION_ID.*SUCCESS" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
-                local error_count=$(grep "Session: $SESSION_ID.*ERROR" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
-                local skip_count=$(grep "Session: $SESSION_ID.*SKIPPED\|Session: $SESSION_ID.*DRY-RUN" "$AUDIT_LOG" 2>/dev/null | wc -l || echo "0")
-                
-                generate_operation_summary "$session_ops" "current_session" "$success_count" "$error_count" "$skip_count"
-                echo -e "${GREEN}Operation summary generated: $OPERATION_SUMMARY${NC}"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                echo -e "${CYAN}Current session log:${NC}"
-                echo "Session ID: $SESSION_ID"
-                echo "Log file: $LOG_FILE"
-                echo ""
-                if [[ -f "$LOG_FILE" ]]; then
-                    tail -20 "$LOG_FILE"
-                    echo ""
-                    echo -e "${YELLOW}(Showing last 20 lines)${NC}"
+            [1-9]|[1-9][0-9])
+                # Use database-driven function dispatcher
+                if [[ -f "local-config/gwombat.db" ]] && [[ -n "${function_names[$report_choice]}" ]]; then
+                    local func_name="${function_names[$report_choice]}"
+                    reports_cleanup_function_dispatcher "$func_name"
                 else
-                    echo "No session log found"
+                    # Fallback for when database is not available
+                    case $report_choice in
+                        1) generate_daily_report ;;
+                        2) generate_session_summary ;;
+                        3) view_current_session_log ;;
+                        4) view_recent_errors ;;
+                        5) view_performance_stats ;;
+                        6) cleanup_logs 30 ;;
+                        7) cleanup_logs_custom ;;
+                        8) database_backup_submenu ;;
+                        9) configuration_menu ;;
+                        10) audit_file_ownership_menu ;;
+                        *) echo -e "${RED}Invalid option${NC}"; read -p "Press Enter to continue..." ;;
+                    esac
                 fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                echo -e "${CYAN}Recent errors:${NC}"
-                if [[ -f "$ERROR_LOG" ]]; then
-                    tail -10 "$ERROR_LOG"
-                    echo ""
-                    echo -e "${YELLOW}(Showing last 10 errors)${NC}"
-                else
-                    echo "No errors logged today"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            5)
-                echo -e "${CYAN}Performance statistics:${NC}"
-                if [[ -f "$PERFORMANCE_LOG" ]]; then
-                    cat "$PERFORMANCE_LOG"
-                    echo ""
-                    local avg_duration=$(awk -F'Duration: |s' '{sum += $2; count++} END {print (count > 0 ? sum/count : 0)}' "$PERFORMANCE_LOG" 2>/dev/null || echo "N/A")
-                    echo -e "${GREEN}Average operation duration: ${avg_duration}s${NC}"
-                else
-                    echo "No performance data available"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            15)
-                echo -e "${CYAN}Cleaning up logs older than 30 days...${NC}"
-                cleanup_logs 30
-                echo -e "${GREEN}Cleanup completed${NC}"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            15)
-                read -p "Enter number of days to keep: " custom_days
-                if [[ "$custom_days" =~ ^[0-9]+$ ]]; then
-                    echo -e "${CYAN}Cleaning up logs older than $custom_days days...${NC}"
-                    cleanup_logs "$custom_days"
-                    echo -e "${GREEN}Cleanup completed${NC}"
-                else
-                    echo -e "${RED}Invalid number of days${NC}"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            14)
-                echo -e "${CYAN}Database Backup Management${NC}"
-                echo ""
-                echo "1. Create database backup now"
-                echo "2. Create backup and upload to Google Drive"
-                echo "3. View recent backups"
-                echo "4. Clean up old backups (keep 5 days)"
-                echo "5. Restore from backup"
-                echo ""
-                read -p "Select backup option (1-5): " backup_choice
-                case $backup_choice in
-                    1)
-                        create_database_backup
-                        ;;
-                    2)
-                        create_database_backup
-                        upload_backup_to_drive
-                        ;;
-                    3)
-                        echo -e "${CYAN}Recent database backups:${NC}"
-                        if [[ -d "$BACKUP_DIR" ]]; then
-                            ls -la "$BACKUP_DIR"/*.db.gz 2>/dev/null | tail -10
-                            echo ""
-                            echo -e "${YELLOW}(Showing 10 most recent database backups)${NC}"
-                        else
-                            echo "No backup directory found"
-                        fi
-                        ;;
-                    4)
-                        cleanup_database_backups 5
-                        ;;
-                    5)
-                        restore_database_backup
-                        ;;
-                    *)
-                        echo -e "${RED}Invalid option${NC}"
-                        ;;
-                esac
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            15)
-                configuration_menu
-                ;;
-            16)
-                audit_file_ownership_menu
                 ;;
             p|P)
-                return  # Previous menu
+                return
                 ;;
             m|M)
-                return  # Main menu (since this is called from main)
+                return
                 ;;
             x|X)
                 exit 0
@@ -1278,8 +1244,7 @@ reports_and_cleanup_menu() {
                 echo -e "${RED}Invalid option. Please select 1-10, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
-        esac
-    done
+        esac    done
 }
 
 # Configuration management menu
@@ -1460,7 +1425,7 @@ configuration_menu() {
                     echo "  ✓ gwombat-config.json"
                     ((files_backed_up++))
                 fi
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     cp "local-config/gwombat.db" "$backup_dir/"
                     echo "  ✓ local-config/gwombat.db"
                     ((files_backed_up++))
@@ -2097,535 +2062,6 @@ dashboard_function_dispatcher() {
 }
 
 
-# System Overview Menu - SQLite-driven implementation
-        echo "5. 🔒 Security Dashboard (GAM7 enhanced security monitoring)"
-        echo "6. 🚨 Security Scans (Login activities, admin actions, compliance)"
-        echo "7. 📋 Generate Security Report"
-        echo ""
-        # Check backup tools availability
-        local backup_tools_available=false
-        local gyb_available=false
-        local rclone_available=false
-        
-        if [[ -x "$SHARED_UTILITIES_PATH/backup_tools.sh" ]]; then
-            backup_tools_available=true
-            # Check individual tool availability
-            if command -v "${GYB_PATH:-gyb}" >/dev/null 2>&1; then
-                gyb_available=true
-            fi
-            if command -v "${RCLONE_PATH:-rclone}" >/dev/null 2>&1; then
-                rclone_available=true
-            fi
-        fi
-        
-        echo -e "${BLUE}=== BACKUP TOOLS ===${NC}"
-        if [[ "$backup_tools_available" == "true" ]]; then
-            echo "8. 💾 Backup Tools Status (GYB and rclone integration)"
-        else
-            echo -e "${GRAY}8. 💾 Backup Tools Status (Not available - backup_tools.sh missing)${NC}"
-        fi
-        
-        if [[ "$gyb_available" == "true" ]]; then
-            echo "9. 📧 Gmail Backup Operations"
-        else
-            echo -e "${GRAY}9. 📧 Gmail Backup Operations (Install GYB: pip install gyb)${NC}"
-        fi
-        
-        if [[ "$rclone_available" == "true" ]]; then
-            echo "10. ☁️  Cloud Storage Operations"
-        else
-            echo -e "${GRAY}10. ☁️  Cloud Storage Operations (Install rclone: https://rclone.org/install/)${NC}"
-        fi
-        
-        if [[ "$backup_tools_available" == "true" ]]; then
-            echo "11. 🔧 Backup User on Suspension"
-        else
-            echo -e "${GRAY}11. 🔧 Backup User on Suspension (Requires backup tools)${NC}"
-        fi
-        echo ""
-        echo -e "${PURPLE}=== CONFIGURATION & SCHEDULING ===${NC}"
-        echo "12. ⚙️  Configuration Management (Dashboard, security, scheduling settings)"
-        echo "13. 🕐 Scheduler Management (Background task automation with opt-out)"
-        echo ""
-        echo -e "${GRAY}=== DATABASE MANAGEMENT ===${NC}"
-        echo "14. 🗄️  Initialize Dashboard Database"
-        echo "15. 🗄️  Initialize Backup Tools Database"
-        echo "16. 🗄️  Initialize Security Reports Database"
-        echo "17. 🗄️  Initialize Configuration Management Database"
-        echo ""
-        echo "18. ↩️  Return to main menu"
-        echo ""
-        echo "p. Previous menu (main menu)"
-        echo "m. Main menu"
-        echo "x. Exit"
-        echo ""
-        
-        # Check for 'r' to refresh
-        echo -e "${GRAY}Tip: Press 'r' to refresh statistics${NC}"
-        read -p "Select an option (1-18, r, p, m, x): " dashboard_choice
-        echo ""
-        
-        case $dashboard_choice in
-            1)
-                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
-                    echo -e "${CYAN}Loading full dashboard...${NC}"
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh show
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Dashboard functions not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            2)
-                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
-                    echo -e "${CYAN}Refreshing all statistics...${NC}"
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh scan
-                    echo -e "${GREEN}Statistics refreshed. Showing updated dashboard...${NC}"
-                    echo ""
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh show true
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Dashboard functions not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            3)
-                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
-                    echo -e "${CYAN}Refreshing extended statistics...${NC}"
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh scan-extended
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Dashboard functions not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            4)
-                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
-                    echo -e "${CYAN}System Health Check:${NC}"
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh health
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Dashboard functions not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            5)
-                # Security Dashboard
-                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
-                    $SHARED_UTILITIES_PATH/security_reports.sh dashboard
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Enhanced Security Reports Setup Required ===${NC}"
-                    echo ""
-                    echo "Enhanced Security Reports provide comprehensive security monitoring:"
-                    echo "• Login activity analysis and suspicious pattern detection"
-                    echo "• Admin activity monitoring and privilege change tracking"
-                    echo "• Security compliance checking (2FA, password policies)"
-                    echo "• OAuth application risk assessment and monitoring"
-                    echo "• Automated security alerting and incident detection"
-                    echo ""
-                    echo -e "${CYAN}Requirements:${NC}"
-                    echo "• GAM7 (GAMADV-XS3) for advanced reporting capabilities"
-                    echo "• security_reports.sh in shared-utilities/"
-                    echo "• Properly configured Google Workspace API access"
-                    echo ""
-                    echo -e "${GREEN}Once setup is complete, enhanced security monitoring will be available here.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            15)
-                # Security Scans
-                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
-                    echo -e "${CYAN}Security Scans Menu${NC}"
-                    echo ""
-                    echo "1. Scan login activities (7 days)"
-                    echo "2. Scan admin activities (24 hours)"
-                    echo "3. Scan security compliance (2FA, passwords)"
-                    echo "4. Scan OAuth applications"
-                    echo "5. Run comprehensive security scan"
-                    echo "6. Check GAM7 availability"
-                    read -p "Select scan type (1-6): " scan_choice
-                    
-                    case $scan_choice in
-                        1) 
-                            read -p "Enter days to scan (default 7): " days
-                            days="${days:-7}"
-                            $SHARED_UTILITIES_PATH/security_reports.sh scan-logins "$days"
-                            ;;
-                        2)
-                            read -p "Enter days to scan (default 1): " days
-                            days="${days:-1}"
-                            $SHARED_UTILITIES_PATH/security_reports.sh scan-admin "$days"
-                            ;;
-                        3) $SHARED_UTILITIES_PATH/security_reports.sh scan-compliance ;;
-                        4) $SHARED_UTILITIES_PATH/security_reports.sh scan-oauth ;;
-                        5) 
-                            read -p "Enter days for login/admin scans (default 7): " days
-                            days="${days:-7}"
-                            $SHARED_UTILITIES_PATH/security_reports.sh scan-all "$days"
-                            ;;
-                        15) $SHARED_UTILITIES_PATH/security_reports.sh check-gam ;;
-                        *) echo -e "${RED}Invalid option${NC}" ;;
-                    esac
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Security Scanning Setup Required ===${NC}"
-                    echo ""
-                    echo "Security scanning provides detailed analysis of:"
-                    echo "• User login patterns and failed authentication attempts"
-                    echo "• Administrator actions and privilege changes"
-                    echo "• Security compliance violations and policy gaps"
-                    echo "• High-risk OAuth application permissions"
-                    echo ""
-                    echo -e "${CYAN}Setup Requirements:${NC}"
-                    echo "• Install security_reports.sh in shared-utilities/"
-                    echo "• Ensure GAM7 is properly configured"
-                    echo "• Initialize security reports database"
-                    echo ""
-                    echo -e "${GREEN}Once configured, comprehensive security scanning will be available here.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            16)
-                # Generate Security Report
-                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
-                    echo -e "${CYAN}Security Report Generation${NC}"
-                    echo ""
-                    echo "1. Summary report (key metrics and alerts)"
-                    echo "2. Full report (comprehensive analysis)"
-                    echo "3. Alerts only (recent security incidents)"
-                    read -p "Select report type (1-3): " report_choice
-                    
-                    report_type="summary"
-                    case $report_choice in
-                        1) report_type="summary" ;;
-                        2) report_type="full" ;;
-                        3) report_type="alerts" ;;
-                    esac
-                    
-                    echo -e "${CYAN}Generating $report_type security report...${NC}"
-                    $SHARED_UTILITIES_PATH/security_reports.sh report "$report_type"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Security Reporting Setup Required ===${NC}"
-                    echo ""
-                    echo "Security reporting generates comprehensive reports including:"
-                    echo "• Executive security health summaries"
-                    echo "• Detailed compliance and risk assessments"
-                    echo "• Security incident and alert analysis"
-                    echo "• Trend analysis and recommendations"
-                    echo ""
-                    echo -e "${GREEN}Setup security_reports.sh to enable this functionality.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            14)
-                if [[ "$backup_tools_available" == "true" ]]; then
-                    $SHARED_UTILITIES_PATH/backup_tools.sh status
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Backup Tools Setup Required ===${NC}"
-                    echo ""
-                    echo "The backup tools integration provides enhanced functionality for:"
-                    echo "• Gmail backup and restore with GYB (Got Your Back)"
-                    echo "• Cloud storage operations with rclone"
-                    echo "• Automated backup workflows for suspended users"
-                    echo ""
-                    echo -e "${CYAN}To enable backup tools:${NC}"
-                    echo "1. Ensure backup_tools.sh exists in shared-utilities/"
-                    echo "2. Install GYB: pip install gyb"
-                    echo "3. Install rclone: https://rclone.org/install/"
-                    echo "4. Configure cloud remotes with 'rclone config'"
-                    echo ""
-                    echo -e "${GREEN}Once installed, these features will be automatically available.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            15)
-                if [[ "$gyb_available" == "true" ]]; then
-                    echo -e "${CYAN}Gmail Backup Operations${NC}"
-                    read -p "Enter user email for Gmail backup: " user_email
-                    if [[ -n "$user_email" ]]; then
-                        echo "Backup type:"
-                        echo "1. Full backup"
-                        echo "2. Incremental backup"
-                        read -p "Select backup type (1-2): " backup_type_choice
-                        
-                        case $backup_type_choice in
-                            1) backup_type="full" ;;
-                            2) backup_type="incremental" ;;
-                            *) backup_type="full" ;;
-                        esac
-                        
-                        echo -e "${CYAN}Starting Gmail backup for $user_email (type: $backup_type)...${NC}"
-                        $SHARED_UTILITIES_PATH/backup_tools.sh gmail-backup "$user_email" "$backup_type"
-                    else
-                        echo -e "${RED}User email cannot be empty${NC}"
-                    fi
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== GYB (Got Your Back) Setup Required ===${NC}"
-                    echo ""
-                    echo "GYB enables comprehensive Gmail backup and restore capabilities."
-                    echo ""
-                    echo -e "${CYAN}To install GYB:${NC}"
-                    echo "• Install with pip: ${WHITE}pip install gyb${NC}"
-                    echo "• Or download from: https://github.com/GAM-team/got-your-back"
-                    echo ""
-                    echo -e "${CYAN}GYB Features:${NC}"
-                    echo "• Full Gmail mailbox backup (emails, labels, filters)"
-                    echo "• Incremental backups for efficiency"
-                    echo "• Backup verification and integrity checking"
-                    echo "• Cross-platform support (Windows, Mac, Linux)"
-                    echo ""
-                    echo -e "${GREEN}Once installed, Gmail backup operations will be available here.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            16)
-                if [[ "$rclone_available" == "true" ]]; then
-                    echo -e "${CYAN}Cloud Storage Operations${NC}"
-                    read -p "Enter source path: " source_path
-                    read -p "Enter remote name (e.g. gdrive, s3): " remote_name
-                    read -p "Enter destination path: " dest_path
-                    if [[ -n "$source_path" && -n "$remote_name" && -n "$dest_path" ]]; then
-                        echo "Operation type:"
-                        echo "1. Copy"
-                        echo "2. Sync"
-                        echo "3. Move"
-                        read -p "Select operation (1-3): " op_choice
-                        
-                        case $op_choice in
-                            1) operation="copy" ;;
-                            2) operation="sync" ;;
-                            3) operation="move" ;;
-                            *) operation="copy" ;;
-                        esac
-                        
-                        echo -e "${CYAN}Starting cloud operation: $operation...${NC}"
-                        $SHARED_UTILITIES_PATH/backup_tools.sh cloud-backup "$source_path" "$remote_name" "$dest_path" "$operation"
-                    else
-                        echo -e "${RED}All fields are required${NC}"
-                    fi
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== rclone Setup Required ===${NC}"
-                    echo ""
-                    echo "rclone enables powerful cloud storage operations with 40+ providers."
-                    echo ""
-                    echo -e "${CYAN}To install rclone:${NC}"
-                    echo "• Download from: ${WHITE}https://rclone.org/install/${NC}"
-                    echo "• Or via package manager (brew, apt, etc.)"
-                    echo ""
-                    echo -e "${CYAN}Supported Cloud Providers:${NC}"
-                    echo "• Google Drive, Google Cloud Storage"
-                    echo "• Amazon S3, Microsoft OneDrive"
-                    echo "• Dropbox, Box, Azure Blob Storage"
-                    echo "• And 40+ more providers"
-                    echo ""
-                    echo -e "${CYAN}After installation:${NC}"
-                    echo "• Configure remotes: ${WHITE}rclone config${NC}"
-                    echo "• Test connection: ${WHITE}rclone lsd remotename:${NC}"
-                    echo ""
-                    echo -e "${GREEN}Once configured, cloud operations will be available here.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            14)
-                if [[ "$backup_tools_available" == "true" ]]; then
-                    echo -e "${CYAN}Backup User on Suspension${NC}"
-                    read -p "Enter user email to backup: " user_email
-                    if [[ -n "$user_email" ]]; then
-                        echo "Backup options:"
-                        echo "1. Gmail only"
-                        echo "2. Gmail + Drive"
-                        echo "3. Gmail + Drive + Cloud upload"
-                        read -p "Select backup scope (1-3): " backup_scope
-                        
-                        case $backup_scope in
-                            1) gmail=1; drive=0; cloud=0 ;;
-                            2) gmail=1; drive=1; cloud=0 ;;
-                            3) gmail=1; drive=1; cloud=1 ;;
-                            *) gmail=1; drive=0; cloud=0 ;;
-                        esac
-                        
-                        echo -e "${CYAN}Starting comprehensive backup for $user_email...${NC}"
-                        $SHARED_UTILITIES_PATH/backup_tools.sh backup-user "$user_email" "$gmail" "$drive" "$cloud"
-                    else
-                        echo -e "${RED}User email cannot be empty${NC}"
-                    fi
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Automated User Backup Setup Required ===${NC}"
-                    echo ""
-                    echo "This feature provides comprehensive backup workflows when users are suspended."
-                    echo ""
-                    echo -e "${CYAN}Automated Backup Features:${NC}"
-                    echo "• Gmail backup with GYB (full mailbox preservation)"
-                    echo "• Google Drive file backup and organization"
-                    echo "• Cloud storage upload for long-term retention"
-                    echo "• Verification and integrity checking"
-                    echo "• Automated cleanup and organization"
-                    echo ""
-                    echo -e "${CYAN}Requirements:${NC}"
-                    echo "• GYB installed (pip install gyb)"
-                    echo "• rclone configured with cloud storage"
-                    echo "• backup_tools.sh in shared-utilities/"
-                    echo ""
-                    echo -e "${GREEN}Once setup is complete, automated backups will be available here.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            15)
-                # Configuration Management
-                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
-                    show_config_menu
-                else
-                    echo -e "${YELLOW}=== Configuration Management Setup Required ===${NC}"
-                    echo ""
-                    echo "Configuration Management provides centralized control over:"
-                    echo "• Dashboard refresh intervals and caching settings"
-                    echo "• Security scan schedules and alert thresholds"
-                    echo "• Backup automation policies and retention settings"
-                    echo "• Scheduling preferences with user opt-out capabilities"
-                    echo "• System-wide settings and performance tuning"
-                    echo ""
-                    echo -e "${CYAN}Features:${NC}"
-                    echo "• Web-style configuration interface"
-                    echo "• Complete audit trail of all setting changes"
-                    echo "• User preference management with privacy controls"
-                    echo "• Import/export configuration for backup and migration"
-                    echo "• Granular opt-out controls for automated tasks"
-                    echo ""
-                    echo -e "${GREEN}Setup config_manager.sh to enable centralized configuration.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            16)
-                # Scheduler Management
-                if [[ -x "$SHARED_UTILITIES_PATH/scheduler.sh" ]]; then
-                    echo -e "${CYAN}🕐 Scheduler Management${NC}"
-                    echo ""
-                    echo "1. Show scheduler status"
-                    echo "2. Start scheduler daemon"
-                    echo "3. Stop scheduler daemon" 
-                    echo "4. Restart scheduler daemon"
-                    echo "5. Test task execution (run-once)"
-                    echo "6. Return to dashboard menu"
-                    echo ""
-                    read -p "Select option (1-6): " scheduler_choice
-                    
-                    case $scheduler_choice in
-                        1) $SHARED_UTILITIES_PATH/scheduler.sh status ;;
-                        2) $SHARED_UTILITIES_PATH/scheduler.sh start ;;
-                        3) $SHARED_UTILITIES_PATH/scheduler.sh stop ;;
-                        4) $SHARED_UTILITIES_PATH/scheduler.sh restart ;;
-                        5) $SHARED_UTILITIES_PATH/scheduler.sh run-once ;;
-                        15) ;; # Return to menu
-                        *) echo -e "${RED}Invalid option${NC}" ;;
-                    esac
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${YELLOW}=== Background Scheduler Setup Required ===${NC}"
-                    echo ""
-                    echo "The Background Scheduler enables automated execution of:"
-                    echo "• Dashboard statistics refresh (every 30 minutes)"
-                    echo "• Security compliance scans (daily/weekly schedules)"
-                    echo "• Backup operations for suspended users"
-                    echo "• Cleanup tasks for logs and temporary files"
-                    echo "• Custom maintenance and monitoring tasks"
-                    echo ""
-                    echo -e "${CYAN}Key Features:${NC}"
-                    echo "• Complete opt-out capabilities - users can disable any/all tasks"
-                    echo "• Cron-like scheduling with intelligent next-run calculation"
-                    echo "• Concurrent task execution with configurable limits"
-                    echo "• Comprehensive logging and error handling"
-                    echo "• Real-time status monitoring and performance tracking"
-                    echo "• Automatic failure alerts and retry mechanisms"
-                    echo ""
-                    echo -e "${GREEN}⚠️  PRIVACY FOCUS: All scheduling is OPT-IN by default${NC}"
-                    echo "• Master scheduler starts DISABLED"
-                    echo "• Individual task types can be opted out separately"
-                    echo "• Global opt-out overrides all task execution"
-                    echo "• No tasks run without explicit user consent"
-                    echo ""
-                    echo -e "${CYAN}Setup scheduler.sh to enable background automation.${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            14)
-                if [[ -x "$SHARED_UTILITIES_PATH/dashboard_functions.sh" ]]; then
-                    echo -e "${CYAN}Initializing dashboard database...${NC}"
-                    $SHARED_UTILITIES_PATH/dashboard_functions.sh init
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Dashboard functions not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            15)
-                if [[ -x "$SHARED_UTILITIES_PATH/backup_tools.sh" ]]; then
-                    echo -e "${CYAN}Initializing backup tools database...${NC}"
-                    $SHARED_UTILITIES_PATH/backup_tools.sh init
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Backup tools not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            16)
-                if [[ -x "$SHARED_UTILITIES_PATH/security_reports.sh" ]]; then
-                    echo -e "${CYAN}Initializing security reports database...${NC}"
-                    $SHARED_UTILITIES_PATH/security_reports.sh init
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Security reports not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            17)
-                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    echo -e "${CYAN}Initializing configuration management database...${NC}"
-                    $SHARED_UTILITIES_PATH/config_manager.sh init
-                    echo ""
-                    read -p "Press Enter to continue..."
-                else
-                    echo -e "${RED}Configuration manager not available${NC}"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            *)
-                echo -e "${RED}Invalid option. Please try again.${NC}"
-                sleep 2
-                ;;
-        esac
-    done
-}
 
 # System Overview Menu - SQLite-driven implementation
 system_overview_menu() {
@@ -2769,7 +2205,7 @@ system_overview_function_dispatcher() {
             echo ""
             
             echo -e "${WHITE}Database Status:${NC}"
-            if [[ -f "local-config/gwombat.db" ]]; then
+            if [[ -f "shared-config/menu.db" ]]; then
                 local db_size=$(du -h local-config/gwombat.db | cut -f1)
                 local user_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
                 echo "  📊 Database Size: $db_size"
@@ -2834,625 +2270,178 @@ system_overview_function_dispatcher() {
     esac
 }
 
-
-# Statistics & Metrics Menu
-statistics_menu() {
-    while true; do
-        clear
-        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
-        echo -e "${GREEN}                         GWOMBAT - Statistics & Metrics                        ${NC}"
-                if [[ -x "$GAM" ]]; then
-                    local gam_version=$($GAM version 2>/dev/null | head -1 || echo "Unknown")
-                    local domain_info=$($GAM info domain 2>/dev/null | grep "Primary Domain:" | cut -d: -f2 | tr -d ' ' || echo "Not configured")
-                    echo "  ✅ GAM Available: $GAM"
-                    echo "  📋 Version: $gam_version"
-                    echo "  🌐 Domain: $domain_info"
-                else
-                    echo "  ❌ GAM not available at: ${GAM:-not set}"
-                fi
-                echo ""
-                
-                # External tools
-                echo -e "${WHITE}External Tools:${NC}"
-                if command -v gyb >/dev/null 2>&1; then
-                    echo "  ✅ GYB (Gmail Backup): Available"
-                else
-                    echo "  ❌ GYB (Gmail Backup): Not installed"
-                fi
-                
-                if command -v rclone >/dev/null 2>&1; then
-                    echo "  ✅ rclone (Cloud Storage): Available"
-                else
-                    echo "  ❌ rclone (Cloud Storage): Not installed"
-                fi
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                # System Health Check
-                echo -e "${CYAN}📊 System Health Check${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                local issues=0
-                echo "Running comprehensive system health check..."
-                echo ""
-                
-                # Check database
-                echo -e "${WHITE}Database Health:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    if sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" | grep -q "ok"; then
-                        echo "  ✅ Database integrity: OK"
-                    else
-                        echo "  ❌ Database integrity: FAILED"
-                        ((issues++))
-                    fi
-                    
-                    # Check table existence
-                    local tables=$(sqlite3 local-config/gwombat.db ".tables" 2>/dev/null | wc -w)
-                    if [[ $tables -gt 5 ]]; then
-                        echo "  ✅ Database tables: $tables tables found"
-                    else
-                        echo "  ⚠️ Database tables: Only $tables tables (expected >5)"
-                        ((issues++))
-                    fi
-                else
-                    echo "  ❌ Database file: Missing"
-                    ((issues++))
-                fi
-                echo ""
-                
-                # Check GAM functionality
-                echo -e "${WHITE}GAM Health:${NC}"
-                if [[ -x "$GAM" ]]; then
-                    if $GAM info domain >/dev/null 2>&1; then
-                        echo "  ✅ GAM connectivity: OK"
-                    else
-                        echo "  ❌ GAM connectivity: Failed to connect to domain"
-                        ((issues++))
-                    fi
-                    
-                    # Check OAuth
-                    if $GAM info user "$ADMIN_USER" >/dev/null 2>&1; then
-                        echo "  ✅ GAM authentication: OK"
-                    else
-                        echo "  ❌ GAM authentication: Failed"
-                        ((issues++))
-                    fi
-                else
-                    echo "  ❌ GAM executable: Not found"
-                    ((issues++))
-                fi
-                echo ""
-                
-                # Check disk space
-                echo -e "${WHITE}System Resources:${NC}"
-                local disk_usage=$(df . | tail -1 | awk '{print $5}' | sed 's/%//')
-                if [[ $disk_usage -lt 90 ]]; then
-                    echo "  ✅ Disk space: ${disk_usage}% used"
-                else
-                    echo "  ⚠️ Disk space: ${disk_usage}% used (>90%)"
-                    ((issues++))
-                fi
-                
-                # Check memory
-                if command -v free >/dev/null 2>&1; then
-                    local mem_usage=$(free | grep '^Mem:' | awk '{printf "%.0f", $3/$2 * 100.0}')
-                    echo "  ℹ️ Memory usage: ${mem_usage}%"
-                fi
-                echo ""
-                
-                # Summary
-                if [[ $issues -eq 0 ]]; then
-                    echo -e "${GREEN}✅ System Health: EXCELLENT (0 issues found)${NC}"
-                elif [[ $issues -lt 3 ]]; then
-                    echo -e "${YELLOW}⚠️ System Health: GOOD ($issues minor issues)${NC}"
-                else
-                    echo -e "${RED}❌ System Health: NEEDS ATTENTION ($issues issues found)${NC}"
-                fi
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                # Performance Metrics
-                echo -e "${CYAN}📈 Performance Metrics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "Testing system performance..."
-                echo ""
-                
-                # Database performance test
-                echo -e "${WHITE}Database Performance:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    local start_time=$(date +%s.%N)
-                    sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" >/dev/null 2>&1
-                    local end_time=$(date +%s.%N)
-                    local db_time=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0.1")
-                    echo "  📊 Account query time: ${db_time}s"
-                    
-                    # Database size and stats
-                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
-                    echo "  💾 Database size: $db_size"
-                else
-                    echo "  ❌ Database not available"
-                fi
-                echo ""
-                
-                # GAM performance test
-                echo -e "${WHITE}GAM Performance:${NC}"
-                if [[ -x "$GAM" ]]; then
-                    local start_time=$(date +%s.%N)
-                    $GAM info domain >/dev/null 2>&1
-                    local end_time=$(date +%s.%N)
-                    local gam_time=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "1.0")
-                    echo "  🌐 Domain info query: ${gam_time}s"
-                else
-                    echo "  ❌ GAM not available"
-                fi
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                # System Status Report
-                echo -e "${CYAN}🔍 System Status Report${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-                echo "Generated: $timestamp"
-                echo ""
-                
-                # Environment variables
-                echo -e "${WHITE}Environment Configuration:${NC}"
-                echo "  DOMAIN: ${DOMAIN:-not set}"
-                echo "  ADMIN_USER: ${ADMIN_USER:-not set}"
-                echo "  GAM_PATH: ${GAM_PATH:-not set}"
-                echo "  SUSPENDED_OU: ${SUSPENDED_OU:-not set}"
-                echo ""
-                
-                # File permissions and structure
-                echo -e "${WHITE}File System Status:${NC}"
-                echo "  Working Directory: $(pwd)"
-                echo "  Directory Permissions: $(ls -ld . | cut -d' ' -f1)"
-                echo "  Config Directory: $(ls -ld local-config 2>/dev/null || echo 'Not found')"
-                echo "  Shared Utilities: $(ls -ld shared-utilities 2>/dev/null || echo 'Not found')"
-                echo ""
-                
-                # Recent activity
-                echo -e "${WHITE}Recent Activity:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    local recent_ops=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM operation_log WHERE created_at > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
-                    echo "  Operations (24h): $recent_ops"
-                else
-                    echo "  No operation history available"
-                fi
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            5)
-                # Database Overview
-                echo -e "${CYAN}🗄️ Database Overview${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Database Statistics:${NC}"
-                    
-                    # Table information
-                    echo "Tables and record counts:"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            name || ': ' || (
-                                SELECT COUNT(*) 
-                                FROM sqlite_master 
-                                WHERE type='table' AND name=m.name AND sql LIKE '%CREATE TABLE%'
-                            ) || ' table(s)'
-                        FROM sqlite_master m 
-                        WHERE type='table' AND name NOT LIKE 'sqlite_%';
-                    " 2>/dev/null | head -10
-                    
-                    echo ""
-                    echo -e "${WHITE}Record Counts:${NC}"
-                    local accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
-                    local operations=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM operation_log;" 2>/dev/null || echo "0")
-                    echo "  Accounts: $accounts"
-                    echo "  Operations: $operations"
-                    
-                    echo ""
-                    echo -e "${WHITE}Database Health:${NC}"
-                    local integrity=$(sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" 2>/dev/null | head -1)
-                    echo "  Integrity: $integrity"
-                    
-                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
-                    echo "  Size: $db_size"
-                else
-                    echo "❌ Database not found. Run setup to initialize."
-                fi
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            6)
-                # System Cleanup - Working Implementation
-                echo -e "${CYAN}🧹 System Cleanup${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "System cleanup options:"
-                echo ""
-                echo "1. Clear temporary files"
-                echo "2. Clear log files (older than 30 days)"
-                echo "3. Clear database cache"
-                echo "4. Vacuum database (reclaim space)"
-                echo "5. Full cleanup (all of the above)"
-                echo ""
-                read -p "Select cleanup option (1-5): " cleanup_choice
-                
-                case $cleanup_choice in
-                    1|5)
-                        echo "Clearing temporary files..."
-                        find /tmp -name "*gwombat*" -mtime +1 -delete 2>/dev/null || true
-                        echo "✅ Temporary files cleared"
-                        [[ $cleanup_choice != 5 ]] && read -p "Press Enter to continue..." && continue
-                        ;;
-                esac
-                
-                case $cleanup_choice in
-                    2|5)
-                        echo "Clearing old log files..."
-                        find . -name "*.log" -mtime +30 -delete 2>/dev/null || true
-                        echo "✅ Old log files cleared"
-                        [[ $cleanup_choice != 5 ]] && read -p "Press Enter to continue..." && continue
-                        ;;
-                esac
-                
-                case $cleanup_choice in
-                    3|5)
-                        echo "Clearing database cache..."
-                        if [[ -f "local-config/gwombat.db" ]]; then
-                            sqlite3 local-config/gwombat.db "DELETE FROM config WHERE key LIKE '%_cache%';" 2>/dev/null || true
-                            echo "✅ Database cache cleared"
-                        fi
-                        [[ $cleanup_choice != 5 ]] && read -p "Press Enter to continue..." && continue
-                        ;;
-                esac
-                
-                case $cleanup_choice in
-                    4|5)
-                        echo "Vacuuming database..."
-                        if [[ -f "local-config/gwombat.db" ]]; then
-                            local size_before=$(du -k local-config/gwombat.db | cut -f1)
-                            sqlite3 local-config/gwombat.db "VACUUM;" 2>/dev/null || true
-                            local size_after=$(du -k local-config/gwombat.db | cut -f1)
-                            local saved=$((size_before - size_after))
-                            echo "✅ Database vacuumed (saved ${saved}KB)"
-                        fi
-                        [[ $cleanup_choice != 5 ]] && read -p "Press Enter to continue..." && continue
-                        ;;
-                esac
-                
-                if [[ $cleanup_choice == 5 ]]; then
-                    echo ""
-                    echo "✅ Full system cleanup completed"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            7)
-                # Refresh All Data - Working Implementation
-                echo -e "${CYAN}🔄 Refresh All Data${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "This will refresh all cached data from GAM and update the database."
-                echo "This may take several minutes for large domains."
-                echo ""
-                read -p "Continue with full data refresh? (y/N): " confirm
-                
-                if [[ $confirm =~ ^[Yy] ]]; then
-                    echo ""
-                    echo "🔄 Starting full data refresh..."
-                    
-                    # Clear cache flags
-                    if [[ -f "local-config/gwombat.db" ]]; then
-                        sqlite3 local-config/gwombat.db "UPDATE config SET value='true' WHERE key='stats_dirty';" 2>/dev/null
-                        echo "✅ Cache flags cleared"
-                    fi
-                    
-                    # Trigger data sync
-                    echo "🔄 Syncing domain data..."
-                    sync_domain_to_database 2>/dev/null && echo "✅ Domain data synced"
-                    
-                    # Force statistics refresh
-                    echo "🔄 Refreshing statistics..."
-                    show_quick_stats >/dev/null 2>&1 && echo "✅ Statistics refreshed"
-                    
-                    echo ""
-                    echo "✅ Full data refresh completed"
-                else
-                    echo "Data refresh cancelled"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            8)
-                # Quick Health Scan - Working Implementation
-                echo -e "${CYAN}🎯 Quick Health Scan${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "Running quick system health scan..."
-                echo ""
-                
-                local checks=0
-                local passed=0
-                
-                # Check database
-                ((checks++))
-                if [[ -f "local-config/gwombat.db" ]] && sqlite3 local-config/gwombat.db "SELECT 1;" >/dev/null 2>&1; then
-                    echo "✅ Database connectivity"
-                    ((passed++))
-                else
-                    echo "❌ Database connectivity"
-                fi
-                
-                # Check GAM
-                ((checks++))
-                if [[ -x "$GAM" ]] && $GAM info domain >/dev/null 2>&1; then
-                    echo "✅ GAM connectivity"
-                    ((passed++))
-                else
-                    echo "❌ GAM connectivity"
-                fi
-                
-                # Check disk space
-                ((checks++))
-                local disk_usage=$(df . | tail -1 | awk '{print $5}' | sed 's/%//')
-                if [[ $disk_usage -lt 95 ]]; then
-                    echo "✅ Disk space (${disk_usage}% used)"
-                    ((passed++))
-                else
-                    echo "❌ Disk space (${disk_usage}% used)"
-                fi
-                
-                # Check essential files
-                ((checks++))
-                if [[ -d "shared-utilities" ]] && [[ -d "local-config" ]]; then
-                    echo "✅ Directory structure"
-                    ((passed++))
-                else
-                    echo "❌ Directory structure"
-                fi
-                
-                echo ""
-                local percentage=$((passed * 100 / checks))
-                if [[ $percentage -eq 100 ]]; then
-                    echo -e "${GREEN}✅ System Health: EXCELLENT ($passed/$checks checks passed)${NC}"
-                elif [[ $percentage -gt 75 ]]; then
-                    echo -e "${YELLOW}⚠️ System Health: GOOD ($passed/$checks checks passed)${NC}"
-                else
-                    echo -e "${RED}❌ System Health: NEEDS ATTENTION ($passed/$checks checks passed)${NC}"
-                fi
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            9)
-                # System Information - Working Implementation
-                echo -e "${CYAN}ℹ️ System Information${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo -e "${WHITE}GWOMBAT System Information${NC}"
-                echo "Version: 4.0+ (SQLite Menu System)"
-                echo "Architecture: Bash + SQLite + Python Integration"
-                echo ""
-                
-                echo -e "${WHITE}Environment:${NC}"
-                echo "  Operating System: $(uname -s) $(uname -r)"
-                echo "  Shell: $SHELL"
-                echo "  Working Directory: $(pwd)"
-                echo "  User: $(whoami)"
-                echo ""
-                
-                echo -e "${WHITE}Configuration:${NC}"
-                echo "  Domain: ${DOMAIN:-not configured}"
-                echo "  Admin User: ${ADMIN_USER:-not configured}"
-                echo "  GAM Path: ${GAM_PATH:-not configured}"
-                echo "  Suspended OU: ${SUSPENDED_OU:-not configured}"
-                echo ""
-                
-                echo -e "${WHITE}Dependencies:${NC}"
-                echo "  Bash: $(bash --version | head -1)"
-                echo "  SQLite: $(sqlite3 --version 2>/dev/null || echo 'Not available')"
-                echo "  GAM: $($GAM version 2>/dev/null | head -1 || echo 'Not available')"
-                echo ""
-                
-                read -p "Press Enter to continue..."
-                ;;
-            10)
-                # Component Status - Working Implementation
-                echo -e "${CYAN}📚 Component Status${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo -e "${WHITE}GWOMBAT Core Components:${NC}"
-                
-                # Main script
-                if [[ -f "gwombat.sh" ]]; then
-                    local main_size=$(wc -l < gwombat.sh)
-                    echo "  ✅ Main Script: gwombat.sh ($main_size lines)"
-                else
-                    echo "  ❌ Main Script: gwombat.sh (missing)"
-                fi
-                
-                # Database
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
-                    echo "  ✅ Database: local-config/gwombat.db ($db_size)"
-                else
-                    echo "  ❌ Database: local-config/gwombat.db (missing)"
-                fi
-                
-                # Shared utilities
-                if [[ -d "shared-utilities" ]]; then
-                    local util_count=$(find shared-utilities -name "*.sh" | wc -l)
-                    echo "  ✅ Shared Utilities: $util_count scripts"
-                else
-                    echo "  ❌ Shared Utilities: Directory missing"
-                fi
-                
-                echo ""
-                echo -e "${WHITE}External Dependencies:${NC}"
-                
-                # Check each external tool
-                if [[ -x "$GAM" ]]; then
-                    echo "  ✅ GAM: $GAM"
-                else
-                    echo "  ❌ GAM: ${GAM:-not configured}"
-                fi
-                
-                if command -v sqlite3 >/dev/null 2>&1; then
-                    echo "  ✅ SQLite3: $(which sqlite3)"
-                else
-                    echo "  ❌ SQLite3: Not installed"
-                fi
-                
-                if command -v gyb >/dev/null 2>&1; then
-                    echo "  ✅ GYB: $(which gyb)"
-                else
-                    echo "  ⚠️ GYB: Not installed (optional)"
-                fi
-                
-                if command -v rclone >/dev/null 2>&1; then
-                    echo "  ✅ rclone: $(which rclone)"
-                else
-                    echo "  ⚠️ rclone: Not installed (optional)"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            11)
-                # System Logs - Working Implementation
-                echo -e "${CYAN}📋 System Logs${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "Recent system activity:"
-                echo ""
-                
-                # Show recent operations from database
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Recent Operations (last 10):${NC}"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT datetime(created_at, 'localtime') || ' - ' || operation_type || ': ' || COALESCE(details, 'No details')
-                        FROM operation_log 
-                        ORDER BY created_at DESC 
-                        LIMIT 10;
-                    " 2>/dev/null | while read -r line; do
-                        echo "  $line"
-                    done || echo "  No operations logged"
-                else
-                    echo "  Database not available"
-                fi
-                
-                echo ""
-                
-                # Show log files
-                echo -e "${WHITE}Available Log Files:${NC}"
-                find . -name "*.log" -mtime -7 2>/dev/null | head -10 | while read -r logfile; do
-                    local size=$(du -h "$logfile" 2>/dev/null | cut -f1)
-                    echo "  $logfile ($size)"
-                done || echo "  No recent log files found"
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            12)
-                # Environment Check - Working Implementation
-                echo -e "${CYAN}🔍 Environment Check${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo "Checking system requirements and environment..."
-                echo ""
-                
-                local requirements_met=0
-                local total_requirements=5
-                
-                # Check Bash version
-                local bash_version=$(bash --version | head -1 | grep -o '[0-9]\+\.[0-9]\+' | head -1)
-                local bash_major=$(echo "$bash_version" | cut -d. -f1)
-                if [[ $bash_major -ge 4 ]]; then
-                    echo "✅ Bash: $bash_version (requirement: 4.0+)"
-                    ((requirements_met++))
-                else
-                    echo "❌ Bash: $bash_version (requirement: 4.0+)"
-                fi
-                
-                # Check SQLite
-                if command -v sqlite3 >/dev/null 2>&1; then
-                    local sqlite_version=$(sqlite3 --version | cut -d' ' -f1)
-                    echo "✅ SQLite: $sqlite_version"
-                    ((requirements_met++))
-                else
-                    echo "❌ SQLite: Not installed"
-                fi
-                
-                # Check disk space
-                local disk_free=$(df . | tail -1 | awk '{print $4}')
-                if [[ $disk_free -gt 1048576 ]]; then  # 1GB in KB
-                    echo "✅ Disk Space: Sufficient ($(df -h . | tail -1 | awk '{print $4}') free)"
-                    ((requirements_met++))
-                else
-                    echo "❌ Disk Space: Insufficient ($(df -h . | tail -1 | awk '{print $4}') free, need 1GB+)"
-                fi
-                
-                # Check directory permissions
-                if [[ -w . ]] && [[ -r . ]]; then
-                    echo "✅ Directory Permissions: Read/Write access"
-                    ((requirements_met++))
-                else
-                    echo "❌ Directory Permissions: Insufficient access"
-                fi
-                
-                # Check internet connectivity
-                if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
-                    echo "✅ Internet Connectivity: Available"
-                    ((requirements_met++))
-                else
-                    echo "❌ Internet Connectivity: Not available"
-                fi
-                
-                echo ""
-                local percentage=$((requirements_met * 100 / total_requirements))
-                if [[ $percentage -eq 100 ]]; then
-                    echo -e "${GREEN}✅ Environment: READY ($requirements_met/$total_requirements requirements met)${NC}"
-                elif [[ $percentage -gt 80 ]]; then
-                    echo -e "${YELLOW}⚠️ Environment: MOSTLY READY ($requirements_met/$total_requirements requirements met)${NC}"
-                else
-                    echo -e "${RED}❌ Environment: NOT READY ($requirements_met/$total_requirements requirements met)${NC}"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            b)
-                # Back to Dashboard & Statistics
-                return
-                ;;
-            m)
-                # Main menu
-                show_main_menu
-                return
-                ;;
-            x)
-                echo -e "${BLUE}Goodbye!${NC}"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Invalid option. Please select 1-12, b, m, or x.${NC}"
-                read -p "Press Enter to continue..."
-                ;;
-        esac
-    done
+# File Operations Function Dispatcher - handles database-driven function calls
+file_operations_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        "file_listing_search") file_listing_search ;;
+        "file_upload_download") file_upload_download ;;
+        "file_copy_move") file_copy_move ;;
+        "file_rename") file_rename ;;
+        "file_delete") file_delete ;;
+        "file_permissions") file_permissions ;;
+        "file_sharing") file_sharing ;;
+        "file_versions") file_versions ;;
+        "file_metadata") file_metadata ;;
+        "bulk_file_operations") bulk_file_operations ;;
+        *)
+            echo -e "${RED}Unknown file operations function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
 }
 
-# Statistics & Metrics Menu
+# Permission Management Function Dispatcher - handles database-driven function calls
+permission_management_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # File Permissions
+        "view_file_permissions") view_file_permissions ;;
+        "add_file_permissions") add_file_permissions ;;
+        "remove_file_permissions") remove_file_permissions ;;
+        "transfer_file_ownership") transfer_file_ownership ;;
+        "audit_file_permissions") audit_file_permissions ;;
+        
+        # Folder Permissions
+        "view_folder_permissions") view_folder_permissions ;;
+        "add_folder_permissions") add_folder_permissions ;;
+        "remove_folder_permissions") remove_folder_permissions ;;
+        "transfer_folder_ownership") transfer_folder_ownership ;;
+        
+        # Drive Permissions
+        "view_drive_permissions") view_drive_permissions ;;
+        "add_drive_managers") add_drive_managers ;;
+        "remove_drive_permissions") remove_drive_permissions ;;
+        "transfer_drive_management") transfer_drive_management ;;
+        
+        # Security Operations
+        "security_audit") security_audit ;;
+        "find_orphaned_files") find_orphaned_files ;;
+        "check_permission_violations") check_permission_violations ;;
+        "external_sharing_audit") external_sharing_audit ;;
+        
+        # Batch Operations
+        "batch_permission_changes") batch_permission_changes ;;
+        "permission_templates") permission_templates ;;
+        "permission_reports") permission_reports ;;
+        
+        *)
+            echo -e "${RED}Unknown permission management function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Shared Drive Function Dispatcher - handles database-driven function calls
+shared_drive_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Basic Operations
+        "list_shared_drives") list_shared_drives ;;
+        "create_shared_drive") create_shared_drive ;;
+        "update_shared_drive") update_shared_drive ;;
+        "delete_shared_drive") delete_shared_drive ;;
+        "restore_shared_drive") restore_shared_drive ;;
+        
+        # Member Management
+        "view_drive_members") view_drive_members ;;
+        "add_drive_members") add_drive_members ;;
+        "remove_drive_members") remove_drive_members ;;
+        "transfer_drive_ownership") transfer_drive_ownership ;;
+        "bulk_member_operations") bulk_member_operations ;;
+        
+        # Content Management
+        "browse_drive_content") browse_drive_content ;;
+        "organize_drive_content") organize_drive_content ;;
+        "move_content_to_drive") move_content_to_drive ;;
+        "copy_content_from_drive") copy_content_from_drive ;;
+        
+        # Monitoring & Reports
+        "drive_usage_statistics") drive_usage_statistics ;;
+        "drive_activity_reports") drive_activity_reports ;;
+        "audit_drive_permissions") audit_drive_permissions ;;
+        "monitor_drive_changes") monitor_drive_changes ;;
+        
+        # Administrative
+        "backup_shared_drives") backup_shared_drives ;;
+        "shared_drive_policies") shared_drive_policies ;;
+        
+        *)
+            echo -e "${RED}Unknown shared drive function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Backup Operations Function Dispatcher - handles database-driven function calls
+backup_operations_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Gmail Backups
+        "gmail_user_backup") gmail_user_backup ;;
+        "gmail_bulk_backup") gmail_bulk_backup ;;
+        "gmail_restore") gmail_restore ;;
+        "gmail_backup_status") gmail_backup_status ;;
+        
+        # Drive Backups
+        "drive_user_backup") drive_user_backup ;;
+        "drive_shared_backup") drive_shared_backup ;;
+        "drive_restore") drive_restore ;;
+        "drive_backup_status") drive_backup_status ;;
+        
+        # System Backups
+        "database_backup") database_backup ;;
+        "config_backup") config_backup ;;
+        "full_system_backup") full_system_backup ;;
+        "system_restore") system_restore ;;
+        
+        # Backup Management
+        "backup_policies") backup_policies ;;
+        "backup_storage") backup_storage ;;
+        "backup_verification") backup_verification ;;
+        "backup_cleanup") backup_cleanup ;;
+        
+        # Monitoring & Reports
+        "backup_reports") backup_reports ;;
+        "backup_alerts") backup_alerts ;;
+        "backup_audit") backup_audit ;;
+        "disaster_recovery") disaster_recovery ;;
+        
+        *)
+            echo -e "${RED}Unknown backup operations function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Statistics Function Dispatcher - handles database-driven function calls
+statistics_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Core Statistics
+        "domain_overview_statistics") domain_overview_statistics ;;
+        "user_account_statistics") user_account_statistics ;;
+        "historical_trends_statistics") historical_trends_statistics ;;
+        "storage_analytics_statistics") storage_analytics_statistics ;;
+        "group_statistics_analysis") group_statistics_analysis ;;
+        
+        # Performance Metrics
+        "system_performance_metrics") system_performance_metrics ;;
+        "database_performance_metrics") database_performance_metrics ;;
+        "gam_operation_metrics") gam_operation_metrics ;;
+        
+        *)
+            echo -e "${RED}Unknown statistics function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 statistics_menu() {
     while true; do
         clear
@@ -3470,7 +2459,7 @@ statistics_menu() {
         local suspended_accounts="?"
         local last_update="Never"
         
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             total_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "?")
             active_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage = 'active';" 2>/dev/null || echo "?")
             suspended_accounts=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row');" 2>/dev/null || echo "?")
@@ -3481,17 +2470,58 @@ statistics_menu() {
         echo -e "  ${WHITE}Last Updated:${NC} $last_update"
         echo ""
         
-        echo -e "${GREEN}=== CORE STATISTICS ===${NC}"
-        echo "1. 📊 Domain Overview Statistics (Comprehensive domain metrics)"
-        echo "2. 👥 User Account Statistics (Active, suspended, lifecycle stages)"
-        echo "3. 📈 Historical Trends (Account changes over time)"
-        echo "4. 💾 Storage Analytics (Storage usage patterns and trends)"
-        echo "5. 📋 Group Statistics (Groups, memberships, and distribution)"
-        echo ""
-        echo -e "${PURPLE}=== PERFORMANCE METRICS ===${NC}"
-        echo "6. ⚡ System Performance (Response times, operation speeds)"
-        echo "7. 📊 Database Performance (Query performance, growth rates)"
-        echo "8. 🔧 GAM Operation Metrics (Command success rates, timing)"
+        # Generate dynamic menu from database
+        local section_name="statistics"
+        if [[ -f "shared-config/menu.db" ]]; then
+            # Load menu items from database (bash 3.2 compatible)
+            local menu_items=() function_names=() descriptions=() icons=()
+            local counter=1
+            
+            while IFS='|' read -r name display_name description function_name icon; do
+                [[ -n "$name" ]] || continue
+                menu_items[$counter]="$display_name"
+                function_names[$counter]="$function_name"
+                descriptions[$counter]="$description"
+                icons[$counter]="$icon"
+                ((counter++))
+            done < <(sqlite3 shared-config/menu.db "
+                SELECT mi.name, mi.display_name, mi.description, mi.function_name, mi.icon
+                FROM menu_items mi 
+                JOIN menu_sections ms ON mi.section_id = ms.id 
+                WHERE ms.name = '$section_name' AND mi.is_active = 1
+                ORDER BY mi.item_order;
+            " 2>/dev/null)
+            
+            # Display menu sections
+            echo -e "${GREEN}=== CORE STATISTICS ===${NC}"
+            for i in $(seq 1 5); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    echo "$i. ${icons[$i]} ${menu_items[$i]} (${descriptions[$i]})"
+                fi
+            done
+            echo ""
+            echo -e "${PURPLE}=== PERFORMANCE METRICS ===${NC}"
+            for i in $(seq 6 8); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    echo "$i. ${icons[$i]} ${menu_items[$i]} (${descriptions[$i]})"
+                fi
+            done
+        else
+            # Fallback menu when database is not available
+            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
+            echo -e "${GREEN}=== CORE STATISTICS ===${NC}"
+            echo "1. 📊 Domain Overview Statistics (Comprehensive domain metrics)"
+            echo "2. 👥 User Account Statistics (Active, suspended, lifecycle stages)"
+            echo "3. 📈 Historical Trends (Account changes over time)"
+            echo "4. 💾 Storage Analytics (Storage usage patterns and trends)"
+            echo "5. 📋 Group Statistics (Groups, memberships, and distribution)"
+            echo ""
+            echo -e "${PURPLE}=== PERFORMANCE METRICS ===${NC}"
+            echo "6. ⚡ System Performance (Response times, operation speeds)"
+            echo "7. 📊 Database Performance (Query performance, growth rates)"
+            echo "8. 🔧 GAM Operation Metrics (Command success rates, timing)"
+        fi
+        
         echo ""
         echo "b. ⬅️ Back to Dashboard & Statistics"
         echo "m. 🏠 Main menu"
@@ -3502,539 +2532,27 @@ statistics_menu() {
         echo ""
         
         case $stats_choice in
-            1)
-                # Domain Overview Statistics - Working Implementation
-                echo -e "${CYAN}📊 Domain Overview Statistics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo -e "${WHITE}Domain Summary:${NC}"
-                if [[ -x "$GAM" ]]; then
-                    # Get domain information
-                    local domain_info=$($GAM info domain 2>/dev/null)
-                    if [[ -n "$domain_info" ]]; then
-                        echo "$domain_info" | grep -E "(Primary Domain|User Count|Admin Count)" | sed 's/^/  /'
-                    else
-                        echo "  Domain information unavailable"
-                    fi
-                    
-                    echo ""
-                    echo -e "${WHITE}Account Distribution:${NC}"
-                    
-                    # Get user counts by type
-                    if [[ -f "local-config/gwombat.db" ]]; then
-                        echo "  Account Status Distribution:"
-                        sqlite3 local-config/gwombat.db "
-                            SELECT 
-                                '    ' || current_stage || ': ' || COUNT(*) || ' accounts'
-                            FROM accounts 
-                            GROUP BY current_stage 
-                            ORDER BY COUNT(*) DESC;
-                        " 2>/dev/null | head -10
-                    fi
-                    
-                    echo ""
-                    echo -e "${WHITE}Organizational Units:${NC}"
-                    # Get OU statistics
-                    local ou_stats=$($GAM print orgs 2>/dev/null | tail -n +2 | wc -l)
-                    echo "  Total OUs: $ou_stats"
-                    
-                    echo ""
-                    echo -e "${WHITE}Groups Statistics:${NC}"
-                    local group_count=$($GAM print groups 2>/dev/null | tail -n +2 | wc -l)
-                    echo "  Total Groups: $group_count"
-                    
-                    # Group membership statistics
-                    if [[ -f "local-config/gwombat.db" ]]; then
-                        local avg_membership=$(sqlite3 local-config/gwombat.db "
-                            SELECT ROUND(AVG(member_count), 1) 
-                            FROM (SELECT COUNT(*) as member_count FROM accounts GROUP BY email);
-                        " 2>/dev/null || echo "0")
-                        echo "  Average memberships per user: $avg_membership"
-                    fi
-                    
+            [1-8])
+                # Use database-driven function dispatcher
+                if [[ -f "local-config/gwombat.db" ]] && [[ -n "${function_names[$stats_choice]}" ]]; then
+                    local func_name="${function_names[$stats_choice]}"
+                    statistics_function_dispatcher "$func_name"
                 else
-                    echo "  GAM not available - cannot retrieve domain statistics"
+                    # Fallback for when database is not available
+                    case $stats_choice in
+                        1) domain_overview_statistics ;;
+                        2) user_account_statistics ;;
+                        3) historical_trends_statistics ;;
+                        4) storage_analytics_statistics ;;
+                        5) group_statistics_analysis ;;
+                        6) system_performance_metrics ;;
+                        7) database_performance_metrics ;;
+                        8) gam_operation_metrics ;;
+                    esac
                 fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                # User Account Statistics - Working Implementation
-                echo -e "${CYAN}👥 User Account Statistics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Account Lifecycle Statistics:${NC}"
-                    
-                    # Detailed stage breakdown
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            CASE 
-                                WHEN current_stage = 'active' THEN '✅ Active Accounts'
-                                WHEN current_stage = 'recently_suspended' THEN '⚠️ Recently Suspended'
-                                WHEN current_stage = 'pending_deletion' THEN '🔄 Pending Deletion'
-                                WHEN current_stage = 'temporary_hold' THEN '⏸️ Temporary Hold'
-                                WHEN current_stage = 'exit_row' THEN '🚪 Exit Row'
-                                ELSE '❓ ' || current_stage
-                            END || ': ' || COUNT(*) || ' accounts (' || 
-                            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM accounts), 1) || '%)'
-                        FROM accounts 
-                        GROUP BY current_stage 
-                        ORDER BY COUNT(*) DESC;
-                    " 2>/dev/null | while read -r line; do
-                        echo "  $line"
-                    done
-                    
-                    echo ""
-                    echo -e "${WHITE}Account Creation Patterns:${NC}"
-                    
-                    # Recent account activity
-                    local recent_changes=$(sqlite3 local-config/gwombat.db "
-                        SELECT COUNT(*) FROM stage_history 
-                        WHERE changed_at > datetime('now', '-30 days');
-                    " 2>/dev/null || echo "0")
-                    echo "  Stage changes (last 30 days): $recent_changes"
-                    
-                    # Most common stage transitions
-                    echo ""
-                    echo -e "${WHITE}Common Stage Transitions (last 90 days):${NC}"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            '  ' || from_stage || ' → ' || to_stage || ': ' || COUNT(*) || ' transitions'
-                        FROM stage_history 
-                        WHERE changed_at > datetime('now', '-90 days')
-                        GROUP BY from_stage, to_stage 
-                        ORDER BY COUNT(*) DESC 
-                        LIMIT 5;
-                    " 2>/dev/null | head -5
-                    
-                else
-                    echo "  Database not available - run account scan first"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                # Historical Trends - Working Implementation
-                echo -e "${CYAN}📈 Historical Trends${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Account Trends (Last 6 Months):${NC}"
-                    
-                    # Monthly stage transition trends
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            strftime('%Y-%m', changed_at) as month,
-                            to_stage,
-                            COUNT(*) as transitions
-                        FROM stage_history 
-                        WHERE changed_at > datetime('now', '-6 months')
-                        GROUP BY strftime('%Y-%m', changed_at), to_stage
-                        ORDER BY month DESC, transitions DESC;
-                    " 2>/dev/null | while read -r month stage count; do
-                        echo "  $month: $count accounts moved to $stage"
-                    done | head -20
-                    
-                    echo ""
-                    echo -e "${WHITE}Storage Growth Trends:${NC}"
-                    
-                    # Storage growth by month
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            strftime('%Y-%m', scan_time) as month,
-                            ROUND(AVG(total_size_gb), 2) as avg_storage_gb,
-                            COUNT(DISTINCT email) as users_scanned
-                        FROM storage_size_history 
-                        WHERE scan_time > datetime('now', '-6 months')
-                        GROUP BY strftime('%Y-%m', scan_time)
-                        ORDER BY month DESC;
-                    " 2>/dev/null | while read -r month avg_storage users; do
-                        echo "  $month: ${avg_storage}GB average storage ($users users)"
-                    done | head -6
-                    
-                    echo ""
-                    echo -e "${WHITE}Activity Trends:${NC}"
-                    
-                    # Operation frequency trends
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            strftime('%Y-%m', created_at) as month,
-                            operation_type,
-                            COUNT(*) as operations
-                        FROM operation_log 
-                        WHERE created_at > datetime('now', '-3 months')
-                        GROUP BY strftime('%Y-%m', created_at), operation_type
-                        ORDER BY month DESC, operations DESC;
-                    " 2>/dev/null | while read -r month op_type count; do
-                        echo "  $month: $count $op_type operations"
-                    done | head -15
-                    
-                else
-                    echo "  Database not available - historical data not accessible"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                # Storage Analytics - Working Implementation
-                echo -e "${CYAN}💾 Storage Analytics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Storage Distribution:${NC}"
-                    
-                    # Storage usage statistics
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            '  Total Storage: ' || ROUND(SUM(total_size_gb), 2) || ' GB',
-                            '  Average per User: ' || ROUND(AVG(total_size_gb), 2) || ' GB',
-                            '  Median Storage: ' || (
-                                SELECT ROUND(total_size_gb, 2) 
-                                FROM storage_size_history 
-                                WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history)
-                                ORDER BY total_size_gb 
-                                LIMIT 1 OFFSET (SELECT COUNT(*)/2 FROM storage_size_history 
-                                                WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history))
-                            ) || ' GB'
-                        FROM storage_size_history 
-                        WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history);
-                    " 2>/dev/null | while read -r line; do
-                        echo "$line"
-                    done
-                    
-                    echo ""
-                    echo -e "${WHITE}Top Storage Users:${NC}"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            '  ' || email || ': ' || ROUND(total_size_gb, 2) || ' GB'
-                        FROM storage_size_history 
-                        WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history)
-                        ORDER BY total_size_gb DESC 
-                        LIMIT 10;
-                    " 2>/dev/null | head -10
-                    
-                    echo ""
-                    echo -e "${WHITE}Storage Growth Analysis:${NC}"
-                    
-                    # Growth rate calculation
-                    local growth_data=$(sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            ROUND(
-                                (MAX(total_size_gb) - MIN(total_size_gb)) / 
-                                (MAX(total_size_gb) + 0.01) * 100, 2
-                            ) as growth_rate,
-                            COUNT(DISTINCT strftime('%Y-%m', scan_time)) as months_tracked
-                        FROM storage_size_history;
-                    " 2>/dev/null)
-                    
-                    if [[ -n "$growth_data" ]]; then
-                        IFS='|' read -r growth_rate months <<< "$growth_data"
-                        echo "  Storage growth rate: ${growth_rate}% over $months months"
-                    fi
-                    
-                    # Storage categories
-                    echo ""
-                    echo -e "${WHITE}Storage Categories:${NC}"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            CASE 
-                                WHEN total_size_gb < 1 THEN '< 1GB'
-                                WHEN total_size_gb < 5 THEN '1-5GB'
-                                WHEN total_size_gb < 15 THEN '5-15GB'
-                                WHEN total_size_gb < 30 THEN '15-30GB'
-                                ELSE '30GB+'
-                            END as category,
-                            COUNT(*) as users,
-                            ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM storage_size_history 
-                                                      WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history)), 1) as percentage
-                        FROM storage_size_history 
-                        WHERE scan_time = (SELECT MAX(scan_time) FROM storage_size_history)
-                        GROUP BY category
-                        ORDER BY MIN(total_size_gb);
-                    " 2>/dev/null | while read -r category users percentage; do
-                        echo "  $category: $users users (${percentage}%)"
-                    done
-                    
-                else
-                    echo "  Database not available - run storage size scan first"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            5)
-                # Group Statistics - Working Implementation
-                echo -e "${CYAN}📋 Group Statistics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -x "$GAM" ]]; then
-                    echo -e "${WHITE}Group Overview:${NC}"
-                    
-                    # Get basic group count
-                    local total_groups=$($GAM print groups fields email 2>/dev/null | tail -n +2 | wc -l)
-                    echo "  Total Groups: $total_groups"
-                    
-                    # Group types analysis
-                    echo ""
-                    echo -e "${WHITE}Group Analysis:${NC}"
-                    echo "  Analyzing group membership patterns..."
-                    
-                    # Create temp file for group analysis
-                    local temp_groups="/tmp/groups_analysis.csv"
-                    $GAM print groups fields email,members 2>/dev/null > "$temp_groups"
-                    
-                    if [[ -f "$temp_groups" && $(wc -l < "$temp_groups") -gt 1 ]]; then
-                        # Analyze group sizes
-                        local small_groups=$(tail -n +2 "$temp_groups" | awk -F',' 'NF<=3 {count++} END {print count+0}')
-                        local medium_groups=$(tail -n +2 "$temp_groups" | awk -F',' 'NF>3 && NF<=10 {count++} END {print count+0}')
-                        local large_groups=$(tail -n +2 "$temp_groups" | awk -F',' 'NF>10 {count++} END {print count+0}')
-                        
-                        echo "  Small groups (1-3 members): $small_groups"
-                        echo "  Medium groups (4-10 members): $medium_groups"
-                        echo "  Large groups (10+ members): $large_groups"
-                        
-                        # Largest groups
-                        echo ""
-                        echo -e "${WHITE}Largest Groups:${NC}"
-                        tail -n +2 "$temp_groups" | while IFS=',' read -r group_email members; do
-                            member_count=$(echo "$members" | tr ',' '\n' | wc -l)
-                            echo "$group_email,$member_count"
-                        done | sort -t',' -k2 -nr | head -5 | while IFS=',' read -r group_email count; do
-                            echo "  $group_email: $count members"
-                        done
-                        
-                        rm -f "$temp_groups"
-                    else
-                        echo "  Unable to analyze group membership details"
-                    fi
-                    
-                    echo ""
-                    echo -e "${WHITE}Recent Group Activity:${NC}"
-                    if [[ -f "local-config/gwombat.db" ]]; then
-                        local group_ops=$(sqlite3 local-config/gwombat.db "
-                            SELECT COUNT(*) FROM operation_log 
-                            WHERE operation_type LIKE '%group%' 
-                            AND created_at > datetime('now', '-30 days');
-                        " 2>/dev/null || echo "0")
-                        echo "  Group operations (last 30 days): $group_ops"
-                    else
-                        echo "  No group operation history available"
-                    fi
-                    
-                else
-                    echo "  GAM not available - cannot retrieve group statistics"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            6)
-                # System Performance - Working Implementation
-                echo -e "${CYAN}⚡ System Performance${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                echo -e "${WHITE}Performance Metrics:${NC}"
-                
-                # Database performance
-                echo "Testing database performance..."
-                local db_start=$(date +%s.%N)
-                sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" >/dev/null 2>&1
-                local db_end=$(date +%s.%N)
-                local db_time=$(echo "$db_end - $db_start" | bc 2>/dev/null || echo "0.1")
-                echo "  Database query time: ${db_time}s"
-                
-                # GAM performance
-                if [[ -x "$GAM" ]]; then
-                    echo "Testing GAM performance..."
-                    local gam_start=$(date +%s.%N)
-                    $GAM info domain >/dev/null 2>&1
-                    local gam_end=$(date +%s.%N)
-                    local gam_time=$(echo "$gam_end - $gam_start" | bc 2>/dev/null || echo "1.0")
-                    echo "  GAM domain query time: ${gam_time}s"
-                fi
-                
-                # System resources
-                echo ""
-                echo -e "${WHITE}System Resources:${NC}"
-                local disk_usage=$(df . | tail -1 | awk '{print $5}')
-                echo "  Disk usage: $disk_usage"
-                
-                if command -v free >/dev/null 2>&1; then
-                    local mem_info=$(free -h | grep '^Mem:')
-                    echo "  Memory: $mem_info"
-                fi
-                
-                # Database size and growth
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
-                    echo "  Database size: $db_size"
-                    
-                    # Operation frequency
-                    local recent_ops=$(sqlite3 local-config/gwombat.db "
-                        SELECT COUNT(*) FROM operation_log 
-                        WHERE created_at > datetime('now', '-24 hours');
-                    " 2>/dev/null || echo "0")
-                    echo "  Operations (24h): $recent_ops"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            7)
-                # Database Performance - Working Implementation
-                echo -e "${CYAN}📊 Database Performance${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}Database Statistics:${NC}"
-                    
-                    # Database size and table info
-                    local db_size=$(du -h local-config/gwombat.db | cut -f1)
-                    echo "  Database size: $db_size"
-                    
-                    # Table sizes
-                    echo ""
-                    echo -e "${WHITE}Table Record Counts:${NC}"
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            name as table_name,
-                            (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=m.name) as records
-                        FROM sqlite_master m 
-                        WHERE type='table' AND name NOT LIKE 'sqlite_%'
-                        ORDER BY name;
-                    " 2>/dev/null | while read -r table records; do
-                        local count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM $table;" 2>/dev/null || echo "0")
-                        echo "  $table: $count records"
-                    done | head -10
-                    
-                    # Query performance tests
-                    echo ""
-                    echo -e "${WHITE}Query Performance Tests:${NC}"
-                    
-                    # Test 1: Simple count
-                    local start_time=$(date +%s.%N)
-                    sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" >/dev/null 2>&1
-                    local end_time=$(date +%s.%N)
-                    local query_time=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0.1")
-                    echo "  Simple count query: ${query_time}s"
-                    
-                    # Test 2: Group by query
-                    local start_time=$(date +%s.%N)
-                    sqlite3 local-config/gwombat.db "SELECT current_stage, COUNT(*) FROM accounts GROUP BY current_stage;" >/dev/null 2>&1
-                    local end_time=$(date +%s.%N)
-                    local group_time=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0.1")
-                    echo "  Group by query: ${group_time}s"
-                    
-                    # Test 3: Join query
-                    local start_time=$(date +%s.%N)
-                    sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts a LEFT JOIN stage_history sh ON a.email = sh.email;" >/dev/null 2>&1
-                    local end_time=$(date +%s.%N)
-                    local join_time=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0.1")
-                    echo "  Join query: ${join_time}s"
-                    
-                    # Database health
-                    echo ""
-                    echo -e "${WHITE}Database Health:${NC}"
-                    local integrity=$(sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" 2>/dev/null | head -1)
-                    echo "  Integrity check: $integrity"
-                    
-                    # Index usage
-                    local index_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM sqlite_master WHERE type='index';" 2>/dev/null || echo "0")
-                    echo "  Indexes: $index_count"
-                    
-                else
-                    echo "  Database not available"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            8)
-                # GAM Operation Metrics - Working Implementation
-                echo -e "${CYAN}🔧 GAM Operation Metrics${NC}"
-                echo "═══════════════════════════════════════════════════════════════════════════════"
-                
-                if [[ -f "local-config/gwombat.db" ]]; then
-                    echo -e "${WHITE}GAM Operation Statistics:${NC}"
-                    
-                    # Operation success rates
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            operation_type,
-                            COUNT(*) as total_ops,
-                            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful,
-                            ROUND(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) as success_rate
-                        FROM operation_log 
-                        WHERE created_at > datetime('now', '-30 days')
-                        GROUP BY operation_type
-                        ORDER BY total_ops DESC;
-                    " 2>/dev/null | while read -r op_type total successful rate; do
-                        echo "  $op_type: $successful/$total operations (${rate}% success)"
-                    done | head -10
-                    
-                    echo ""
-                    echo -e "${WHITE}Recent Operation Activity:${NC}"
-                    
-                    # Daily operation counts
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            date(created_at) as op_date,
-                            COUNT(*) as operations
-                        FROM operation_log 
-                        WHERE created_at > datetime('now', '-7 days')
-                        GROUP BY date(created_at)
-                        ORDER BY op_date DESC;
-                    " 2>/dev/null | while read -r date count; do
-                        echo "  $date: $count operations"
-                    done | head -7
-                    
-                    echo ""
-                    echo -e "${WHITE}Error Analysis:${NC}"
-                    
-                    # Most common errors
-                    sqlite3 local-config/gwombat.db "
-                        SELECT 
-                            SUBSTR(error_message, 1, 50) || '...' as error_preview,
-                            COUNT(*) as occurrences
-                        FROM operation_log 
-                        WHERE success = 0 AND error_message IS NOT NULL
-                        AND created_at > datetime('now', '-30 days')
-                        GROUP BY SUBSTR(error_message, 1, 50)
-                        ORDER BY COUNT(*) DESC
-                        LIMIT 5;
-                    " 2>/dev/null | while read -r error_msg count; do
-                        echo "  $error_msg ($count times)"
-                    done
-                    
-                else
-                    echo "  Operation log not available"
-                fi
-                
-                # GAM connectivity test
-                echo ""
-                echo -e "${WHITE}GAM Connectivity Test:${NC}"
-                if [[ -x "$GAM" ]]; then
-                    local gam_start=$(date +%s.%N)
-                    if $GAM info domain >/dev/null 2>&1; then
-                        local gam_end=$(date +%s.%N)
-                        local gam_time=$(echo "$gam_end - $gam_start" | bc 2>/dev/null || echo "1.0")
-                        echo "  ✅ GAM connectivity: OK (${gam_time}s response time)"
-                    else
-                        echo "  ❌ GAM connectivity: Failed"
-                    fi
-                else
-                    echo "  ❌ GAM not available"
-                fi
-                
-                echo ""
-                read -p "Press Enter to continue..."
                 ;;
             b)
-                # Back to Dashboard & Statistics
+                # Back to dashboard menu
                 return
                 ;;
             m)
@@ -4050,8 +2568,7 @@ statistics_menu() {
                 echo -e "${RED}Invalid option. Please select 1-8, b, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
-        esac
-    done
+        esac    done
 }
 
 # Individual Statistics Functions
@@ -4073,7 +2590,7 @@ domain_overview_statistics() {
         echo -e "${WHITE}Account Distribution:${NC}"
         
         # Get user counts by type
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             echo "  Account Status Distribution:"
             sqlite3 local-config/gwombat.db "
                 SELECT 
@@ -4096,7 +2613,7 @@ domain_overview_statistics() {
         echo "  Total Groups: $group_count"
         
         # Group membership statistics
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             local avg_membership=$(sqlite3 local-config/gwombat.db "
                 SELECT ROUND(AVG(member_count), 1) 
                 FROM (SELECT COUNT(*) as member_count FROM accounts GROUP BY email);
@@ -4366,25 +2883,6 @@ gam_operation_metrics() {
     read -p "Press Enter to continue..."
 }
 
-# Statistics Function Dispatcher
-statistics_function_dispatcher() {
-    local function_name="$1"
-    
-    case "$function_name" in
-        "domain_overview_statistics") domain_overview_statistics ;;
-        "user_account_statistics") user_account_statistics ;;
-        "historical_trends_statistics") historical_trends_statistics ;;
-        "storage_analytics_statistics") storage_analytics_statistics ;;
-        "group_statistics_analysis") group_statistics_analysis ;;
-        "system_performance_metrics") system_performance_metrics ;;
-        "database_performance_metrics") database_performance_metrics ;;
-        "gam_operation_metrics") gam_operation_metrics ;;
-        *)
-            echo -e "${RED}Unknown statistics function: $function_name${NC}"
-            read -p "Press Enter to continue..."
-            ;;
-    esac
-}
 
 # Function to let user choose between database or fresh GAM data
 choose_data_source() {
@@ -4640,31 +3138,41 @@ show_main_menu() {
     
     echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
-    echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
-    echo "1. 👥 User & Group Management"
-    echo ""
-    echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
-    echo "2. 💾 File & Drive Operations"
-    echo "3. 🔍 Analysis & Discovery"
-    echo "4. 📋 Account List Management"
-    echo ""
-    echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
-    echo "5. 🎯 Dashboard & Statistics"
-    echo "6. 📈 Reports & Monitoring"
-    echo "7. ⚙️  System Administration"
-    echo ""
-    echo -e "${CYAN}=== BACKUP & RECOVERY ===${NC}"
-    echo "8. 💾 Backup & Recovery"
-    echo ""
-    echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
-    echo "9. 🔐 SCuBA Compliance Management"
-    echo ""
-    echo -e "${CYAN}=== CONFIGURATION ===${NC}"
-    echo "c. ⚙️  Configuration Management (Setup & Settings)"
-    echo ""
-    echo -e "${GRAY}=== NAVIGATION ===${NC}"
-    echo "s. 🔍 Search Menu Options"
-    echo "i. 📋 Menu Index (Alphabetical)"
+    
+    # Generate dynamic menu from database
+    if [[ -f "shared-config/menu.db" ]]; then
+        # Use SQLite-driven menu generation (bash 3.2 compatible)
+        generate_main_menu
+    else
+        # Fallback menu when database is not available
+        echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
+        echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
+        echo "1. 👥 User & Group Management"
+        echo ""
+        echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
+        echo "2. 💾 File & Drive Operations"
+        echo "3. 🔍 Analysis & Discovery"
+        echo "4. 📋 Account List Management"
+        echo ""
+        echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
+        echo "5. 🎯 Dashboard & Statistics"
+        echo "6. 📈 Reports & Monitoring"
+        echo "7. ⚙️  System Administration"
+        echo ""
+        echo -e "${CYAN}=== BACKUP & RECOVERY ===${NC}"
+        echo "8. 💾 Backup & Recovery"
+        echo ""
+        echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
+        echo "9. 🔐 SCuBA Compliance Management"
+        echo ""
+        echo -e "${CYAN}=== CONFIGURATION ===${NC}"
+        echo "c. ⚙️  Configuration Management (Setup & Settings)"
+        echo ""
+        echo -e "${GRAY}=== NAVIGATION ===${NC}"
+        echo "s. 🔍 Search Menu Options"
+        echo "i. 📋 Menu Index (Alphabetical)"
+    fi
+    
     echo ""
     echo "x. ❌ Exit"
     echo ""
@@ -4682,7 +3190,7 @@ show_main_menu() {
         choice=97  # Index
     fi
     
-    return $choice
+    MENU_CHOICE=$choice
 }
 
 # Function to show progress bar
@@ -5069,7 +3577,7 @@ show_summary() {
     echo -e "${GREEN}2. Fix Filenames:${NC}"
     echo "   - Find all files with '(PENDING DELETION - CONTACT OIT)' in name"
     echo "   - Rename them to include '(Suspended Account - Temporary Hold)'"
-    echo "   - Log changes to tmp/${user}-fixed.txt"
+    echo "   - Log changes to local-config/tmp/${user}-fixed.txt"
     echo ""
     echo -e "${GREEN}3. Rename Shared Files:${NC}"
     echo "   - Generate file list using list-users-files.sh"
@@ -5111,7 +3619,7 @@ show_removal_summary() {
     echo -e "${GREEN}2. Remove Temporary Hold from All Files:${NC}"
     echo "   - Find all files with '(Suspended Account - Temporary Hold)' in name"
     echo "   - Remove the suffix from file names"
-    echo "   - Log changes to tmp/${user}-removal.txt"
+    echo "   - Log changes to local-config/tmp/${user}-removal.txt"
     echo ""
     echo -e "${GREEN}3. Move User to Destination OU:${NC}"
     echo "   - Choose destination: Pending Deletion, Suspended, or ${DOMAIN:-yourdomain.edu}"
@@ -5185,7 +3693,7 @@ show_pending_removal_summary() {
     echo "   - Find all files with '(PENDING DELETION - CONTACT OIT)' in name"
     echo "   - Remove the suffix from file names"
     echo "   - Remove drive labels from files"
-    echo "   - Log changes to tmp/${user}-pending-removed.txt"
+    echo "   - Log changes to local-config/tmp/${user}-pending-removed.txt"
     echo ""
     echo -e "${GREEN}3. Move User to Destination OU:${NC}"
     echo "   - Choose destination: Pending Deletion, Suspended, or ${DOMAIN:-yourdomain.edu}"
@@ -7143,8 +5651,8 @@ check_incomplete_operations() {
     fi
     
     # Check for orphaned tmp files
-    if [[ -d "${SCRIPTPATH}/tmp" ]]; then
-        tmp_files=$(find "${SCRIPTPATH}/tmp" -name "*-fixed.txt" -o -name "*-removal.txt" | wc -l)
+    if [[ -d "${SCRIPTPATH}/local-config/tmp" ]]; then
+        tmp_files=$(find "${SCRIPTPATH}/local-config/tmp" -name "*-fixed.txt" -o -name "*-removal.txt" | wc -l)
         echo "Temporary operation files found: $tmp_files"
         
         if [[ $tmp_files -gt 0 ]]; then
@@ -7341,7 +5849,7 @@ transfer_ownership_to_gwombat() {
     fi
     
     # Get list of files owned by user
-    local temp_file="${SCRIPTPATH}/tmp/${user_email}_ownership_transfer.csv"
+    local temp_file="${SCRIPTPATH}/local-config/tmp/${user_email}_ownership_transfer.csv"
     if [[ "$dry_run" == "false" ]]; then
         $GAM user "$user_email" print filelist fields id,name,owners > "$temp_file"
         local file_count=$(tail -n +2 "$temp_file" | wc -l)
@@ -7566,7 +6074,7 @@ analyze_file_activity() {
 manage_suspension_groups() {
     local user_email="$1"
     local operation="$2"  # "backup" or "restore"
-    local groups_file="${SCRIPTPATH}/tmp/${user_email}_groups_backup.txt"
+    local groups_file="${SCRIPTPATH}/local-config/tmp/${user_email}_groups_backup.txt"
     
     case $operation in
         "backup")
@@ -7603,7 +6111,7 @@ restore_file_dates() {
     echo -e "${GREEN}Restoring file modification dates for $user_email...${NC}"
     
     # Get files that were modified after the target date
-    local files_to_fix="${SCRIPTPATH}/tmp/${user_email}_date_fix.csv"
+    local files_to_fix="${SCRIPTPATH}/local-config/tmp/${user_email}_date_fix.csv"
     $GAM user "$user_email" print filelist \
         query "modifiedTime>'$target_date'" \
         fields id,name,modifiedTime > "$files_to_fix"
@@ -7663,7 +6171,7 @@ bulk_add_to_group() {
 # Function to remove user from all their groups
 remove_user_from_all_groups() {
     local user_email="$1"
-    local log_file="${SCRIPTPATH}/tmp/${user_email}_groups_removed.log"
+    local log_file="${SCRIPTPATH}/local-config/tmp/${user_email}_groups_removed.log"
     
     echo -e "${GREEN}Removing $user_email from all groups...${NC}"
     
@@ -8596,13 +7104,13 @@ add_pending_to_files() {
                 new_filename="${current_filename} (PENDING DELETION - CONTACT OIT)"
                 # Update the filename in Google Drive
                 execute_command "$GAM user \"$user_email_full\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $current_filename"
-                echo "Renamed file: $fileid, $current_filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-added.txt"
+                echo "Renamed file: $fileid, $current_filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-pending-added.txt"
             fi
         fi
     done < <(cat "$TEMP_FILE" | egrep -v "PENDING DELETION" | egrep -v "Owner,id,name" | awk -F, '{print $2","$3}')
     
     echo "Completed adding pending deletion to files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-added.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-pending-added.txt for details"
 }
 
 # Function to add drive labels to files
@@ -8724,8 +7232,8 @@ remove_pending_from_files() {
     fi
     
     # Query the user's files and output only the files with (PENDING DELETION - CONTACT OIT) in the name
-    $GAM user "$user_email_full" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt"
-    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt" | wc -l)
+    $GAM user "$user_email_full" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt" | wc -l)
     counter=0
     
     if [[ $TOTAL -eq 0 ]]; then
@@ -8745,17 +7253,17 @@ remove_pending_from_files() {
         if [[ "$new_filename" != "$filename" ]]; then
             # Rename the file
             execute_command "$GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename\"" "Rename file: $filename"
-            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-pending-removed.txt"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-pending-removed.txt"
         fi
         
         # Remove drive label from file
         if [[ -n "$fileid" ]]; then
             execute_command "$GAM user $owner process filedrivelabels $fileid deletelabelfield $LABEL_ID $FIELD_ID" "Remove drive label"
         fi
-    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_pending_$user_email.txt") # Skip the first line (header)
+    done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_pending_$user_email.txt") # Skip the first line (header)
     
     echo "Completed removing pending deletion from files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-pending-removed.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-pending-removed.txt for details"
 }
 
 # Function to remove user from all groups
@@ -8858,8 +7366,8 @@ fix_filenames() {
             sleep 0.1  # Brief pause for visual effect
         done
     else
-        $GAM user "$user" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/tmp/gam_output_$user.txt"
-        TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_$user.txt" | wc -l)
+        $GAM user "$user" show filelist id name | grep "(PENDING DELETION - CONTACT OIT)" > "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt"
+        TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt" | wc -l)
         counter=0
         
         if [[ $TOTAL -eq 0 ]]; then
@@ -8879,14 +7387,14 @@ fix_filenames() {
             if [[ "$new_filename" != "$filename" ]]; then
                 # If the filename has been changed, rename the file and print a message
                 execute_command "$GAM user \"$owner\" update drivefile \"$fileid\" newfilename \"$new_filename (Suspended Account - Temporary Hold)\"" "Rename file: $filename"
-                echo "Renamed file: $fileid, $filename -> $new_filename (Suspended Account - Temporary Hold)" >> "${SCRIPTPATH}/tmp/$user-fixed.txt"
+                echo "Renamed file: $fileid, $filename -> $new_filename (Suspended Account - Temporary Hold)" >> "${SCRIPTPATH}/local-config/tmp/$user-fixed.txt"
             fi
-        done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_$user.txt") # Skip the first line (header)
+        done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_$user.txt") # Skip the first line (header)
     fi
     
     echo "Completed renaming files for $user"
     if [[ "$DRY_RUN" != "true" ]]; then
-        echo "See ${SCRIPTPATH}/tmp/$user-fixed.txt for details"
+        echo "See ${SCRIPTPATH}/local-config/tmp/$user-fixed.txt for details"
     fi
 }
 
@@ -9039,8 +7547,8 @@ remove_gwombat_hold_from_files() {
     mkdir -p "${SCRIPTPATH}/tmp"
     
     # Query the user's files and output only the files with (Suspended Account - Temporary Hold) in the name
-    $GAM user "$user_email_full" show filelist id name | grep "(Suspended Account - Temporary Hold)" > "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt"
-    TOTAL=$(cat "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt" | wc -l)
+    $GAM user "$user_email_full" show filelist id name | grep "(Suspended Account - Temporary Hold)" > "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt"
+    TOTAL=$(cat "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt" | wc -l)
     counter=0
     
     if [[ $TOTAL -eq 0 ]]; then
@@ -9059,12 +7567,12 @@ remove_gwombat_hold_from_files() {
             # If the filename has been changed, rename the file and print a message
             $GAM user "$owner" update drivefile "$fileid" newfilename "$new_filename"
             echo "$counter of $TOTAL - Renamed file: $filename -> $new_filename"
-            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/tmp/$user_email-removal.txt"
+            echo "Renamed file: $fileid, $filename -> $new_filename" >> "${SCRIPTPATH}/local-config/tmp/$user_email-removal.txt"
         fi
-    done < <(tail -n +2 "${SCRIPTPATH}/tmp/gam_output_removal_$user_email.txt") # Skip the first line (header)
+    done < <(tail -n +2 "${SCRIPTPATH}/local-config/tmp/gam_output_removal_$user_email.txt") # Skip the first line (header)
     
     echo "Completed removing temporary hold from files for $user_email"
-    echo "See ${SCRIPTPATH}/tmp/$user_email-removal.txt for details"
+    echo "See ${SCRIPTPATH}/local-config/tmp/$user_email-removal.txt for details"
 }
 
 # Function to remove temporary hold from a single user
@@ -17092,7 +15600,7 @@ database_operations_menu() {
         fi
         
         # Check integrity
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             local integrity_result=$(sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" 2>/dev/null | head -1)
             if [[ "$integrity_result" == "ok" ]]; then
                 integrity_status="✅"
@@ -17100,7 +15608,7 @@ database_operations_menu() {
         fi
         
         # Check size
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             local db_size_kb=$(du -k local-config/gwombat.db | cut -f1)
             if [[ $db_size_kb -lt 1048576 ]]; then  # Less than 1GB
                 size_status="✅"
@@ -17110,7 +15618,7 @@ database_operations_menu() {
         fi
         
         # Check performance (simple query time)
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             local start_time=$(date +%s.%N)
             sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" >/dev/null 2>&1
             local end_time=$(date +%s.%N)
@@ -17175,7 +15683,7 @@ database_operations_menu() {
                 
                 # Check 1: Database File Accessibility
                 echo -e "${WHITE}1. Database File Accessibility:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "  ✅ Database file exists: local-config/gwombat.db"
                     if sqlite3 local-config/gwombat.db "SELECT 1;" >/dev/null 2>&1; then
                         echo "  ✅ Database is accessible and responsive"
@@ -17191,7 +15699,7 @@ database_operations_menu() {
                 
                 # Check 2: Database Integrity
                 echo -e "${WHITE}2. Database Integrity:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local integrity_result=$(sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" 2>/dev/null)
                     if [[ "$integrity_result" == "ok" ]]; then
                         echo "  ✅ Database integrity check passed"
@@ -17208,7 +15716,7 @@ database_operations_menu() {
                 
                 # Check 3: Database Size and Growth
                 echo -e "${WHITE}3. Database Size Analysis:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local db_size_kb=$(du -k local-config/gwombat.db | cut -f1)
                     local db_size_mb=$((db_size_kb / 1024))
                     echo "  Database size: ${db_size_mb}MB (${db_size_kb}KB)"
@@ -17230,7 +15738,7 @@ database_operations_menu() {
                 
                 # Check 4: Table Structure Validation
                 echo -e "${WHITE}4. Table Structure Validation:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local table_count=$(sqlite3 local-config/gwombat.db ".tables" 2>/dev/null | wc -w || echo "0")
                     echo "  Database contains $table_count tables"
                     
@@ -17251,7 +15759,7 @@ database_operations_menu() {
                 
                 # Check 5: Query Performance
                 echo -e "${WHITE}5. Query Performance Test:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local start_time=$(date +%s.%N)
                     local record_count=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" 2>/dev/null || echo "0")
                     local end_time=$(date +%s.%N)
@@ -17276,7 +15784,7 @@ database_operations_menu() {
                 
                 # Check 6: Foreign Key Constraints
                 echo -e "${WHITE}6. Foreign Key Integrity:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local fk_result=$(sqlite3 local-config/gwombat.db "PRAGMA foreign_key_check;" 2>/dev/null)
                     if [[ -z "$fk_result" ]]; then
                         echo "  ✅ All foreign key constraints are valid"
@@ -17293,7 +15801,7 @@ database_operations_menu() {
                 
                 # Check 7: Database Configuration
                 echo -e "${WHITE}7. Database Configuration:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local page_size=$(sqlite3 local-config/gwombat.db "PRAGMA page_size;" 2>/dev/null || echo "0")
                     local cache_size=$(sqlite3 local-config/gwombat.db "PRAGMA cache_size;" 2>/dev/null || echo "0")
                     
@@ -17314,7 +15822,7 @@ database_operations_menu() {
                 
                 # Check 8: Recent Activity
                 echo -e "${WHITE}8. Recent Database Activity:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local recent_ops=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM operation_log WHERE created_at > datetime('now', '-7 days');" 2>/dev/null || echo "0")
                     echo "  Recent operations (7 days): $recent_ops"
                     
@@ -18108,12 +16616,7 @@ file_operations_menu() {
                 # Handle numeric menu options dynamically
                 if [[ -n "${function_names[$file_choice]}" ]]; then
                     local func_name="${function_names[$file_choice]}"
-                    if command -v "$func_name" >/dev/null 2>&1; then
-                        $func_name
-                    else
-                        echo -e "${YELLOW}Function $func_name not yet implemented${NC}"
-                        read -p "Press Enter to continue..."
-                    fi
+                    file_operations_function_dispatcher "$func_name"
                 else
                     echo -e "${RED}Invalid option${NC}"
                     read -p "Press Enter to continue..."
@@ -18604,12 +17107,7 @@ permission_management_menu() {
                 # Handle numeric menu options dynamically
                 if [[ -n "${function_names[$perm_choice]}" ]]; then
                     local func_name="${function_names[$perm_choice]}"
-                    if command -v "$func_name" >/dev/null 2>&1; then
-                        $func_name
-                    else
-                        echo -e "${YELLOW}Function $func_name not yet implemented${NC}"
-                        read -p "Press Enter to continue..."
-                    fi
+                    permission_management_function_dispatcher "$func_name"
                 else
                     echo -e "${RED}Invalid option${NC}"
                     read -p "Press Enter to continue..."
@@ -19117,7 +17615,7 @@ cleanup_broken_permissions() {
     read -p "Press Enter to continue..."
 }
 
-# NOTE: File Discovery functionality has been moved to standalone-file-analysis-tools.sh
+# NOTE: File Discovery functionality has been moved to shared-utilities/standalone-file-analysis-tools.sh
 # This was done because the file analysis tools were focused on local filesystem
 # analysis rather than Google Drive/Shared Drive management (GWOMBAT's core purpose)
 
@@ -19140,7 +17638,7 @@ file_discovery_removed_notice() {
     echo "• 📁 File Operations Suite (10 tools, 50+ operations)"
     echo "• 🛡️ File Security Scanner (5 security scans)"
     echo ""
-    echo -e "${GREEN}Available in: ${WHITE}./standalone-file-analysis-tools.sh${NC}"
+    echo -e "${GREEN}Available in: ${WHITE}./shared-utilities/standalone-file-analysis-tools.sh${NC}"
     echo ""
     echo -e "${YELLOW}Reason for move:${NC}"
     echo "These tools focus on local filesystem analysis rather than"
@@ -21954,7 +20452,7 @@ system_diagnostics_menu() {
                 
                 # Check 2: Database Integrity
                 echo -e "${WHITE}2. Database Integrity:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local integrity_result=$(sqlite3 local-config/gwombat.db "PRAGMA integrity_check;" 2>/dev/null | head -1)
                     if [[ "$integrity_result" == "ok" ]]; then
                         echo "  ✅ Database integrity check passed"
@@ -22034,7 +20532,7 @@ system_diagnostics_menu() {
                 
                 # Check 9: Recent Operations
                 echo -e "${WHITE}9. Recent Operations:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local recent_ops=$(sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM operation_log WHERE created_at > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
                     if [[ $recent_ops -gt 0 ]]; then
                         echo "  ✅ System active ($recent_ops operations in 24h)"
@@ -22183,7 +20681,7 @@ system_diagnostics_menu() {
                 fi
                 
                 # Database
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local db_size=$(du -h local-config/gwombat.db | cut -f1)
                     echo "✅ Main Database: local-config/gwombat.db ($db_size)"
                 else
@@ -22271,7 +20769,7 @@ system_diagnostics_menu() {
                 
                 # Database Performance
                 echo -e "${WHITE}Database Performance:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local start_time=$(date +%s.%N)
                     sqlite3 local-config/gwombat.db "SELECT COUNT(*) FROM accounts;" >/dev/null 2>&1
                     local end_time=$(date +%s.%N)
@@ -22406,7 +20904,7 @@ system_diagnostics_menu() {
                 # Database Configuration
                 echo ""
                 echo -e "${WHITE}Database Configuration:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "  ✅ Main database accessible"
                     
                     # Check table existence
@@ -22478,7 +20976,7 @@ system_diagnostics_menu() {
                 echo -e "${CYAN}🗄️ Database Health Check${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Checking database health..."
                     echo ""
                     
@@ -22542,7 +21040,7 @@ system_diagnostics_menu() {
                 echo -e "${CYAN}📋 Database Table Analysis${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Analyzing database tables..."
                     echo ""
                     
@@ -22582,7 +21080,7 @@ system_diagnostics_menu() {
                 echo -e "${CYAN}🔧 Database Integrity Verification${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Running comprehensive database integrity verification..."
                     echo ""
                     
@@ -22648,7 +21146,7 @@ system_diagnostics_menu() {
                 echo -e "${CYAN}📊 Database Performance Test${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Running database performance benchmarks..."
                     echo ""
                     
@@ -22731,7 +21229,7 @@ system_diagnostics_menu() {
                 echo -e "${CYAN}🧹 Database Cleanup Analysis${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Analyzing database cleanup opportunities..."
                     echo ""
                     
@@ -24979,7 +23477,7 @@ main() {
     
     while true; do
         show_main_menu
-        choice=$?
+        choice=$MENU_CHOICE
         
         case $choice in
             1)
@@ -25009,6 +23507,13 @@ main() {
             9)
                 scuba_compliance_menu
                 ;;
+            10)
+                echo -e "${BLUE}Goodbye!${NC}"
+                log_info "Session ended by user"
+                echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
+                generate_daily_report
+                exit 0
+                ;;
             97)
                 # Menu Index (Alphabetical)
                 show_menu_index
@@ -25026,15 +23531,8 @@ main() {
                     configuration_menu
                 fi
                 ;;
-            10)
-                echo -e "${BLUE}Goodbye!${NC}"
-                log_info "Session ended by user"
-                echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
-                generate_daily_report
-                exit 0
-                ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-8, c, s, i, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-9, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -25138,12 +23636,7 @@ shared_drive_menu() {
                 # Handle numeric menu options dynamically
                 if [[ -n "${function_names[$drive_choice]}" ]]; then
                     local func_name="${function_names[$drive_choice]}"
-                    if command -v "$func_name" >/dev/null 2>&1; then
-                        $func_name
-                    else
-                        echo -e "${YELLOW}Function $func_name not yet implemented${NC}"
-                        read -p "Press Enter to continue..."
-                    fi
+                    shared_drive_function_dispatcher "$func_name"
                 else
                     echo -e "${RED}Invalid option${NC}"
                     read -p "Press Enter to continue..."
@@ -26935,7 +25428,7 @@ EOF
                 echo "DATABASE I/O PERFORMANCE TEST" >> "$report_file"
                 echo "─────────────────────────────────────────────────────────────────────────────" >> "$report_file"
                 
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     local db_size=$(du -h "local-config/gwombat.db" | cut -f1)
                     echo "Database size: $db_size" >> "$report_file"
                     echo "  Database size: $db_size"
@@ -28534,7 +27027,7 @@ monitoring_menu() {
                     
                     # Database status
                     echo -e "${WHITE}Database Status:${NC}"
-                    if [[ -f "local-config/gwombat.db" ]]; then
+                    if [[ -f "shared-config/menu.db" ]]; then
                         local db_size=$(du -h "local-config/gwombat.db" | cut -f1)
                         local table_count=$(sqlite3 local-config/gwombat.db ".tables" 2>/dev/null | wc -w)
                         echo "✅ Database: OK ($db_size, $table_count tables)"
@@ -28742,7 +27235,7 @@ monitoring_menu() {
                 echo ""
                 
                 echo -e "${WHITE}Database Size Analysis:${NC}"
-                if [[ -f "local-config/gwombat.db" ]]; then
+                if [[ -f "shared-config/menu.db" ]]; then
                     echo "Main database: $(du -h local-config/gwombat.db | cut -f1)"
                     
                     # Analyze table sizes
@@ -29275,7 +27768,7 @@ backup_operations_menu() {
         fi
         
         # Check configuration
-        if [[ -f "local-config/gwombat.db" ]]; then
+        if [[ -f "shared-config/menu.db" ]]; then
             config_status="✅"
         fi
         
@@ -36670,25 +35163,7 @@ backup_operations_main_menu() {
                 # Handle numeric menu options dynamically
                 if [[ -n "${function_names[$backup_choice]}" ]]; then
                     local func_name="${function_names[$backup_choice]}"
-                    if command -v "$func_name" >/dev/null 2>&1; then
-                        $func_name
-                    else
-                        echo -e "${YELLOW}Function $func_name not yet implemented${NC}"
-                        echo "This backup feature will include:"
-                        case $backup_choice in
-                            1) echo "• Local storage configuration"
-                               echo "• SSH server setup"
-                               echo "• Cloud storage (rclone) integration" ;;
-                            2) echo "• File/folder selection wizard"
-                               echo "• Multiple destination support"
-                               echo "• Incremental backup options" ;;
-                            3) echo "• Automated scheduling with cron"
-                               echo "• Flexible timing options"
-                               echo "• Email notifications" ;;
-                            *) echo "• Comprehensive backup functionality" ;;
-                        esac
-                        read -p "Press Enter to continue..."
-                    fi
+                    backup_operations_function_dispatcher "$func_name"
                 else
                     echo -e "${RED}Invalid option${NC}"
                     read -p "Press Enter to continue..."
@@ -36713,7 +35188,9 @@ backup_operations_main_menu() {
                 ;;
         esac
     done
-}# Improved input handling function
+}
+
+# Improved input handling function
 # Usage: get_user_input "prompt" "valid_options" "max_attempts"
 get_user_input() {
     local prompt="$1"

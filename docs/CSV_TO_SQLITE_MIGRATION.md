@@ -218,13 +218,13 @@ The new scripts maintain backward compatibility by:
 ### Manual Queries
 ```bash
 # Direct database access
-sqlite3 ./config/gwombat.db
+sqlite3 ./local-config/gwombat.db
 
 # View recent operations
-sqlite3 ./config/gwombat.db "SELECT * FROM file_operations ORDER BY created_at DESC LIMIT 10;"
+sqlite3 ./local-config/gwombat.db "SELECT * FROM file_operations ORDER BY created_at DESC LIMIT 10;"
 
 # Check pending restorations
-sqlite3 ./config/gwombat.db "SELECT * FROM pending_restorations;"
+sqlite3 ./local-config/gwombat.db "SELECT * FROM pending_restorations;"
 ```
 
 ## Benefits
@@ -249,10 +249,10 @@ sqlite3 ./config/gwombat.db "SELECT * FROM pending_restorations;"
 ### Database Issues
 ```bash
 # Check database integrity
-sqlite3 ./config/gwombat.db "PRAGMA integrity_check;"
+sqlite3 ./local-config/gwombat.db "PRAGMA integrity_check;"
 
 # Rebuild database if needed
-sqlite3 ./config/gwombat.db "VACUUM;"
+sqlite3 ./local-config/gwombat.db "VACUUM;"
 ```
 
 ### Migration Issues
@@ -261,16 +261,16 @@ sqlite3 ./config/gwombat.db "VACUUM;"
 ./shared-utilities/sqlite_operations.sh init
 
 # Check table structure
-sqlite3 ./config/gwombat.db ".schema file_operations"
+sqlite3 ./local-config/gwombat.db ".schema file_operations"
 ```
 
 ### Data Recovery
 ```bash
 # Export all data
-sqlite3 ./config/gwombat.db ".dump" > backup.sql
+sqlite3 ./local-config/gwombat.db ".dump" > local-config/backups/backup.sql
 
 # Restore from backup
-sqlite3 ./config/gwombat.db < backup.sql
+sqlite3 ./local-config/gwombat.db < local-config/backups/backup.sql
 ```
 
 This migration significantly improves the reliability and maintainability of GWOMBAT while preserving all existing functionality.

@@ -21,7 +21,7 @@ Configure your deployment settings using the setup wizard:
 # DOMAIN, ADMIN_USER, PRODUCTION_SERVER, PRODUCTION_USER, GWOMBAT_PATH, etc.
 ```
 
-The deployment script reads from your `local-config/.env` file - no need to edit `deploy.sh` directly.
+The deployment script reads from your `local-config/.env` file - no need to edit `shared-utilities/deploy.sh` directly.
 
 ### 2. Ensure SSH Access
 Make sure you can SSH to your production server:
@@ -31,7 +31,7 @@ ssh your-username@your-production-server.edu
 
 ### 3. Run Initial Deployment
 ```bash
-./deploy.sh
+./shared-utilities/deploy.sh
 ```
 
 This will:
@@ -50,7 +50,7 @@ git commit -m "Description of changes"
 
 ### 2. Deploy
 ```bash
-./deploy.sh
+./shared-utilities/deploy.sh
 ```
 
 The script will:
@@ -105,16 +105,26 @@ git checkout HEAD~1
 ## Directory Structure on Production
 
 ```
-${GWOMBAT_PATH}/                # Working directory (configurable via local-config/.env)
-├── gwombat.sh                    # Main script
-├── database_functions.sh         # Database operations
-├── database_schema.sql           # Database schema
-├── logs/                         # Application logs
-├── reports/                      # Generated reports  
-├── tmp/                          # Temporary files
-└── backups/                      # Backups
+${GWOMBAT_PATH}/                     # Working directory (configurable via local-config/.env)
+├── gwombat.sh                       # Main script
+├── shared-utilities/                # ALL utility scripts (48+ scripts)
+│   ├── deploy.sh                   # This deployment script
+│   ├── database_functions.sh       # Database operations
+│   └── [40+ specialized utilities] # All operational scripts
+├── shared-config/                   # Application configuration
+│   ├── *.sql                      # Database schemas (11 schema files)
+│   └── menu.db                    # Dynamic menu database
+├── local-config/                    # Instance-specific private data
+│   ├── .env                       # Production configuration
+│   ├── gwombat.db                 # Instance database
+│   ├── logs/                      # Application logs
+│   ├── reports/                   # Generated reports
+│   ├── exports/                   # CSV export outputs
+│   ├── backups/                   # Database backups
+│   └── tmp/                       # Temporary files
+└── python-modules/                  # Python integrations
 
-${GWOMBAT_PATH}.git/               # Bare repository (for git)
+${GWOMBAT_PATH}.git/                 # Bare repository (for git)
 ```
 
 ## Troubleshooting

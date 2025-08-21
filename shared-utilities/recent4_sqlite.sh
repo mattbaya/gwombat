@@ -135,7 +135,7 @@ echo "Recent files (last ${NUM_DAYS} days): ${recent_files} files, total size ${
 echo "Old files (older than ${NUM_DAYS} days): ${old_files} files, total size ${OLD_SIZE_FORMATTED}"
 
 # Generate CSV export files for backwards compatibility
-TEMP_DIR="${SCRIPT_TEMP_PATH:-./tmp}"
+TEMP_DIR="${SCRIPT_TEMP_PATH:-./local-config/tmp}"
 mkdir -p "$TEMP_DIR"
 
 ALL_FILES="${TEMP_DIR}/${USER_EMAIL}_files.csv"

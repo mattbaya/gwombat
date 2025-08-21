@@ -1,178 +1,251 @@
-# GWOMBAT Testing Plan and Results
+# GWOMBAT Quality Assurance Testing Plan
 
-## Testing Overview
-Comprehensive testing of GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) system components to ensure functionality, reliability, and production readiness.
+## 🎯 **TESTING PHILOSOPHY: BREAK IT TO IMPROVE IT**
 
-## Test Categories and Status
+**Goal**: Find errors, bugs, and edge cases by acting as a professional QA agent whose mission is to stress test every interface, menu, and input field. **Finding errors is success** - document them and continue testing.
 
-### 1. System Architecture Tests ✅ COMPLETED
-- **Database Schema Validation** ✅ PASSED
-  - SQLite database properly initialized with 7 tables
-  - Views and indexes correctly created
-  - Schema matches expected structure from database_schema.sql
-  
-- **Script Syntax Validation** ✅ PASSED
-  - gwombat.sh: Syntax clean (6500+ lines)
-  - database_functions.sh: Syntax clean
-  - All shared-utilities/*.sh scripts: Syntax clean
-  
-- **Database Content Verification** ✅ PASSED
-  - 18 accounts imported and properly staged
-  - Sample accounts show correct OU placement
-  - Database functions load successfully
+## 📋 **ERROR TRACKING**
+- **ALL ERRORS** must be immediately documented in `TO-DO.md`
+- **DO NOT STOP TESTING** to fix errors - continue testing and document everything
+- **TEST METHODOLOGY**: Navigate menus as a real user would, not via API calls or file scanning
 
-### 2. Core Functionality Tests 🔄 IN PROGRESS
+---
 
-#### 2.1 Database Operations
-- **Connection and Queries** ✅ PASSED
-  - SQLite connection working
-  - Basic queries execute successfully
-  - Schema views accessible
+## 🔍 **TESTING SECTIONS**
 
-- **Account Management** ⏳ PENDING
-  - [ ] Add new account to database
-  - [ ] Update account stage
-  - [ ] Verify stage history tracking
-  - [ ] Test account list operations
+### **SECTION 1: Main Menu Navigation Testing**
+**Status**: ⏳ PENDING
 
-#### 2.2 Menu System
-- **Navigation** ⏳ PENDING
-  - [ ] Main menu loads correctly
-  - [ ] Submenu navigation works
-  - [ ] Universal 'm' and 'x' options function
-  - [ ] Option counts display correctly
+**Test Steps**:
+1. Launch `./gwombat.sh`
+2. Verify main menu displays with 12 options from database
+3. Test each numbered option (1-9):
+   - **Option 1**: User & Group Management
+   - **Option 2**: File & Drive Operations  
+   - **Option 3**: Analysis & Discovery
+   - **Option 4**: Account List Management
+   - **Option 5**: Dashboard & Statistics
+   - **Option 6**: Reports & Monitoring
+   - **Option 7**: System Administration
+   - **Option 8**: Backup & Recovery
+   - **Option 9**: SCuBA Compliance Management
+4. Test navigation options:
+   - **c**: Configuration Management
+   - **s**: Search Menu Options
+   - **i**: Menu Index (Alphabetical)
+   - **x**: Exit
+5. Test invalid inputs: letters, symbols, numbers outside range
+6. Test edge cases: empty input, extremely long input, special characters
 
-#### 2.3 Account Lifecycle Management
-- **Stage Transitions** ⏳ PENDING
-  - [ ] recently_suspended → pending_deletion
-  - [ ] pending_deletion → temporary_hold
-  - [ ] temporary_hold → exit_row
-  - [ ] exit_row → deleted
-  - [ ] Reactivation workflows
+**QA Agent Instructions**: 
+- Try to break the menu by entering unexpected values
+- Test ALL options, even if they seem similar
+- Document any crashes, error messages, or unexpected behavior
 
-### 3. Integration Tests 🔄 IN PROGRESS
+---
 
-#### 3.1 GAM Integration
-- **GAM Commands** ⏳ PENDING
-  - [ ] GAM path configuration
-  - [ ] Basic GAM connectivity
-  - [ ] Account information retrieval
-  - [ ] OU operations
+### **SECTION 2: Dashboard & Statistics Menu Testing**
+**Status**: ⏳ PENDING
 
-#### 3.2 Google Drive Operations
-- **File Management** ⏳ PENDING
-  - [ ] Drive ID parsing from URLs
-  - [ ] File ownership operations
-  - [ ] Share management
-  - [ ] Bulk operations
+**Subsection 2A: Main Dashboard (17 menu items)**
+1. Navigate to Dashboard & Statistics → Main Dashboard
+2. Test each of the 17 dashboard options:
+   - Verify each loads without error
+   - Test with different data states (empty database, populated database)
+   - Try rapid menu navigation
+3. Test invalid inputs in dashboard menus
+4. Verify statistics display correctly
 
-### 4. Configuration Tests ⚠️ PARTIAL
+**Subsection 2B: Statistics & Metrics (8 menu items)**  
+1. Navigate to Dashboard & Statistics → Statistics & Metrics
+2. Test all 8 statistical functions:
+   - Domain Overview Statistics
+   - User Account Statistics  
+   - Historical Trends
+   - Storage Analytics
+   - Group Statistics
+   - System Performance
+   - Database Performance
+   - GAM Operation Metrics
+3. Test with various database states
+4. Verify error handling when GAM unavailable
 
-#### 4.1 Environment Configuration ✅ PASSED
-- .env file exists and loads
-- server.env.template available
-- Configuration variables accessible
+**QA Agent Instructions**:
+- Focus on breaking statistics calculations
+- Test with edge case data (0 accounts, malformed data)
+- Verify all charts/displays render properly
 
-#### 4.2 Deployment System ❌ FAILED
-- **Issue Found**: deploy.sh script missing from filesystem
-- **Status**: Mentioned in CLAUDE.md but not present
-- **Action Required**: Create or locate deployment script
+---
 
-### 5. Security and Best Practices Tests ⏳ PENDING
+### **SECTION 3: File Operations & Management Testing**
+**Status**: ⏳ PENDING
 
-#### 5.1 Security Validation
-- [ ] No hardcoded credentials
-- [ ] Proper SSH key handling
-- [ ] Secure file permissions
-- [ ] Input validation
+**Subsection 3A: File Operations (10 menu items)**
+1. Navigate to File & Drive Operations → File Operations
+2. Test each of the 10 file operation functions
+3. Test with invalid file paths, malformed URLs, empty inputs
 
-#### 5.2 Error Handling
-- [ ] Database connection failures
-- [ ] Invalid user input
-- [ ] GAM command failures
-- [ ] Network connectivity issues
+**Subsection 3B: Permission Management (20 menu items)**
+1. Navigate to File & Drive Operations → Permission Management  
+2. Systematically test all 20 permission functions
+3. Test error handling for invalid users, malformed permissions
 
-### 6. Performance Tests ⏳ PENDING
+**Subsection 3C: Shared Drive Management (20 menu items)**
+1. Navigate to File & Drive Operations → Shared Drive Management
+2. Test all 20 shared drive functions
+3. Test with invalid drive IDs, malformed URLs
 
-#### 6.1 Database Performance
-- [ ] Large dataset handling
-- [ ] Query optimization
-- [ ] Bulk operations efficiency
+**QA Agent Instructions**:
+- Try malformed Google Drive URLs
+- Test with non-existent user accounts
+- Attempt operations with insufficient permissions
 
-#### 6.2 Script Performance
-- [ ] Menu response times
-- [ ] Large file processing
-- [ ] Memory usage patterns
+---
 
-## Current Test Results Summary
+### **SECTION 4: System Administration Testing**
+**Status**: ⏳ PENDING
 
-### ✅ PASSED (7/7 completed categories)
-1. **Database Schema**: All tables, indexes, and views created correctly
-2. **Script Syntax**: All shell scripts pass syntax validation
-3. **Database Content**: 18 accounts properly imported with correct staging
-4. **Database Functions**: Load and integrate successfully (with workarounds for path issues)
-5. **Environment Setup**: Configuration files present and accessible
-6. **Interactive Menu System**: Main menu displays correctly, setup wizard functional
-7. **Database Operations**: Account list creation works, test list successfully created
+**Subsection 4A: System Administration (14 menu items)**
+1. Navigate to System Administration
+2. Test all 14 administrative functions
+3. Verify database operations work correctly
+4. Test backup and maintenance functions
 
-### ✅ FIXED (8 critical issues resolved)
-1. **✅ Deployment Script Created**: deploy.sh script created with full git-based deployment functionality
-2. **✅ Configuration File Organization**: local-config/.env file properly organized with template support
-3. **✅ Timeout Handling Added**: GAM and rclone checks now have timeout handling to prevent hangs
-4. **✅ GAM Path Fixed**: Dependency check now uses configured GAM path from environment
-5. **✅ Database Schema Path Fixed**: Added automatic SCRIPTPATH detection in database_functions.sh
-6. **✅ log_info Function Added**: Added fallback log_info function to database_functions.sh
-7. **✅ Setup Process Working**: Setup wizard detected and can be skipped for direct operation
-8. **✅ GAM Integration Ready**: GAM path properly configured with timeout handling for verification
+**Subsection 4B: Reports & Maintenance (10 menu items)**
+1. Navigate to Reports & Monitoring → Reports & Maintenance
+2. Test all 10 reporting functions
+3. Verify log cleanup operations
+4. Test backup management functions
 
-### ⏳ PENDING (Major test categories remaining)
-1. **GAM Integration**: Cannot test due to path configuration issues
-2. **Account Operations**: Limited testing due to GAM dependency issues
-3. **Error Handling**: Test failure scenarios and recovery
-4. **Performance**: Test with larger datasets and concurrent operations
+**QA Agent Instructions**:
+- Test database operations with corrupted data
+- Try backup operations with insufficient disk space
+- Test log operations with missing log files
 
-## Next Testing Steps
+---
 
-### High Priority
-1. **Test Interactive Menu System**
-   - Start gwombat.sh and navigate through menus
-   - Test database maintenance options
-   - Verify account list management
+### **SECTION 5: Configuration & Setup Testing**
+**Status**: ⏳ PENDING
 
-2. **Test Database Operations**
-   - Create new account lists
-   - Add accounts to lists
-   - Test verification workflows
+**Subsection 5A: System Configuration (5+ menu items)**
+1. Navigate to Configuration Management → System Configuration
+2. Test setup wizard functionality
+3. Test domain configuration changes
+4. Test Python environment setup
+5. Test configuration backup/restore
 
-3. **Locate/Create Deployment Script**
-   - Check git history for deploy.sh
-   - Recreate based on DEPLOYMENT.md if missing
+**Subsection 5B: External Tools Configuration**
+1. Test GAM configuration options
+2. Test GYB integration settings
+3. Test rclone configuration
 
-### Medium Priority
-4. **Test GAM Integration** (requires GAM setup)
-5. **Test Account Scanning** (requires Google Workspace access)
-6. **Performance Testing** with larger datasets
+**QA Agent Instructions**:
+- Try configuring invalid domains
+- Test with missing external tools
+- Attempt configuration with corrupted config files
 
-### Low Priority
-7. **Security audit** of all scripts
-8. **Documentation verification** against actual functionality
+---
 
-## Testing Environment Details
-- **Location**: /Users/mjb9/scripts/gwombat
-- **Database**: gwombat.db (98KB with 18 accounts)
-- **Last Updated**: August 16, 2025
-- **Git Status**: Clean working directory on main branch
+### **SECTION 6: Backup & Recovery Testing**
+**Status**: ⏳ PENDING
 
-## Recovery Instructions
-If testing crashes or is interrupted:
-1. Navigate to /Users/mjb9/scripts/gwombat
-2. Check this file for current progress
-3. Continue from the "Next Testing Steps" section
-4. Update test results as you progress
-5. Mark completed items with ✅ and timestamp
+**Test All 20 Backup Functions**:
+1. Navigate to Backup & Recovery
+2. Systematically test all Gmail backup options
+3. Test Drive backup functionality  
+4. Test system backup operations
+5. Test backup verification
+6. Test disaster recovery procedures
 
-## Notes
-- All testing assumes defensive security context only
-- No malicious code creation or testing
-- Focus on legitimate administrative and security functions
-- Maintain audit trail of all test operations
+**QA Agent Instructions**:
+- Test backups with insufficient storage
+- Try restoring from corrupted backups
+- Test backup operations with network issues
+
+---
+
+### **SECTION 7: Edge Case & Error Testing**
+**Status**: ⏳ PENDING
+
+**Database Edge Cases**:
+1. Test with empty database
+2. Test with corrupted database
+3. Test with missing database files
+4. Test with insufficient permissions
+
+**Input Validation Testing**:
+1. Test all input fields with:
+   - Empty strings
+   - Extremely long inputs (1000+ characters)
+   - Special characters: `'; DROP TABLE--`
+   - Unicode characters
+   - Binary data
+   - HTML/XML tags
+
+**Network & External Dependencies**:
+1. Test with no internet connection
+2. Test with GAM unavailable
+3. Test with Google API limits exceeded
+4. Test with invalid credentials
+
+**QA Agent Instructions**:
+- **BE CREATIVE WITH BREAKING THINGS**
+- Try every possible way to crash the system
+- Test rapid navigation, simultaneous operations
+- Document everything that doesn't work as expected
+
+---
+
+### **SECTION 8: Search & Navigation Testing**  
+**Status**: ⏳ PENDING
+
+**Search Functionality**:
+1. Test menu search function (option 's')
+2. Try various search terms
+3. Test search with invalid queries
+4. Test alphabetical index (option 'i')
+
+**Navigation Consistency**:
+1. Verify 'p' (previous), 'm' (main), 'x' (exit) work in ALL menus
+2. Test navigation from deep menu levels
+3. Test rapid menu switching
+
+**QA Agent Instructions**:
+- Try to get lost in the menu system
+- Test navigation edge cases
+- Verify consistent behavior across all menus
+
+---
+
+## 📊 **SUCCESS METRICS**
+
+**Testing is considered successful when**:
+- **Every menu option has been tested**
+- **Invalid inputs have been tried in every field**
+- **All errors are documented in TO-DO.md**
+- **Edge cases have been systematically explored**
+- **System behavior is predictable and documented**
+
+## 🚨 **ERROR DOCUMENTATION TEMPLATE**
+
+When errors are found, add to `TO-DO.md`:
+```
+## ERROR FOUND - [DATE]
+**Location**: [Menu Path] → [Specific Option]
+**Error Type**: [Crash/Display Error/Logic Error/etc]
+**Steps to Reproduce**: [Exact steps]
+**Expected Behavior**: [What should happen]
+**Actual Behavior**: [What actually happened]
+**Severity**: [High/Medium/Low]
+**Testing Continues**: ✓
+```
+
+## 🎯 **QA AGENT MINDSET**
+
+**Remember**: You are a professional QA agent whose job is to find problems. Your success is measured by how many issues you uncover. Be systematic, be thorough, and try to break everything. The development team is counting on you to find the bugs before users do.
+
+**Test with the mindset**: "How can I make this fail?"
+
+---
+
+**Ready to begin testing? Start with Section 1 and work systematically through each section. Document everything. Break everything you can. Find those bugs!**

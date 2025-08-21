@@ -27,6 +27,71 @@ WHITE='\033[1;37m'
 GRAY='\033[0;37m'
 NC='\033[0m'
 
+# Help function
+show_help() {
+    echo -e "${CYAN}Standalone File Analysis Tools${NC}"
+    echo ""
+    echo -e "${WHITE}DESCRIPTION:${NC}"
+    echo "  Comprehensive file system analysis tools extracted from GWOMBAT"
+    echo "  Designed for local filesystem analysis, organization, and optimization"
+    echo ""
+    echo -e "${WHITE}USAGE:${NC}"
+    echo "  $0 [OPTIONS]"
+    echo ""
+    echo -e "${WHITE}OPTIONS:${NC}"
+    echo "  -h, --help     Show this help message and exit"
+    echo "  -v, --version  Show version information"
+    echo ""
+    echo -e "${WHITE}FEATURES:${NC}"
+    echo "  • Fast Duplicate File Detection"
+    echo "  • Directory Structure Analysis"
+    echo "  • File Type Distribution Analysis"
+    echo "  • Performance Optimized Scanning"
+    echo ""
+    echo -e "${WHITE}USAGE RECOMMENDATIONS:${NC}"
+    echo "  • Schedule intensive scans during off-hours"
+    echo "  • Test on non-production systems first"
+    echo "  • Use read-only tools for active systems"
+    echo "  • Avoid content scanning during business hours"
+    echo ""
+    echo -e "${WHITE}LOG FILES:${NC}"
+    echo "  Operations logged to: /tmp/file_analysis.log"
+    echo ""
+    echo -e "${WHITE}EXAMPLES:${NC}"
+    echo "  $0              # Start interactive menu"
+    echo "  $0 --help       # Show this help"
+    echo ""
+}
+
+# Version function
+show_version() {
+    echo "Standalone File Analysis Tools v1.0"
+    echo "Extracted from GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner)"
+    echo "Build Date: $(date '+%Y-%m-%d')"
+}
+
+# Process command line arguments
+process_arguments() {
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -v|--version)
+            show_version
+            exit 0
+            ;;
+        "")
+            # No arguments, continue to main menu
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown option '$1'${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+}
+
 # Logging function (simplified)
 log_operation() {
     local operation="$1"
@@ -403,6 +468,9 @@ main_menu() {
 
 # Check if script is run directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # Process command line arguments first
+    process_arguments "$1"
+    
     echo -e "${CYAN}Starting Standalone File Analysis Tools...${NC}"
     echo ""
     echo -e "${YELLOW}NOTE: These tools were extracted from GWOMBAT for general filesystem analysis.${NC}"

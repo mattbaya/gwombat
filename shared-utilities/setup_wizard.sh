@@ -1338,7 +1338,7 @@ configure_deployment_settings() {
             echo ""
             echo -e "${GREEN}✓ Remote deployment configured${NC}"
             echo -e "${YELLOW}Next steps after setup completion:${NC}"
-            echo "1. Run: ./deploy.sh (to deploy to remote server)"
+            echo "1. Run: ./shared-utilities/deploy.sh (to deploy to remote server)"
             echo "2. SSH to $production_server and configure GAM"
             echo "3. Run GWOMBAT setup wizard on the remote server"
             
@@ -2148,7 +2148,7 @@ show_setup_summary() {
     if [[ -n "$SETUP_PRODUCTION_SERVER" ]]; then
         echo -e "${CYAN}Deployment:${NC}"
         echo "• Server: ${SETUP_PRODUCTION_SERVER}"
-        echo "• Run './deploy.sh' to deploy to production"
+        echo "• Run './shared-utilities/deploy.sh' to deploy to production"
         echo ""
     fi
     echo -e "${YELLOW}Setup log saved to: $SETUP_LOG${NC}"

@@ -232,9 +232,9 @@ initialize_database() {
     mkdir -p "$(dirname "$db_file")"
     
     # Initialize main database with schema
-    if [[ -f "local-config/main_schema.sql" ]]; then
+    if [[ -f "shared-config/main_schema.sql" ]]; then
         echo "  Loading main database schema..."
-        if sqlite3 "$db_file" < "local-config/main_schema.sql" 2>/dev/null; then
+        if sqlite3 "$db_file" < "shared-config/main_schema.sql" 2>/dev/null; then
             echo -e "${GREEN}  ✓ Main database initialized${NC}"
             log_info "Main database initialized at $db_file"
         else
@@ -266,9 +266,9 @@ initialize_database() {
     fi
     
     # Initialize menu database
-    if [[ -f "local-config/menu_schema.sql" ]]; then
+    if [[ -f "shared-config/menu_schema.sql" ]]; then
         echo "  Loading menu database schema..."
-        if sqlite3 "$menu_db" < "local-config/menu_schema.sql" 2>/dev/null; then
+        if sqlite3 "$menu_db" < "shared-config/menu_schema.sql" 2>/dev/null; then
             echo -e "${GREEN}  ✓ Menu database initialized${NC}"
             
             # Load menu data if available
@@ -341,9 +341,9 @@ reset_database_for_domain_change() {
         fi
         
         # Initialize fresh database with new domain
-        if [[ -f "${SCRIPTPATH}/local-config/database_schema.sql" ]]; then
+        if [[ -f "${SCRIPTPATH}/shared-config/database_schema.sql" ]]; then
             echo -e "${CYAN}Initializing fresh database...${NC}"
-            sqlite3 "$db_file" < "${SCRIPTPATH}/local-config/database_schema.sql"
+            sqlite3 "$db_file" < "${SCRIPTPATH}/shared-config/database_schema.sql"
             sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('configured_domain', '$new_domain');"
             sqlite3 "$db_file" "INSERT OR REPLACE INTO config (key, value) VALUES ('domain_changed_at', datetime('now'));"
             echo -e "${GREEN}✓ Fresh database initialized for: $new_domain${NC}"

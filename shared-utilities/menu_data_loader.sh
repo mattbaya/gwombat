@@ -7,15 +7,15 @@
 source "$(dirname "$0")/database_functions.sh"
 
 DB_PATH="local-config/gwombat.db"
-MENU_DB_PATH="local-config/menu.db"
+MENU_DB_PATH="shared-config/menu.db"
 
 # Initialize standalone menu database schema
 initialize_menu_database() {
     echo "Initializing standalone menu database schema..."
     
     # Apply menu schema to standalone database
-    if [[ -f "local-config/menu_schema.sql" ]]; then
-        sqlite3 "$MENU_DB_PATH" < "local-config/menu_schema.sql"
+    if [[ -f "shared-config/menu_schema.sql" ]]; then
+        sqlite3 "$MENU_DB_PATH" < "shared-config/menu_schema.sql"
         echo "✓ Menu schema applied to $MENU_DB_PATH"
     else
         echo "❌ Menu schema file not found"

@@ -136,19 +136,69 @@ cd gwombat
 # - Configuration → Test Domain Management for safe testing
 ```
 
-### File Organization
-```
-local-config/          # Instance-specific configurations
-├── .env              # Main configuration (created by setup wizard)
-├── gwombat.db        # Instance database
-└── exports/          # CSV export outputs
+## 🗂️ Perfect Security-Conscious Organization
 
-shared-config/         # Application-level configurations  
-├── menu.db           # Menu database
-└── menu_schema.sql   # Menu structure
+GWOMBAT follows strict organizational principles for security, maintainability, and deployment:
 
-.env.template         # Configuration template (version controlled)
+### 🔐 Organizational Principles
+- **🔒 Complete Data Separation**: All private data isolated in `local-config/` (excluded from version control)
+- **📦 Centralized Scripts**: All 48+ utility scripts organized in `shared-utilities/`
+- **⚙️ Application Configuration**: Database schemas and application config in `shared-config/`
+- **🧹 Clean Root Directory**: Only main application and documentation in root
+- **🚫 Zero Leakage**: No private data, logs, exports, or temporary files outside `local-config/`
+
+### 📁 Directory Structure
 ```
+gwombat/
+├── gwombat.sh                    # Main application (only script in root)
+├── .env-template                 # Configuration template (version controlled)
+├── README.md                     # Project documentation
+├── CLAUDE.md                     # AI development context
+├── TO-DO.md                      # Development task tracking
+│
+├── shared-utilities/             # ALL utility scripts (48+ scripts)
+│   ├── setup_wizard.sh          # Interactive configuration setup
+│   ├── deploy.sh                # Production deployment script
+│   ├── database_functions.sh    # Database operations
+│   ├── config_manager.sh        # Configuration management
+│   ├── test_domain_manager.sh   # Test domain switching
+│   ├── standalone-file-analysis-tools.sh  # File system analysis
+│   ├── test_*.sh               # Testing and QA scripts
+│   └── [40+ specialized utilities] # All other operational scripts
+│
+├── shared-config/                # Application-level configuration (version controlled)
+│   ├── menu.db                  # Dynamic menu database
+│   ├── menu_schema.sql          # Menu system structure
+│   └── *.sql                    # ALL database schemas (11 schema files)
+│
+├── local-config/                 # Instance-specific private data (git-ignored)
+│   ├── .env                      # Main configuration (created by setup wizard)
+│   ├── gwombat.db               # Instance database
+│   ├── logs/                    # Session and operation logs
+│   ├── reports/                 # Generated reports and analytics
+│   ├── exports/                 # CSV export outputs
+│   ├── backups/                 # Database backups
+│   └── tmp/                     # Temporary files
+│
+├── python-modules/               # Python integrations
+│   ├── compliance_dashboard.py  # SCuBA compliance dashboard
+│   ├── scuba_compliance.py     # Security baseline monitoring
+│   └── venv/                    # Python virtual environment
+│
+└── docs/                        # Technical documentation
+    ├── INSTALLATION.md          # Setup instructions
+    ├── DEPLOYMENT.md            # Production deployment guide
+    ├── CSV_EXPORT_SYSTEM.md     # Export system documentation
+    ├── TEST_DOMAIN_MANAGEMENT.md # Test domain switching guide
+    └── [specialized guides]      # Additional technical documentation
+```
+
+### 🎯 Benefits of This Organization
+- **🔒 Security**: Complete separation prevents accidental commit of sensitive data
+- **📦 Deployment**: Clean version control with only code and schemas
+- **🔧 Maintenance**: Centralized scripts make updates and debugging easier  
+- **🚀 Scalability**: Clear separation supports multi-instance deployments
+- **📋 Compliance**: Audit trails and data classification built into structure
 
 ## 🔍 Advanced Menu Features
 
