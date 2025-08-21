@@ -3120,6 +3120,9 @@ show_quick_stats() {
 
 
 # Function to display the main menu
+# Main Menu - SQLite-driven implementation
+# Primary navigation interface with dynamic menu generation from database
+# Uses generate_main_menu() for database-driven display with fallback support
 show_main_menu() {
     clear
     echo -e "${BLUE}=== GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner ===${NC}"
@@ -3149,31 +3152,20 @@ show_main_menu() {
         # Use SQLite-driven menu generation (bash 3.2 compatible)
         generate_main_menu
     else
-        # Fallback menu when database is not available
-        echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
-        echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
-        echo "1. 👥 User & Group Management"
+        # Simplified fallback menu when database is not available
+        echo -e "${YELLOW}Database not available. Using simplified fallback menu.${NC}"
         echo ""
-        echo -e "${BLUE}=== DATA & FILE OPERATIONS ===${NC}"
+        echo "1. 👥 User & Group Management"
         echo "2. 💾 File & Drive Operations"
         echo "3. 🔍 Analysis & Discovery"
         echo "4. 📋 Account List Management"
-        echo ""
-        echo -e "${PURPLE}=== MONITORING & SYSTEM ===${NC}"
         echo "5. 🎯 Dashboard & Statistics"
         echo "6. 📈 Reports & Monitoring"
-        echo "7. ⚙️  System Administration"
-        echo ""
-        echo -e "${CYAN}=== BACKUP & RECOVERY ===${NC}"
+        echo "7. ⚙️ System Administration"
         echo "8. 💾 Backup & Recovery"
-        echo ""
-        echo -e "${RED}=== SECURITY & COMPLIANCE ===${NC}"
         echo "9. 🔐 SCuBA Compliance Management"
         echo ""
-        echo -e "${CYAN}=== CONFIGURATION ===${NC}"
-        echo "c. ⚙️  Configuration Management (Setup & Settings)"
-        echo ""
-        echo -e "${GRAY}=== NAVIGATION ===${NC}"
+        echo "c. ⚙️ Configuration Management"
         echo "s. 🔍 Search Menu Options"
         echo "i. 📋 Menu Index (Alphabetical)"
     fi
