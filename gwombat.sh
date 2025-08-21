@@ -2545,6 +2545,48 @@ system_administration_function_dispatcher() {
     esac
 }
 
+# Account Analysis Function Dispatcher - handles database-driven function calls
+account_analysis_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Account Discovery
+        "search_accounts_by_criteria") search_accounts_by_criteria ;;
+        "account_profile_analysis") account_profile_analysis ;;
+        "department_analysis") department_analysis ;;
+        "email_pattern_analysis") email_pattern_analysis ;;
+        
+        # Usage Analysis
+        "storage_usage_analysis_detailed") storage_usage_analysis_detailed ;;
+        "login_activity_analysis") login_activity_analysis ;;
+        "account_activity_patterns") account_activity_patterns ;;
+        "drive_usage_analysis") drive_usage_analysis ;;
+        
+        # Security Analysis
+        "security_profile_analysis") security_profile_analysis ;;
+        "tfa_adoption_analysis") tfa_adoption_analysis ;;
+        "admin_access_analysis") admin_access_analysis ;;
+        "risk_assessment") risk_assessment ;;
+        
+        # Lifecycle Analysis
+        "account_lifecycle_analysis") account_lifecycle_analysis ;;
+        "account_age_analysis") account_age_analysis ;;
+        "account_growth_analysis") account_growth_analysis ;;
+        "account_health_scoring") account_health_scoring ;;
+        
+        # Comparative Analysis
+        "cross_department_comparison") cross_department_comparison ;;
+        "trend_comparison") trend_comparison ;;
+        "anomaly_detection") anomaly_detection ;;
+        "batch_account_analysis") batch_account_analysis ;;
+        
+        *)
+            echo -e "${RED}Unknown account analysis function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Statistics Menu - SQLite-driven implementation
 # Displays comprehensive statistics and performance metrics
 # Uses database-driven menu items from statistics_submenu section
@@ -21887,35 +21929,102 @@ account_analysis_menu() {
         echo ""
         echo -e "${CYAN}Comprehensive account analysis and diagnostic tools${NC}"
         echo ""
-        echo -e "${YELLOW}=== ACCOUNT DISCOVERY ===${NC}"
-        echo "  1. 🔍 Search Accounts by Criteria"
-        echo "  2. 👤 Account Profile Analysis"
-        echo "  3. 🏢 Department Analysis"
-        echo "  4. 📧 Email Pattern Analysis"
-        echo ""
-        echo -e "${YELLOW}=== USAGE ANALYSIS ===${NC}"
-        echo "  5. 📊 Storage Usage Analysis"
-        echo "  6. 🔐 Login Activity Analysis"
-        echo "  7. 📅 Account Activity Patterns"
-        echo "  8. 💾 Drive Usage Analysis"
-        echo ""
-        echo -e "${YELLOW}=== SECURITY ANALYSIS ===${NC}"
-        echo "  9. 🛡️  Security Profile Analysis"
-        echo " 10. 🔐 2FA Adoption Analysis"
-        echo " 11. 👥 Admin Access Analysis"
-        echo " 12. ⚠️  Risk Assessment"
-        echo ""
-        echo -e "${YELLOW}=== LIFECYCLE ANALYSIS ===${NC}"
-        echo " 13. 🔄 Account Lifecycle Analysis"
-        echo " 14. ⏱️  Account Age Analysis"
-        echo " 15. 📈 Account Growth Analysis"
-        echo " 16. 🎯 Account Health Scoring"
-        echo ""
-        echo -e "${YELLOW}=== COMPARATIVE ANALYSIS ===${NC}"
-        echo " 17. 📊 Cross-Department Comparison"
-        echo " 18. 📈 Trend Comparison"
-        echo " 19. 🔍 Anomaly Detection"
-        echo " 20. 📋 Batch Account Analysis"
+        
+        # Generate dynamic menu from database
+        local section_name="account_analysis_submenu"
+        if [[ -f "shared-config/menu.db" ]]; then
+            # Load menu items from database (bash 3.2 compatible)
+            local menu_items=() function_names=() descriptions=() icons=()
+            local counter=1
+            
+            while IFS='|' read -r name display_name description function_name icon; do
+                [[ -n "$name" ]] || continue
+                menu_items[$counter]="$display_name"
+                function_names[$counter]="$function_name"
+                descriptions[$counter]="$description"
+                icons[$counter]="$icon"
+                ((counter++))
+            done < <(sqlite3 shared-config/menu.db "
+                SELECT mi.name, mi.display_name, mi.description, mi.function_name, mi.icon
+                FROM menu_items mi 
+                JOIN menu_sections ms ON mi.section_id = ms.id 
+                WHERE ms.name = '$section_name' AND mi.is_active = 1
+                ORDER BY mi.item_order;
+            " 2>/dev/null)
+            
+            # Display menu items dynamically from database
+            echo -e "${YELLOW}=== ACCOUNT DISCOVERY ===${NC}"
+            for i in $(seq 1 4); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    printf "%2d. %s %s\n" "$i" "${icons[$i]}" "${menu_items[$i]}"
+                    echo "    ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+            echo ""
+            echo -e "${YELLOW}=== USAGE ANALYSIS ===${NC}"
+            for i in $(seq 5 8); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    printf "%2d. %s %s\n" "$i" "${icons[$i]}" "${menu_items[$i]}"
+                    echo "    ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+            echo ""
+            echo -e "${YELLOW}=== SECURITY ANALYSIS ===${NC}"
+            for i in $(seq 9 12); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    printf "%2d. %s %s\n" "$i" "${icons[$i]}" "${menu_items[$i]}"
+                    echo "    ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+            echo ""
+            echo -e "${YELLOW}=== LIFECYCLE ANALYSIS ===${NC}"
+            for i in $(seq 13 16); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    printf "%2d. %s %s\n" "$i" "${icons[$i]}" "${menu_items[$i]}"
+                    echo "    ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+            echo ""
+            echo -e "${YELLOW}=== COMPARATIVE ANALYSIS ===${NC}"
+            for i in $(seq 17 20); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    printf "%2d. %s %s\n" "$i" "${icons[$i]}" "${menu_items[$i]}"
+                    echo "    ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+        else
+            # Fallback menu when database is not available
+            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
+            echo -e "${YELLOW}=== ACCOUNT DISCOVERY ===${NC}"
+            echo "  1. 🔍 Search Accounts by Criteria"
+            echo "  2. 👤 Account Profile Analysis" 
+            echo "  3. 🏢 Department Analysis"
+            echo "  4. 📧 Email Pattern Analysis"
+            echo ""
+            echo -e "${YELLOW}=== USAGE ANALYSIS ===${NC}"
+            echo "  5. 📊 Storage Usage Analysis"
+            echo "  6. 🔐 Login Activity Analysis"
+            echo "  7. 📅 Account Activity Patterns"
+            echo "  8. 💾 Drive Usage Analysis"
+            echo ""
+            echo -e "${YELLOW}=== SECURITY ANALYSIS ===${NC}"
+            echo "  9. 🛡️  Security Profile Analysis"
+            echo " 10. 🔐 2FA Adoption Analysis"
+            echo " 11. 👥 Admin Access Analysis"
+            echo " 12. ⚠️  Risk Assessment"
+            echo ""
+            echo -e "${YELLOW}=== LIFECYCLE ANALYSIS ===${NC}"
+            echo " 13. 🔄 Account Lifecycle Analysis"
+            echo " 14. ⏱️  Account Age Analysis"
+            echo " 15. 📈 Account Growth Analysis"
+            echo " 16. 🎯 Account Health Scoring"
+            echo ""
+            echo -e "${YELLOW}=== COMPARATIVE ANALYSIS ===${NC}"
+            echo " 17. 📊 Cross-Department Comparison"
+            echo " 18. 📈 Trend Comparison"
+            echo " 19. 🔍 Anomaly Detection"
+            echo " 20. 📋 Batch Account Analysis"
+        fi
         echo ""
         echo " 99. Return to Analysis & Discovery"
         echo ""
@@ -21930,26 +22039,37 @@ account_analysis_menu() {
         echo ""
         
         case $account_choice in
-            1) search_accounts_by_criteria ;;
-            2) account_profile_analysis ;;
-            3) department_analysis ;;
-            4) email_pattern_analysis ;;
-            5) storage_usage_analysis_detailed ;;
-            6) login_activity_analysis ;;
-            7) account_activity_patterns ;;
-            8) drive_usage_analysis ;;
-            9) security_profile_analysis ;;
-            10) tfa_adoption_analysis ;;
-            11) admin_access_analysis ;;
-            12) risk_assessment ;;
-            13) account_lifecycle_analysis ;;
-            14) account_age_analysis ;;
-            15) account_growth_analysis ;;
-            16) account_health_scoring ;;
-            17) cross_department_comparison ;;
-            18) trend_comparison ;;
-            19) anomaly_detection ;;
-            20) batch_account_analysis ;;
+            [1-9]|1[0-9]|20)
+                # Use database-driven function dispatcher
+                if [[ -f "shared-config/menu.db" ]] && [[ -n "${function_names[$account_choice]}" ]]; then
+                    local func_name="${function_names[$account_choice]}"
+                    account_analysis_function_dispatcher "$func_name"
+                else
+                    # Fallback for when database is not available
+                    case $account_choice in
+                        1) search_accounts_by_criteria ;;
+                        2) account_profile_analysis ;;
+                        3) department_analysis ;;
+                        4) email_pattern_analysis ;;
+                        5) storage_usage_analysis_detailed ;;
+                        6) login_activity_analysis ;;
+                        7) account_activity_patterns ;;
+                        8) drive_usage_analysis ;;
+                        9) security_profile_analysis ;;
+                        10) tfa_adoption_analysis ;;
+                        11) admin_access_analysis ;;
+                        12) risk_assessment ;;
+                        13) account_lifecycle_analysis ;;
+                        14) account_age_analysis ;;
+                        15) account_growth_analysis ;;
+                        16) account_health_scoring ;;
+                        17) cross_department_comparison ;;
+                        18) trend_comparison ;;
+                        19) anomaly_detection ;;
+                        20) batch_account_analysis ;;
+                    esac
+                fi
+                ;;
             99|p)
                 return 0
                 ;;
