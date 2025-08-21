@@ -26,10 +26,10 @@
 ### ⏳ **Remaining Optional Conversions** (Very Low Priority)
 - [ ] **Convert account_analysis_menu() to SQLite-driven** - Comprehensive account analysis (15+ functions) - Large complex menu, optional conversion
 
-### ⏳ **Minor System Issues** (Low Priority)
-- [ ] **Setup SSH Key for Deployment** - Create `/Users/mjb9/.ssh/gwombatgit-key` for git deployment functionality
-- [ ] **Verify Google API Dependencies** - Ensure Python packages are properly installed for Google Workspace integration
-- [ ] **Improve Standalone Tools Help** - Add --help flag support to `shared-utilities/standalone-file-analysis-tools.sh`
+### ✅ **Minor System Issues Resolved** (August 21, 2025)
+- ✅ **Setup SSH Key for Deployment** - Created `setup_ssh_deployment_key.sh` script that stores keys securely in `local-config/ssh/`
+- ✅ **Verify Google API Dependencies** - All packages verified and documented in README.md and CLAUDE.md with installation instructions
+- ✅ **Improve Standalone Tools Help** - Verified `--help` and `--version` flags already fully implemented and working
 
 ## Recently Completed Major Achievements (August 2025)
 
