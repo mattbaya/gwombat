@@ -2442,6 +2442,49 @@ statistics_function_dispatcher() {
     esac
 }
 
+# User & Group Management Function Dispatcher - handles database-driven function calls
+user_group_management_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Account Discovery & Scanning
+        "rescan_domain_accounts") rescan_domain_accounts ;;
+        "list_all_accounts_menu") list_all_accounts_menu ;;
+        
+        # Account Tools
+        "account_search_diagnostics_menu") account_search_diagnostics_menu ;;
+        
+        # Account Management
+        "individual_user_management_menu") individual_user_management_menu ;;
+        "bulk_user_operations_menu") bulk_user_operations_menu ;;
+        "account_status_operations_menu") account_status_operations_menu ;;
+        
+        # Group & License Management
+        "group_operations_menu") group_operations_menu ;;
+        "license_management_menu") license_management_menu ;;
+        
+        # Suspended Account Lifecycle
+        "scan_suspended_accounts") scan_suspended_accounts ;;
+        "auto_create_stage_lists") auto_create_stage_lists ;;
+        "manage_recently_suspended") manage_recently_suspended ;;
+        "process_pending_deletion") process_pending_deletion ;;
+        "file_sharing_analysis_menu") file_sharing_analysis_menu ;;
+        "final_decisions") final_decisions ;;
+        "account_deletion") account_deletion ;;
+        "quick_status_checker") quick_status_checker ;;
+        
+        # Reports & Analytics
+        "user_statistics_menu") user_statistics_menu ;;
+        "account_lifecycle_reports_menu") account_lifecycle_reports_menu ;;
+        "export_account_data_menu") export_account_data_menu ;;
+        
+        *)
+            echo -e "${RED}Unknown user & group management function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Statistics Menu - SQLite-driven implementation
 # Displays comprehensive statistics and performance metrics
 # Uses database-driven menu items from statistics_submenu section
@@ -14367,22 +14410,19 @@ user_group_management_menu() {
             if [[ $item_order -le 2 && "$current_category" != "discovery" ]]; then
                 echo -e "${BLUE}=== ACCOUNT DISCOVERY & SCANNING ===${NC}"
                 current_category="discovery"
-            elif [[ $item_order -ge 3 && $item_order -le 6 && "$current_category" != "storage" ]]; then
-                echo -e "${PURPLE}=== STORAGE MANAGEMENT ===${NC}"
-                current_category="storage"
-            elif [[ $item_order -eq 7 && "$current_category" != "tools" ]]; then
+            elif [[ $item_order -eq 3 && "$current_category" != "tools" ]]; then
                 echo -e "${CYAN}=== ACCOUNT TOOLS ===${NC}"
                 current_category="tools"
-            elif [[ $item_order -ge 8 && $item_order -le 10 && "$current_category" != "management" ]]; then
+            elif [[ $item_order -ge 4 && $item_order -le 6 && "$current_category" != "management" ]]; then
                 echo -e "${GREEN}=== ACCOUNT MANAGEMENT ===${NC}"
                 current_category="management"
-            elif [[ $item_order -ge 11 && $item_order -le 12 && "$current_category" != "groups" ]]; then
+            elif [[ $item_order -ge 7 && $item_order -le 8 && "$current_category" != "groups" ]]; then
                 echo -e "${YELLOW}=== GROUP & LICENSE MANAGEMENT ===${NC}"
                 current_category="groups"
-            elif [[ $item_order -ge 13 && $item_order -le 20 && "$current_category" != "lifecycle" ]]; then
+            elif [[ $item_order -ge 9 && $item_order -le 16 && "$current_category" != "lifecycle" ]]; then
                 echo -e "${RED}=== SUSPENDED ACCOUNT LIFECYCLE ===${NC}"
                 current_category="lifecycle"
-            elif [[ $item_order -ge 21 && "$current_category" != "reports" ]]; then
+            elif [[ $item_order -ge 17 && "$current_category" != "reports" ]]; then
                 echo -e "${CYAN}=== REPORTS & ANALYTICS ===${NC}"
                 current_category="reports"
             fi
@@ -14410,15 +14450,10 @@ user_group_management_menu() {
         
         case $user_choice in
             [1-9]|[1-9][0-9])
-                # Handle numeric menu options dynamically
+                # Handle numeric menu options dynamically via dispatcher
                 if [[ -n "${function_names[$user_choice]}" ]]; then
                     local func_name="${function_names[$user_choice]}"
-                    if command -v "$func_name" >/dev/null 2>&1; then
-                        $func_name
-                    else
-                        echo -e "${YELLOW}Function $func_name not yet implemented${NC}"
-                        read -p "Press Enter to continue..."
-                    fi
+                    user_group_management_function_dispatcher "$func_name"
                 else
                     echo -e "${RED}Invalid option${NC}"
                     read -p "Press Enter to continue..."
