@@ -4,9 +4,11 @@
 # Provides keyboard input handling for enhanced navigation
 # Part of Terminal UX & Navigation Improvements (Issue #8)
 
-# Source terminal control functions
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/terminal_control.sh"
+# Source terminal control functions (only if not already loaded)
+if [[ "${TERMINAL_CONTROL_INITIALIZED:-}" != "true" ]]; then
+    SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+    source "$SCRIPT_DIR/terminal_control.sh"
+fi
 
 # Key constants for easy reference
 declare -r KEY_UP="UP"
@@ -375,6 +377,7 @@ init_key_input() {
 }
 
 # Auto-initialize when sourced (can be disabled with SKIP_INIT=true)
-if [[ "${SKIP_INIT:-}" != "true" ]]; then
+if [[ "${SKIP_INIT:-}" != "true" ]] && [[ "${KEY_INPUT_INITIALIZED:-}" != "true" ]]; then
     init_key_input
+    KEY_INPUT_INITIALIZED="true"
 fi

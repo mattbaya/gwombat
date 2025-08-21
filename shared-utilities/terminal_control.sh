@@ -276,6 +276,8 @@ init_terminal_control() {
 }
 
 # Auto-initialize when sourced (can be disabled with SKIP_INIT=true)
-if [[ "${SKIP_INIT:-}" != "true" ]]; then
+# Prevent multiple initializations
+if [[ "${SKIP_INIT:-}" != "true" ]] && [[ "${TERMINAL_CONTROL_INITIALIZED:-}" != "true" ]]; then
     init_terminal_control
+    TERMINAL_CONTROL_INITIALIZED="true"
 fi
