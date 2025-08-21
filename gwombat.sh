@@ -2485,6 +2485,26 @@ user_group_management_function_dispatcher() {
     esac
 }
 
+# Analysis & Discovery Function Dispatcher - handles database-driven function calls
+analysis_discovery_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Analysis Tools
+        "account_analysis_menu") account_analysis_menu ;;
+        "file_discovery_menu") file_discovery_menu ;;
+        "system_diagnostics_menu") system_diagnostics_menu ;;
+        
+        # Legacy Tools
+        "discovery_mode") discovery_mode ;;
+        
+        *)
+            echo -e "${RED}Unknown analysis & discovery function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Statistics Menu - SQLite-driven implementation
 # Displays comprehensive statistics and performance metrics
 # Uses database-driven menu items from statistics_submenu section
@@ -20501,50 +20521,83 @@ file_type_distribution_menu() {
     done
 }
 
+# Analysis & Discovery Menu - SQLite-driven implementation
+# Provides comprehensive analysis tools and data discovery operations
+# Uses database-driven menu items from analysis_discovery section
 analysis_discovery_menu() {
+    # Source database functions if not already loaded
+    if ! command -v search_menu_database >/dev/null 2>&1; then
+        source "$SHARED_UTILITIES_PATH/database_functions.sh"
+    fi
+    
     while true; do
         clear
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
         echo -e "${GREEN}                         GWOMBAT - Analysis & Discovery                        ${NC}"
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${WHITE}/ Main Menu / Analysis & Discovery${NC}"
         echo ""
         echo -e "${CYAN}Comprehensive analysis tools and data discovery${NC}"
         echo ""
-        echo -e "${YELLOW}Analysis Tools:${NC}"
-        echo "  1. 🔍 Account Analysis"
-        echo "  2. 📄 File Discovery"
-        echo "  3. 🔧 System Diagnostics"
+        
+        # Generate menu from database
+        local function_names=()
+        local item_count=0
+        local current_category=""
+        
+        while IFS='|' read -r item_order icon display_name description function_name; do
+            [[ -z "$item_order" ]] && continue
+            
+            # Display category headers based on item ranges
+            if [[ $item_order -le 3 && "$current_category" != "analysis" ]]; then
+                echo -e "${YELLOW}=== ANALYSIS TOOLS ===${NC}"
+                current_category="analysis"
+            elif [[ $item_order -eq 4 && "$current_category" != "legacy" ]]; then
+                echo -e "${GRAY}=== LEGACY DISCOVERY ===${NC}"
+                current_category="legacy"
+            fi
+            
+            echo "$item_order. $icon $display_name"
+            function_names[$item_order]="$function_name"
+            item_count=$item_order
+        done < <(sqlite3 "$MENU_DB_FILE" "
+            SELECT mi.item_order, mi.icon, mi.display_name, mi.description, mi.function_name
+            FROM menu_items mi
+            JOIN menu_sections ms ON mi.section_id = ms.id
+            WHERE ms.name = 'analysis_discovery' AND mi.is_active = 1
+            ORDER BY mi.item_order;
+        ")
+        
         echo ""
-        echo -e "${YELLOW}Legacy Discovery:${NC}"
-        echo "  4. 🗂️  Legacy Discovery Mode"
-        echo ""
-        echo " 99. Return to Main Menu"
-        echo ""
-        echo -e "${GRAY}Additional Options:${NC}"
-        echo "  p. Previous menu (main menu)"
-        echo "  m. Main menu"
-        echo "  x. Exit"
+        echo "s. 🔍 Search all menu options"
+        echo "p. ⬅️ Previous menu (Main Menu)"
+        echo "m. 🏠 Main menu"
+        echo "x. ❌ Exit"
         echo ""
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
         
-        read -p "Enter your choice: " analysis_choice
+        read -p "Select an option (1-$item_count, s, p, m, x): " user_choice
         echo ""
         
-        case $analysis_choice in
-            1)
-                account_analysis_menu
+        case $user_choice in
+            [1-9]|[1-9][0-9])
+                # Handle numeric menu options dynamically via dispatcher
+                if [[ -n "${function_names[$user_choice]}" ]]; then
+                    local func_name="${function_names[$user_choice]}"
+                    analysis_discovery_function_dispatcher "$func_name"
+                else
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
+                fi
                 ;;
-            2)
-                file_discovery_menu
-                ;;
-            3)
-                system_diagnostics_menu
-                ;;
-            4)
-                discovery_mode
-                ;;
-            99|p|m)
+            p|m)
+                # Back to Main Menu
                 return 0
+                ;;
+            s)
+                # Search all menu options
+                search_menu_database
+                read -p "Press Enter to continue..."
                 ;;
             x)
                 exit_gracefully
