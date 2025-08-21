@@ -2505,6 +2505,46 @@ analysis_discovery_function_dispatcher() {
     esac
 }
 
+# System Administration Function Dispatcher - handles database-driven function calls
+system_administration_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Configuration & Setup
+        "configuration_menu") configuration_menu ;;
+        "dry_run_mode") dry_run_mode ;;
+        
+        # Maintenance & Health  
+        "check_incomplete_operations") check_incomplete_operations ;;
+        "view_backup_files") 
+            echo -e "${CYAN}Backup files location: $BACKUP_DIR${NC}"
+            if [[ -d "$BACKUP_DIR" ]]; then
+                ls -la "$BACKUP_DIR" | head -20
+                echo ""
+                echo -e "${YELLOW}(Showing recent backup files)${NC}"
+            else
+                echo "No backup directory found"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Auditing & Dependencies
+        "audit_file_ownership_menu") audit_file_ownership_menu ;;
+        "check_system_dependencies")
+            check_dependencies
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Data Management
+        "retention_management_menu") retention_management_menu ;;
+        
+        *)
+            echo -e "${RED}Unknown system administration function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
 # Statistics Menu - SQLite-driven implementation
 # Displays comprehensive statistics and performance metrics
 # Uses database-driven menu items from statistics_submenu section
@@ -22791,55 +22831,95 @@ batch_account_analysis() {
     read -p "Press Enter to continue..."
 }
 
+# System Administration Menu - SQLite-driven implementation
+# Provides system configuration, maintenance, and administrative tools
+# Uses database-driven menu items from system_administration section
 system_administration_menu() {
+    # Source database functions if not already loaded
+    if ! command -v search_menu_database >/dev/null 2>&1; then
+        source "$SHARED_UTILITIES_PATH/database_functions.sh"
+    fi
+    
     while true; do
         clear
-        echo -e "${GREEN}=== System Administration ===${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                          GWOMBAT - System Administration                       ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${WHITE}/ Main Menu / System Administration${NC}"
         echo ""
-        echo -e "${CYAN}System configuration and maintenance${NC}"
-        echo ""
-        echo "1. ⚙️  Configuration Management"
-        echo "2. 🔍 Dry-run & Preview Modes"
-        echo "3. 🛠️  System Health & Maintenance"
-        echo "4. 💾 Backup Management"
-        echo "5. 📋 File Ownership Audit"
-        echo "6. 🔧 Check System Dependencies"
-        echo "7. 🗂️  Data Retention Management"
-        echo ""
-        echo "8. Return to main menu"
-        echo ""
-        echo "p. Previous menu (main menu)"
-        echo "m. Main menu"
-        echo "x. Exit"
-        echo ""
-        read -p "Select an option (1-8, p, m, x): " admin_choice
+        echo -e "${CYAN}System configuration, maintenance, and administrative tools${NC}"
         echo ""
         
-        case $admin_choice in
-            1) configuration_menu ;;
-            2) dry_run_mode ;;
-            3) check_incomplete_operations ;;
-            4) 
-                echo -e "${CYAN}Backup files location: $BACKUP_DIR${NC}"
-                if [[ -d "$BACKUP_DIR" ]]; then
-                    ls -la "$BACKUP_DIR" | head -20
-                    echo ""
-                    echo -e "${YELLOW}(Showing recent backup files)${NC}"
+        # Generate menu from database
+        local function_names=()
+        local item_count=0
+        local current_category=""
+        
+        while IFS='|' read -r item_order icon display_name description function_name; do
+            [[ -z "$item_order" ]] && continue
+            
+            # Display category headers based on item ranges
+            if [[ $item_order -le 2 && "$current_category" != "config" ]]; then
+                echo -e "${YELLOW}=== CONFIGURATION & SETUP ===${NC}"
+                current_category="config"
+            elif [[ $item_order -ge 3 && $item_order -le 4 && "$current_category" != "maintenance" ]]; then
+                echo -e "${BLUE}=== MAINTENANCE & HEALTH ===${NC}"
+                current_category="maintenance"
+            elif [[ $item_order -ge 5 && $item_order -le 6 && "$current_category" != "audit" ]]; then
+                echo -e "${PURPLE}=== AUDITING & DEPENDENCIES ===${NC}"
+                current_category="audit"
+            elif [[ $item_order -eq 7 && "$current_category" != "data" ]]; then
+                echo -e "${CYAN}=== DATA MANAGEMENT ===${NC}"
+                current_category="data"
+            fi
+            
+            echo "$item_order. $icon $display_name"
+            function_names[$item_order]="$function_name"
+            item_count=$item_order
+        done < <(sqlite3 "$MENU_DB_FILE" "
+            SELECT mi.item_order, mi.icon, mi.display_name, mi.description, mi.function_name
+            FROM menu_items mi
+            JOIN menu_sections ms ON mi.section_id = ms.id
+            WHERE ms.name = 'system_administration' AND mi.is_active = 1
+            ORDER BY mi.item_order;
+        ")
+        
+        echo ""
+        echo "s. 🔍 Search all menu options"
+        echo "p. ⬅️ Previous menu (Main Menu)"
+        echo "m. 🏠 Main menu"
+        echo "x. ❌ Exit"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        
+        read -p "Select an option (1-$item_count, s, p, m, x): " user_choice
+        echo ""
+        
+        case $user_choice in
+            [1-9]|[1-9][0-9])
+                # Handle numeric menu options dynamically via dispatcher
+                if [[ -n "${function_names[$user_choice]}" ]]; then
+                    local func_name="${function_names[$user_choice]}"
+                    system_administration_function_dispatcher "$func_name"
                 else
-                    echo "No backup directory found"
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
                 fi
+                ;;
+            p|m)
+                # Back to Main Menu
+                return
+                ;;
+            s)
+                # Search all menu options
+                search_menu_database
                 read -p "Press Enter to continue..."
                 ;;
-            5) audit_file_ownership_menu ;;
-            6) 
-                check_dependencies
-                read -p "Press Enter to continue..."
+            x)
+                exit_gracefully
                 ;;
-            7) retention_management_menu ;;
-            8|p|P|m|M) return ;;
-            x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-8, p, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please try again.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
