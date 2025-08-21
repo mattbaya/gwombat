@@ -16941,6 +16941,34 @@ batch_file_operations() {
 }
 # Menu functions for consolidated operations
 
+# File & Drive Operations Function Dispatcher
+file_drive_operations_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        "file_operations_menu") file_operations_menu ;;
+        "shared_drive_menu") shared_drive_menu ;;
+        "backup_operations_menu") 
+            echo -e "${CYAN}Backup Operations - Coming Soon${NC}"
+            echo "This feature will include:"
+            echo "• File backup and restore"
+            echo "• Automated backup scheduling"
+            echo "• Backup verification and integrity checks"
+            echo "• Cloud storage integration"
+            read -p "Press Enter to continue..."
+            ;;
+        "permission_management_menu") permission_management_menu ;;
+        "export_data_menu") export_data_menu ;;
+        *)
+            echo -e "${RED}Unknown file operations function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# File & Drive Operations Menu - SQLite-driven implementation
+# File management, shared drives, and permission operations interface
+# Uses database-driven menu items from file_drive_operations section
 file_drive_operations_menu() {
     while true; do
         clear
@@ -16950,13 +16978,48 @@ file_drive_operations_menu() {
         echo ""
         echo -e "${CYAN}File management, shared drives, and permission operations${NC}"
         echo ""
-        echo -e "${YELLOW}Core Operations:${NC}"
-        echo "  1. 📁 File Operations"
-        echo "  2. 🗂️  Shared Drive Management" 
-        echo "  3. 💾 Backup Operations"
-        # Removed: Drive Cleanup Operations
-        echo "  4. 🔐 Permission Management"
-        echo "  5. 📊 CSV Data Export"
+        
+        # Generate dynamic menu from database
+        local section_name="file_drive_operations"
+        if [[ -f "shared-config/menu.db" ]]; then
+            # Load menu items from database (bash 3.2 compatible)
+            local menu_items=() function_names=() descriptions=() icons=()
+            local counter=1
+            
+            while IFS='|' read -r name display_name description function_name icon; do
+                [[ -n "$name" ]] || continue
+                menu_items[$counter]="$display_name"
+                function_names[$counter]="$function_name"
+                descriptions[$counter]="$description"
+                icons[$counter]="$icon"
+                ((counter++))
+            done < <(sqlite3 shared-config/menu.db "
+                SELECT mi.name, mi.display_name, mi.description, mi.function_name, mi.icon
+                FROM menu_items mi 
+                JOIN menu_sections ms ON mi.section_id = ms.id 
+                WHERE ms.name = '$section_name' AND mi.is_active = 1
+                ORDER BY mi.item_order;
+            " 2>/dev/null)
+            
+            # Display menu items dynamically
+            echo -e "${YELLOW}Core Operations:${NC}"
+            for i in $(seq 1 5); do
+                if [[ -n "${menu_items[$i]}" ]]; then
+                    echo "  $i. ${icons[$i]} ${menu_items[$i]}"
+                    echo "     ${GRAY}${descriptions[$i]}${NC}"
+                fi
+            done
+        else
+            # Simplified fallback menu when database is not available
+            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
+            echo -e "${YELLOW}Core Operations:${NC}"
+            echo "  1. 📁 File Operations"
+            echo "  2. 🗂️ Shared Drive Management"
+            echo "  3. 💾 Backup Operations"
+            echo "  4. 🔐 Permission Management"
+            echo "  5. 📊 CSV Data Export"
+        fi
+        
         echo ""
         echo -e "${YELLOW}Navigation:${NC}"
         echo " 99. Return to Main Menu"
@@ -16972,26 +17035,29 @@ file_drive_operations_menu() {
         echo ""
         
         case $file_choice in
-            1)
-                file_operations_menu
-                ;;
-            2)
-                shared_drive_menu
-                ;;
-            3)
-                echo -e "${CYAN}Backup Operations - Coming Soon${NC}"
-                echo "This feature will include:"
-                echo "• File backup and restore"
-                echo "• Automated backup scheduling"
-                echo "• Backup verification and integrity checks"
-                echo "• Cloud storage integration"
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                permission_management_menu
-                ;;
-            5)
-                export_data_menu
+            [1-5])
+                # Use database-driven function dispatcher
+                if [[ -f "shared-config/menu.db" ]] && [[ -n "${function_names[$file_choice]}" ]]; then
+                    local func_name="${function_names[$file_choice]}"
+                    file_drive_operations_function_dispatcher "$func_name"
+                else
+                    # Fallback for when database is not available
+                    case $file_choice in
+                        1) file_operations_menu ;;
+                        2) shared_drive_menu ;;
+                        3) 
+                            echo -e "${CYAN}Backup Operations - Coming Soon${NC}"
+                            echo "This feature will include:"
+                            echo "• File backup and restore"
+                            echo "• Automated backup scheduling"
+                            echo "• Backup verification and integrity checks"
+                            echo "• Cloud storage integration"
+                            read -p "Press Enter to continue..."
+                            ;;
+                        4) permission_management_menu ;;
+                        5) export_data_menu ;;
+                    esac
+                fi
                 ;;
             99|p|m)
                 return 0
