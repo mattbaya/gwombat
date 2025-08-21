@@ -35269,7 +35269,100 @@ fi
 
 # Run the main function
 main
-# Backup & Recovery Menu - SQLite-driven dynamic menu
+# Backup Operations Function Dispatcher
+backup_operations_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # Remote Storage Configuration (1)
+        "configure_remote_storage")
+            echo -e "${CYAN}Remote Storage Configuration: $function_name${NC}"
+            echo "This feature will provide comprehensive cloud storage backend configuration."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• rclone configuration for multiple cloud providers"
+            echo "• Encryption settings and security configuration"
+            echo "• Storage quota management and monitoring"
+            echo "• Connection testing and validation"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Backup Policy Management (2-4)
+        "create_backup_policy"|"manage_backup_policies"|"schedule_backups")
+            echo -e "${CYAN}Backup Policy Management: $function_name${NC}"
+            echo "This feature will provide comprehensive backup policy configuration."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Define backup frequencies and retention policies"
+            echo "• Configure what data to include/exclude"
+            echo "• Set up automated scheduling with cron integration"
+            echo "• Policy templates for common scenarios"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Backup Analysis & Execution (5-6)
+        "analyze_backup_needs"|"execute_backup_now")
+            echo -e "${CYAN}Backup Analysis & Execution: $function_name${NC}"
+            echo "This feature will provide backup analysis and immediate execution."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Analyze data growth and storage requirements"
+            echo "• Immediate backup execution with progress tracking"
+            echo "• Resource usage monitoring during backups"
+            echo "• Incremental and full backup options"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Restore Operations (7-8)
+        "restore_from_backup"|"selective_restore")
+            echo -e "${CYAN}Restore Operations: $function_name${NC}"
+            echo "This feature will provide comprehensive data restoration capabilities."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Full system restore from backup archives"
+            echo "• Selective file and account restoration"
+            echo "• Point-in-time recovery options"
+            echo "• Restore verification and validation"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Verification & Integrity (9-10)
+        "verify_backup_integrity"|"test_restore_process")
+            echo -e "${CYAN}Verification & Integrity: $function_name${NC}"
+            echo "This feature will provide backup verification and testing capabilities."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Backup completeness and integrity checking"
+            echo "• Automated restore testing procedures"
+            echo "• Data consistency validation"
+            echo "• Backup health monitoring and alerting"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Monitoring & Reports (11-15)
+        "backup_status_dashboard"|"backup_history_report"|"storage_usage_analysis"|"backup_alerts_config"|"export_backup_inventory")
+            echo -e "${CYAN}Monitoring & Reports: $function_name${NC}"
+            echo "This feature will provide comprehensive backup monitoring and reporting."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Real-time backup system status dashboard"
+            echo "• Historical backup operation reporting"
+            echo "• Storage consumption analysis and forecasting"
+            echo "• Alert configuration for backup events"
+            echo "• Complete backup inventory documentation"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        *)
+            echo -e "${RED}Unknown backup operations function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Backup & Recovery Menu - SQLite-driven implementation
+# Gmail backup, Drive backup, and system recovery operations interface
+# Uses database-driven menu items from backup_operations_main section
 backup_operations_main_menu() {
     # Source database functions if not already loaded
     if ! command -v search_menu_database >/dev/null 2>&1; then
