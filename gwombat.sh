@@ -2590,7 +2590,74 @@ account_analysis_function_dispatcher() {
 # Statistics Menu - SQLite-driven implementation
 # Displays comprehensive statistics and performance metrics
 # Uses database-driven menu items from statistics_submenu section
-statistics_menu() {
+# Enhanced statistics menu with visual enhancements (proof of concept)
+statistics_menu_enhanced() {
+    # Source the enhanced menu system if available
+    if [[ -f "shared-utilities/enhanced_menu_v2.sh" ]]; then
+        source shared-utilities/enhanced_menu_v2.sh
+        
+        # Load menu items from database for enhanced display
+        local section_name="statistics_submenu"
+        local menu_items=()
+        
+        if [[ -f "shared-config/menu.db" ]]; then
+            # Build menu items array from database
+            local counter=1
+            while IFS='|' read -r name display_name description function_name icon; do
+                [[ -n "$name" ]] || continue
+                menu_items[$counter]="$display_name"
+                ((counter++))
+            done < <(sqlite3 shared-config/menu.db "
+                SELECT mi.name, mi.display_name, mi.description, mi.function_name, mi.icon
+                FROM menu_items mi 
+                JOIN menu_sections ms ON mi.section_id = ms.id 
+                WHERE ms.name = '$section_name' AND mi.is_active = 1
+                ORDER BY mi.item_order;
+            " 2>/dev/null)
+        fi
+        
+        # If we have menu items, use enhanced navigation
+        if [[ ${#menu_items[@]} -gt 0 ]]; then
+            local selection
+            selection=$(enhanced_menu_navigation_v2 \
+                "GWOMBAT Statistics & Metrics" \
+                "Data Analytics and Performance Metrics" \
+                "Dashboard" \
+                "$section_name" \
+                "${menu_items[@]}")
+            
+            case "$selection" in
+                [1-9])
+                    # Get function name from database and execute
+                    local func_name
+                    func_name=$(sqlite3 shared-config/menu.db "
+                        SELECT mi.function_name
+                        FROM menu_items mi 
+                        JOIN menu_sections ms ON mi.section_id = ms.id 
+                        WHERE ms.name = '$section_name' AND mi.is_active = 1
+                        ORDER BY mi.item_order
+                        LIMIT 1 OFFSET $((selection-1));
+                    " 2>/dev/null)
+                    
+                    if [[ -n "$func_name" ]]; then
+                        statistics_function_dispatcher "$func_name"
+                        statistics_menu_enhanced  # Return to this menu
+                    fi
+                    ;;
+                "back"|"quit"|"main")
+                    return
+                    ;;
+            esac
+            return
+        fi
+    fi
+    
+    # Fallback to original statistics menu if enhanced system unavailable
+    statistics_menu_original
+}
+
+# Original statistics menu (renamed for fallback)
+statistics_menu_original() {
     while true; do
         clear
         echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
@@ -2719,6 +2786,18 @@ statistics_menu() {
                 read -p "Press Enter to continue..."
                 ;;
         esac    done
+}
+
+# Main statistics menu function - uses enhanced version by default
+statistics_menu() {
+    # Check if enhanced navigation is enabled (default: true)
+    local use_enhanced="${GWOMBAT_ENHANCED_NAVIGATION:-true}"
+    
+    if [[ "$use_enhanced" == "true" ]] && [[ -f "shared-utilities/enhanced_menu_v2.sh" ]]; then
+        statistics_menu_enhanced
+    else
+        statistics_menu_original
+    fi
 }
 
 # Individual Statistics Functions

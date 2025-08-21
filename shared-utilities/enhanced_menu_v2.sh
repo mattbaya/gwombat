@@ -6,9 +6,15 @@
 
 # Source required modules
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-source "$SCRIPT_DIR/terminal_control.sh"
-source "$SCRIPT_DIR/key_input.sh"
-source "$SCRIPT_DIR/visual_elements.sh"
+if [[ "${TERMINAL_CONTROL_INITIALIZED:-}" != "true" ]]; then
+    source "$SCRIPT_DIR/terminal_control.sh"
+fi
+if [[ "${KEY_INPUT_INITIALIZED:-}" != "true" ]]; then
+    source "$SCRIPT_DIR/key_input.sh"
+fi
+if [[ "${VISUAL_ELEMENTS_INITIALIZED:-}" != "true" ]]; then
+    source "$SCRIPT_DIR/visual_elements.sh"
+fi
 
 # Enhanced SQLite menu renderer with visual elements
 render_sqlite_menu_enhanced() {
