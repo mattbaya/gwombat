@@ -17073,8 +17073,83 @@ file_drive_operations_menu() {
     done
 }
 
-# Permission Management Menu
-# Permission Management Menu - SQLite-driven dynamic menu
+# Permission Management Function Dispatcher
+permission_management_function_dispatcher() {
+    local function_name="$1"
+    
+    case "$function_name" in
+        # File Permissions (1-5)
+        "check_file_permissions"|"modify_file_permissions"|"grant_file_access"|"revoke_file_access"|"transfer_file_ownership")
+            echo -e "${CYAN}File Permission Operation: $function_name${NC}"
+            echo "This feature will provide comprehensive file permission management."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• View and modify individual file permissions"
+            echo "• Grant and revoke access for users and groups"
+            echo "• Transfer file ownership"
+            echo "• Audit file access patterns"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Folder Permissions (6-9)
+        "check_folder_permissions"|"modify_folder_permissions"|"grant_folder_access"|"revoke_folder_access")
+            echo -e "${CYAN}Folder Permission Operation: $function_name${NC}"
+            echo "This feature will provide comprehensive folder permission management."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Recursive folder permission viewing and modification"
+            echo "• Bulk access management for users and groups"
+            echo "• Inheritance control and permission propagation"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Drive Permissions (10-13)
+        "check_drive_permissions"|"modify_drive_permissions"|"grant_drive_access"|"revoke_drive_access")
+            echo -e "${CYAN}Shared Drive Permission Operation: $function_name${NC}"
+            echo "This feature will provide shared drive permission management."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Shared drive role management (viewer, editor, manager)"
+            echo "• Add and remove users from shared drives"
+            echo "• Permission auditing and reporting"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Security Operations (14-17)
+        "audit_permissions"|"detect_public_files"|"security_scan"|"compliance_check")
+            echo -e "${CYAN}Security Operation: $function_name${NC}"
+            echo "This feature will provide advanced security and compliance capabilities."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Comprehensive permission auditing"
+            echo "• Public file detection and remediation"
+            echo "• Security vulnerability scanning"
+            echo "• Compliance policy checking"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        # Batch Operations (18-20)
+        "batch_permission_changes"|"bulk_ownership_transfer"|"export_permissions_report")
+            echo -e "${CYAN}Batch Operation: $function_name${NC}"
+            echo "This feature will provide bulk permission management capabilities."
+            echo ""
+            echo "Capabilities will include:"
+            echo "• Batch permission changes across multiple files/folders"
+            echo "• Bulk ownership transfers"
+            echo "• Comprehensive permission reporting and export"
+            read -p "Press Enter to continue..."
+            ;;
+        
+        *)
+            echo -e "${RED}Unknown permission management function: $function_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+}
+
+# Permission Management Menu - SQLite-driven implementation
+# File and folder permission management and security operations interface
+# Uses database-driven menu items from permission_management section
 permission_management_menu() {
     # Source database functions if not already loaded
     if ! command -v search_menu_database >/dev/null 2>&1; then
