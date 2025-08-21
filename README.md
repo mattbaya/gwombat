@@ -108,6 +108,12 @@ Safely switch between production and test Google Workspace domains:
 
 ### Optional Advanced Features
 - **Python 3.12+** - Compliance modules and dashboard capabilities
+  - Required Python packages (install via `pip install -r python-modules/requirements.txt`):
+    - `google-api-python-client>=2.100.0` - Google Workspace API integration
+    - `google-auth>=2.22.0` - Authentication for Google APIs
+    - `pandas>=2.0.3` - Data analysis and reporting
+    - `matplotlib>=3.7.2` - Compliance charts and visualizations
+    - See `python-modules/requirements.txt` for complete list
 - **GYB** - Gmail backup with domain synchronization
 - **rclone** - Cloud storage synchronization
 - **SSH/expect** - Automated deployment and interactive prompts
@@ -124,6 +130,13 @@ cd gwombat
 
 # Initialize menu database
 ./shared-utilities/menu_data_loader.sh
+
+# (Optional) Setup Python environment for advanced features
+cd python-modules
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cd ..
 
 # Launch GWOMBAT
 ./gwombat.sh

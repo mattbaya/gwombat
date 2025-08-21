@@ -132,6 +132,14 @@
 - **GAM (Google Apps Manager)**: Primary Google Workspace interface (GAM7 compatible)
 - **SQLite**: Multi-schema database backend for all persistence and menu management
 - **Python 3.12+**: Advanced compliance modules and dashboard capabilities
+  - **Core Python packages** (see `python-modules/requirements.txt`):
+    - `google-api-python-client>=2.100.0` - Google Workspace API client
+    - `google-auth>=2.22.0` - Google authentication libraries
+    - `pandas>=2.0.3` - Data processing and analysis
+    - `matplotlib>=3.7.2` - Visualization for compliance reports
+    - `pyyaml>=6.0` - Configuration management
+    - `structlog>=23.1.0` - Structured logging
+  - **Installation**: `cd python-modules && pip install -r requirements.txt`
 - **GYB (Got Your Back)**: Gmail backup integration
 - **rclone**: Cloud storage synchronization
 - **SSH/Git**: Secure deployment infrastructure
