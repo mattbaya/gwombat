@@ -8127,8 +8127,8 @@ calculate_all_account_sizes() {
         ((counter++))
         show_progress $counter $total_accounts "Analyzing: $email"
         
-        # Get storage info from GAM with quota information
-        local user_info=$($GAM info user "$email" fields quota 2>/dev/null)
+        # Get storage info from GAM7 with quota information
+        local user_info=$($GAM info user "$email" 2>/dev/null)
         
         if [[ -z "$user_info" ]]; then
             ((errors++))
@@ -8140,37 +8140,73 @@ calculate_all_account_sizes() {
         local storage_quota_bytes=0
         local display_name=""
         
-        # Get display name
-        display_name=$($GAM info user "$email" fields name 2>/dev/null | grep "Full Name:" | cut -d':' -f2 | xargs)
+        # Get display name from the user info
+        display_name=$(echo "$user_info" | grep "Full Name:" | cut -d':' -f2- | xargs)
         
-        # Parse storage used (try multiple patterns)
+        # Parse storage used (try multiple patterns for GAM7)
         if echo "$user_info" | grep -q "Storage Used:"; then
             local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
-            local size_value=$(echo "$storage_line" | grep -o '[0-9.]*[0-9]' | head -1)
-            local size_unit=$(echo "$storage_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            # Extract size value and unit with improved parsing
+            local size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+            local size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
             
-            case "${size_unit,,}" in
-                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
-                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
-                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
-                "bytes") storage_used_bytes="$size_value" ;;
-                *) storage_used_bytes=0 ;;
-            esac
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
+        # Try alternate patterns that GAM7 might use
+        elif echo "$user_info" | grep -qi "quota.*used"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+            local size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+            local size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
         fi
         
-        # Parse storage quota 
+        # Parse storage quota (try multiple patterns for GAM7)
         if echo "$user_info" | grep -q "Storage Limit:"; then
             local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
-            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*[0-9]' | head -1)
+            # Improved parsing with sed for better reliability
+            local quota_value=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *\([0-9.]*\).*/\1/p')
+            local quota_unit=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+            
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
+        # Try alternate quota patterns
+        elif echo "$user_info" | grep -qi "quota.*limit"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*limit" | head -1)
+            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
             local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
             
-            case "${quota_unit,,}" in
-                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
-                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
-                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
-                "bytes") storage_quota_bytes="$quota_value" ;;
-                *) storage_quota_bytes=0 ;;
-            esac
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
         fi
         
         # Calculate derived values
