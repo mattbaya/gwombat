@@ -2442,6 +2442,9 @@ statistics_function_dispatcher() {
     esac
 }
 
+# Statistics Menu - SQLite-driven implementation
+# Displays comprehensive statistics and performance metrics
+# Uses database-driven menu items from statistics_submenu section
 statistics_menu() {
     while true; do
         clear
@@ -2471,7 +2474,7 @@ statistics_menu() {
         echo ""
         
         # Generate dynamic menu from database
-        local section_name="statistics"
+        local section_name="statistics_submenu"
         if [[ -f "shared-config/menu.db" ]]; then
             # Load menu items from database (bash 3.2 compatible)
             local menu_items=() function_names=() descriptions=() icons=()
@@ -2492,18 +2495,20 @@ statistics_menu() {
                 ORDER BY mi.item_order;
             " 2>/dev/null)
             
-            # Display menu sections
+            # Display menu items dynamically from database
             echo -e "${GREEN}=== CORE STATISTICS ===${NC}"
             for i in $(seq 1 5); do
                 if [[ -n "${menu_items[$i]}" ]]; then
-                    echo "$i. ${icons[$i]} ${menu_items[$i]} (${descriptions[$i]})"
+                    echo "$i. ${icons[$i]} ${menu_items[$i]}"
+                    echo "   ${GRAY}${descriptions[$i]}${NC}"
                 fi
             done
             echo ""
             echo -e "${PURPLE}=== PERFORMANCE METRICS ===${NC}"
             for i in $(seq 6 8); do
                 if [[ -n "${menu_items[$i]}" ]]; then
-                    echo "$i. ${icons[$i]} ${menu_items[$i]} (${descriptions[$i]})"
+                    echo "$i. ${icons[$i]} ${menu_items[$i]}"
+                    echo "   ${GRAY}${descriptions[$i]}${NC}"
                 fi
             done
         else
@@ -2534,7 +2539,7 @@ statistics_menu() {
         case $stats_choice in
             [1-8])
                 # Use database-driven function dispatcher
-                if [[ -f "local-config/gwombat.db" ]] && [[ -n "${function_names[$stats_choice]}" ]]; then
+                if [[ -f "shared-config/menu.db" ]] && [[ -n "${function_names[$stats_choice]}" ]]; then
                     local func_name="${function_names[$stats_choice]}"
                     statistics_function_dispatcher "$func_name"
                 else
