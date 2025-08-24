@@ -24049,6 +24049,9 @@ main() {
                 scuba_compliance_menu
                 ;;
             10)
+                statistics_menu
+                ;;
+            x)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -24073,7 +24076,7 @@ main() {
                 fi
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-9, c, s, i, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select a number between 1-10, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
