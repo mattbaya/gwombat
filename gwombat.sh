@@ -791,23 +791,57 @@ execute_gam() {
             echo "$error_content" >&2
             echo "[$timestamp] [GAM-ERROR] $error_content" >> "$LOG_FILE"
             
-            # Check for Drive API not enabled error and auto-fix
+            # Enhanced Drive API error handling and auto-fix
             if echo "$error_content" | grep -q "Drive API v3 Service/App not enabled"; then
                 echo -e "${YELLOW}[AUTO-FIX]${NC} Drive API not enabled, attempting to enable..."
                 echo "[$timestamp] [AUTO-FIX] Attempting to enable Drive API" >> "$LOG_FILE"
                 
-                # Enable Drive API
+                # Try multiple approaches to enable Drive API
                 local enable_result=$($GAM enable drivev3 2>&1)
                 local enable_exit_code=$?
                 
                 echo "[$timestamp] [AUTO-FIX] gam enable drivev3 result: $enable_result (exit code: $enable_exit_code)" >> "$LOG_FILE"
                 
                 if [[ $enable_exit_code -eq 0 ]]; then
-                    echo -e "${GREEN}[AUTO-FIX]${NC} Drive API enabled successfully. Please retry your operation."
+                    echo -e "${GREEN}[AUTO-FIX]${NC} Drive API enabled successfully."
+                    echo -e "${CYAN}ℹ️  Note: API changes may take 1-2 minutes to propagate.${NC}"
+                    echo -e "${CYAN}   Please retry your operation in a moment.${NC}"
+                    
+                    # Optional: Add a short delay for API propagation
+                    echo -e "${YELLOW}Waiting 30 seconds for API changes to propagate...${NC}"
+                    sleep 30
+                    echo -e "${GREEN}✅ Ready to retry operation.${NC}"
                 else
                     echo -e "${RED}[AUTO-FIX]${NC} Failed to enable Drive API automatically: $enable_result"
-                    echo "You may need to enable it manually in Google Cloud Console."
+                    echo ""
+                    echo -e "${YELLOW}Manual Fix Required:${NC}"
+                    echo "1. Visit Google Cloud Console: https://console.cloud.google.com/"
+                    echo "2. Select your project (or create one if needed)"
+                    echo "3. Go to: APIs & Services → Library"
+                    echo "4. Search for 'Google Drive API'"
+                    echo "5. Click on 'Google Drive API' and click 'Enable'"
+                    echo ""
+                    echo -e "${CYAN}Alternative: Run GAM OAuth setup again:${NC}"
+                    echo "  $GAM oauth create"
+                    echo ""
                 fi
+            fi
+            
+            # Check for other common Drive API errors
+            if echo "$error_content" | grep -qE "Invalid shared drive|Shared drive not found"; then
+                echo ""
+                echo -e "${YELLOW}💡 Tip:${NC} This error suggests the shared drive ID or permissions issue."
+                echo "   Try: $GAM print shareddrives to verify available drives"
+                echo ""
+            fi
+            
+            # Check for authentication errors
+            if echo "$error_content" | grep -qE "Invalid Credentials|Authentication failed|oauth2"; then
+                echo ""
+                echo -e "${YELLOW}🔧 Authentication Issue Detected${NC}"
+                echo "   Try refreshing OAuth: $GAM oauth refresh"
+                echo "   Or create new OAuth: $GAM oauth create"
+                echo ""
             fi
         else
             # It's just informational output from GAM (like "Getting all Users...")
@@ -820,6 +854,107 @@ execute_gam() {
     rm -f "$temp_output" "$temp_error"
     
     return $exit_code
+}
+
+# Test Drive API connectivity with enhanced error handling
+test_drive_api() {
+    local quiet_mode="${1:-false}"
+    
+    if [[ "$quiet_mode" != "true" ]]; then
+        echo -e "${CYAN}Testing Drive API connectivity...${NC}"
+    fi
+    
+    local test_result
+    test_result=$($GAM print shareddrives maxResults 1 2>&1)
+    local test_exit_code=$?
+    
+    if [[ $test_exit_code -eq 0 ]]; then
+        if [[ "$quiet_mode" != "true" ]]; then
+            echo -e "${GREEN}✅ Drive API is working correctly${NC}"
+        fi
+        return 0
+    else
+        if [[ "$quiet_mode" != "true" ]]; then
+            echo -e "${RED}❌ Drive API test failed${NC}"
+        fi
+        
+        # Check specific error patterns
+        if echo "$test_result" | grep -q "Drive API v3 Service/App not enabled"; then
+            if [[ "$quiet_mode" != "true" ]]; then
+                echo -e "${YELLOW}🔧 Drive API needs to be enabled${NC}"
+                echo "Run 'gam enable drivev3' or use the setup wizard to fix this."
+            fi
+            return 1
+        elif echo "$test_result" | grep -qE "Invalid Credentials|Authentication failed"; then
+            if [[ "$quiet_mode" != "true" ]]; then
+                echo -e "${YELLOW}🔑 Authentication issue detected${NC}"
+                echo "Run 'gam oauth refresh' or 'gam oauth create' to fix authentication."
+            fi
+            return 2
+        else
+            if [[ "$quiet_mode" != "true" ]]; then
+                echo -e "${YELLOW}❓ Unknown Drive API issue:${NC}"
+                echo "$test_result"
+            fi
+            return 3
+        fi
+    fi
+}
+
+# Drive API Health Check and Auto-Fix
+drive_api_health_check() {
+    echo -e "${CYAN}=== Drive API Health Check ===${NC}"
+    echo ""
+    
+    # Test basic connectivity
+    test_drive_api
+    local api_status=$?
+    
+    if [[ $api_status -eq 0 ]]; then
+        echo ""
+        echo -e "${GREEN}✅ Drive API Health: GOOD${NC}"
+        
+        # Test shared drives access
+        echo -e "${CYAN}Testing shared drives access...${NC}"
+        local drive_count=$($GAM print shareddrives fields id 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+        echo -e "${GREEN}✅ Found $drive_count shared drives${NC}"
+        
+        return 0
+    else
+        echo ""
+        echo -e "${RED}❌ Drive API Health: ISSUES DETECTED${NC}"
+        echo ""
+        
+        if [[ $api_status -eq 1 ]]; then
+            # Drive API not enabled
+            echo -e "${YELLOW}Attempting automatic fix...${NC}"
+            if $GAM enable drivev3 >/dev/null 2>&1; then
+                echo -e "${GREEN}✅ Drive API enabled successfully${NC}"
+                echo -e "${CYAN}Waiting for API propagation...${NC}"
+                sleep 5
+                
+                # Retest
+                if test_drive_api "true"; then
+                    echo -e "${GREEN}✅ Drive API now working correctly${NC}"
+                    return 0
+                else
+                    echo -e "${YELLOW}⚠️  API enabled but still not working. May need more time to propagate.${NC}"
+                fi
+            else
+                echo -e "${RED}❌ Failed to enable Drive API automatically${NC}"
+            fi
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Manual steps required:${NC}"
+        echo "1. Visit: https://console.cloud.google.com/apis/library/drive.googleapis.com"
+        echo "2. Ensure 'Google Drive API' is enabled"
+        echo "3. Check your GAM OAuth configuration: gam oauth info"
+        echo "4. If needed, refresh OAuth: gam oauth refresh"
+        echo ""
+        
+        return $api_status
+    fi
 }
 
 # Simple GAM command display (for commands that don't need full logging)
@@ -3417,9 +3552,14 @@ show_quick_stats() {
                 total_groups="?"
             fi
             
-            shared_drives=$(execute_gam print shareddrives fields id | tail -n +2 | wc -l | tr -d ' ')
-            if [[ -z "$shared_drives" || "$shared_drives" == "0" ]]; then
-                shared_drives="0"
+            # Test Drive API before counting shared drives
+            if test_drive_api "true"; then
+                shared_drives=$(execute_gam print shareddrives fields id | tail -n +2 | wc -l | tr -d ' ')
+                if [[ -z "$shared_drives" || "$shared_drives" == "0" ]]; then
+                    shared_drives="0"
+                fi
+            else
+                shared_drives="N/A (Drive API issue)"
             fi
             
             # Cache the results and clear dirty flag (only if we got valid data)
@@ -8627,6 +8767,580 @@ calculate_all_account_sizes() {
     
     echo ""
     echo -e "${YELLOW}💡 Use menu option 'View Account Storage Sizes' for filtering and detailed analysis${NC}"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to calculate storage for suspended accounts only
+calculate_suspended_account_sizes() {
+    echo -e "${CYAN}Calculating storage sizes for suspended accounts...${NC}"
+    echo ""
+    
+    # Generate unique scan session ID
+    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)"
+    
+    # Choose data source for suspended account list
+    if choose_data_source "storage calculation"; then
+        # Use database
+        local account_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM accounts WHERE current_stage IN ('recently_suspended', 'pending_deletion', 'temporary_hold', 'exit_row') ORDER BY email;" 2>/dev/null)
+    else
+        # Use fresh GAM data for suspended users
+        local account_list=$($GAM print users query "isSuspended=true" fields primaryemail 2>/dev/null | tail -n +2 | cut -d',' -f1)
+    fi
+    
+    if [[ -z "$account_list" ]]; then
+        echo -e "${RED}No suspended accounts found.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    local counter=0
+    local total_accounts=$(echo "$account_list" | wc -l)
+    local accounts_processed=0
+    local errors=0
+    
+    echo "Processing $total_accounts suspended accounts with session ID: $scan_session_id"
+    echo ""
+    
+    # Process accounts and store in new schema
+    echo "$account_list" | while read email; do
+        [[ -z "$email" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $total_accounts "Analyzing: $email"
+        
+        # Get storage info from GAM7 with quota information
+        local user_info=$($GAM info user "$email" 2>/dev/null)
+        
+        if [[ -z "$user_info" ]]; then
+            ((errors++))
+            continue
+        fi
+        
+        # Extract storage information
+        local storage_used_bytes=0
+        local storage_quota_bytes=0
+        local display_name=""
+        
+        # Get display name from the user info
+        display_name=$(echo "$user_info" | grep "Full Name:" | cut -d':' -f2- | xargs)
+        
+        # Parse storage used (try multiple patterns for GAM7)
+        if echo "$user_info" | grep -q "Storage Used:"; then
+            local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+            # Extract size value and unit with improved parsing
+            local size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+            local size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+            
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
+        # Try alternate patterns that GAM7 might use
+        elif echo "$user_info" | grep -qi "quota.*used"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+            local size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+            local size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
+        fi
+        
+        # Parse storage quota (try multiple patterns for GAM7)
+        if echo "$user_info" | grep -q "Storage Limit:"; then
+            local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
+            # Improved parsing with sed for better reliability
+            local quota_value=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *\([0-9.]*\).*/\1/p')
+            local quota_unit=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+            
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
+        elif echo "$user_info" | grep -qi "quota.*limit"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*limit" | head -1)
+            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+            local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
+        fi
+        
+        # Calculate derived values
+        local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local usage_percentage=0
+        
+        if [[ $storage_quota_bytes -gt 0 ]]; then
+            usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
+        fi
+        
+        # Store in account_storage_sizes table
+        sqlite3 local-config/gwombat.db "
+            INSERT OR REPLACE INTO account_storage_sizes (
+                email, display_name, storage_used_bytes, storage_used_gb,
+                storage_quota_bytes, storage_quota_gb, usage_percentage,
+                measurement_date, scan_session_id
+            ) VALUES (
+                '$(echo "$email" | sed "s/'/''/g")',
+                '$(echo "$display_name" | sed "s/'/''/g")',
+                $storage_used_bytes,
+                $storage_used_gb,
+                $storage_quota_bytes,
+                $storage_quota_gb,
+                $usage_percentage,
+                DATE('now'),
+                '$scan_session_id'
+            );
+        " 2>/dev/null && ((accounts_processed++))
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ Suspended account storage analysis completed!${NC}"
+    echo "   Accounts processed: $accounts_processed"
+    echo "   Session ID: $scan_session_id"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to calculate storage for a single specific account
+calculate_single_account_size() {
+    echo -e "${CYAN}Calculate Storage Size for Single Account${NC}"
+    echo ""
+    read -p "Enter the email address: " email
+    echo ""
+    
+    if [[ -z "$email" ]]; then
+        echo -e "${RED}Email address cannot be empty.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Validate email format (basic validation)
+    if [[ ! "$email" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        echo -e "${RED}Invalid email format.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${CYAN}Analyzing storage for: $email${NC}"
+    echo ""
+    
+    # Generate unique scan session ID
+    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)_single"
+    
+    # Get storage info from GAM7
+    local user_info=$($GAM info user "$email" 2>/dev/null)
+    
+    if [[ -z "$user_info" ]]; then
+        echo -e "${RED}❌ Account not found or inaccessible: $email${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    echo -e "${GREEN}✅ Account found${NC}"
+    echo ""
+    
+    # Extract storage information
+    local storage_used_bytes=0
+    local storage_quota_bytes=0
+    local display_name=""
+    
+    # Get display name from the user info
+    display_name=$(echo "$user_info" | grep "Full Name:" | cut -d':' -f2- | xargs)
+    
+    # Parse storage used (try multiple patterns for GAM7)
+    if echo "$user_info" | grep -q "Storage Used:"; then
+        local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+        # Extract size value and unit with improved parsing
+        local size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+        local size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+        
+        if [[ -n "$size_value" && -n "$size_unit" ]]; then
+            case "${size_unit,,}" in
+                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes"|"b") storage_used_bytes="$size_value" ;;
+                *) storage_used_bytes=0 ;;
+            esac
+        fi
+    # Try alternate patterns that GAM7 might use
+    elif echo "$user_info" | grep -qi "quota.*used"; then
+        local quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+        local size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+        local size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+        
+        if [[ -n "$size_value" && -n "$size_unit" ]]; then
+            case "${size_unit,,}" in
+                "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes"|"b") storage_used_bytes="$size_value" ;;
+                *) storage_used_bytes=0 ;;
+            esac
+        fi
+    fi
+    
+    # Parse storage quota (try multiple patterns for GAM7)
+    if echo "$user_info" | grep -q "Storage Limit:"; then
+        local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
+        # Improved parsing with sed for better reliability
+        local quota_value=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *\([0-9.]*\).*/\1/p')
+        local quota_unit=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+        
+        if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+            case "${quota_unit,,}" in
+                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                *) storage_quota_bytes=0 ;;
+            esac
+        fi
+    elif echo "$user_info" | grep -qi "quota.*limit"; then
+        local quota_line=$(echo "$user_info" | grep -i "quota.*limit" | head -1)
+        local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+        local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+        
+        if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+            case "${quota_unit,,}" in
+                "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                *) storage_quota_bytes=0 ;;
+            esac
+        fi
+    fi
+    
+    # Calculate derived values
+    local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+    local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+    local usage_percentage=0
+    
+    if [[ $storage_quota_bytes -gt 0 ]]; then
+        usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
+    fi
+    
+    # Store in account_storage_sizes table
+    sqlite3 local-config/gwombat.db "
+        INSERT OR REPLACE INTO account_storage_sizes (
+            email, display_name, storage_used_bytes, storage_used_gb,
+            storage_quota_bytes, storage_quota_gb, usage_percentage,
+            measurement_date, scan_session_id
+        ) VALUES (
+            '$(echo "$email" | sed "s/'/''/g")',
+            '$(echo "$display_name" | sed "s/'/''/g")',
+            $storage_used_bytes,
+            $storage_used_gb,
+            $storage_quota_bytes,
+            $storage_quota_gb,
+            $usage_percentage,
+            DATE('now'),
+            '$scan_session_id'
+        );
+    " 2>/dev/null
+    
+    echo -e "${GREEN}📊 Storage Analysis Results:${NC}"
+    echo ""
+    echo -e "${CYAN}Account:${NC} $email"
+    [[ -n "$display_name" ]] && echo -e "${CYAN}Name:${NC} $display_name"
+    echo -e "${CYAN}Storage Used:${NC} $(printf '%.2f' $storage_used_gb) GB"
+    echo -e "${CYAN}Storage Quota:${NC} $(printf '%.2f' $storage_quota_gb) GB"
+    if [[ $storage_quota_bytes -gt 0 ]]; then
+        echo -e "${CYAN}Usage Percentage:${NC} $(printf '%.1f' $usage_percentage)%"
+        
+        # Color-code the usage level
+        if (( $(echo "$usage_percentage >= 95" | bc -l) )); then
+            echo -e "${RED}Status:${NC} Critical (95%+)"
+        elif (( $(echo "$usage_percentage >= 85" | bc -l) )); then
+            echo -e "${YELLOW}Status:${NC} High (85%+)"
+        elif (( $(echo "$usage_percentage >= 70" | bc -l) )); then
+            echo -e "${CYAN}Status:${NC} Medium (70%+)"
+        else
+            echo -e "${GREEN}Status:${NC} Normal (<70%)"
+        fi
+    else
+        echo -e "${YELLOW}Status:${NC} Unable to determine quota"
+    fi
+    echo ""
+    echo -e "${GREEN}✅ Analysis completed and stored in database${NC}"
+    echo "   Session ID: $scan_session_id"
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to calculate storage from a list or CSV file
+calculate_account_sizes_from_list() {
+    echo -e "${CYAN}Calculate Storage from Account List/CSV${NC}"
+    echo ""
+    echo "Select source:"
+    echo "1. Load from account list (from database)"
+    echo "2. Load from CSV file"
+    echo "3. Enter emails manually"
+    echo ""
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select source (1-3, m, x): " source_choice
+    echo ""
+    
+    local account_list=""
+    
+    case $source_choice in
+        1)
+            # Load from existing account lists
+            echo "Available account lists:"
+            sqlite3 local-config/gwombat.db "SELECT DISTINCT list_name FROM account_list_members ORDER BY list_name;" 2>/dev/null | nl -w3 -s'. '
+            echo ""
+            read -p "Enter list name: " list_name
+            
+            if [[ -z "$list_name" ]]; then
+                echo -e "${RED}List name cannot be empty.${NC}"
+                read -p "Press Enter to continue..."
+                return
+            fi
+            
+            account_list=$(sqlite3 local-config/gwombat.db "SELECT email FROM account_list_members WHERE list_name='$list_name' ORDER BY email;" 2>/dev/null)
+            
+            if [[ -z "$account_list" ]]; then
+                echo -e "${RED}No accounts found in list '$list_name'.${NC}"
+                read -p "Press Enter to continue..."
+                return
+            fi
+            ;;
+        2)
+            # Load from CSV file
+            read -p "Enter path to CSV file: " csv_path
+            
+            if [[ ! -f "$csv_path" ]]; then
+                echo -e "${RED}File not found: $csv_path${NC}"
+                read -p "Press Enter to continue..."
+                return
+            fi
+            
+            echo "Select email column format:"
+            echo "1. First column contains emails"
+            echo "2. Specify column number"
+            echo "3. Specify column header name"
+            echo ""
+            read -p "Select format (1-3): " format_choice
+            
+            case $format_choice in
+                1) account_list=$(tail -n +2 "$csv_path" | cut -d',' -f1 | tr -d '"') ;;
+                2) 
+                    read -p "Enter column number (1-based): " col_num
+                    account_list=$(tail -n +2 "$csv_path" | cut -d',' -f$col_num | tr -d '"')
+                    ;;
+                3)
+                    read -p "Enter column header name: " header_name
+                    local col_num=$(head -1 "$csv_path" | tr ',' '\n' | nl -w1 -s: | grep -i ":$header_name" | cut -d':' -f1)
+                    if [[ -n "$col_num" ]]; then
+                        account_list=$(tail -n +2 "$csv_path" | cut -d',' -f$col_num | tr -d '"')
+                    else
+                        echo -e "${RED}Header '$header_name' not found.${NC}"
+                        read -p "Press Enter to continue..."
+                        return
+                    fi
+                    ;;
+                *) 
+                    echo -e "${RED}Invalid option.${NC}"
+                    read -p "Press Enter to continue..."
+                    return
+                    ;;
+            esac
+            ;;
+        3)
+            # Manual entry
+            echo "Enter email addresses (one per line, empty line to finish):"
+            account_list=""
+            while true; do
+                read -p "> " email
+                [[ -z "$email" ]] && break
+                account_list="$account_list$email"$'\n'
+            done
+            account_list=$(echo "$account_list" | sed '/^$/d')
+            ;;
+        m) return ;;
+        x) exit 0 ;;
+        *) 
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            return
+            ;;
+    esac
+    
+    if [[ -z "$account_list" ]]; then
+        echo -e "${RED}No accounts to process.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    local total_accounts=$(echo "$account_list" | wc -l)
+    echo "Found $total_accounts accounts to analyze"
+    echo ""
+    read -p "Proceed with storage analysis? (y/N): " confirm
+    
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Analysis cancelled."
+        read -p "Press Enter to continue..."
+        return
+    fi
+    
+    # Generate unique scan session ID
+    local scan_session_id="scan_$(date +%Y%m%d_%H%M%S)_list"
+    
+    local counter=0
+    local accounts_processed=0
+    local errors=0
+    
+    echo ""
+    echo "Processing $total_accounts accounts with session ID: $scan_session_id"
+    echo ""
+    
+    # Process each account
+    echo "$account_list" | while read email; do
+        [[ -z "$email" ]] && continue
+        
+        ((counter++))
+        show_progress $counter $total_accounts "Analyzing: $email"
+        
+        # Get storage info from GAM7
+        local user_info=$($GAM info user "$email" 2>/dev/null)
+        
+        if [[ -z "$user_info" ]]; then
+            ((errors++))
+            continue
+        fi
+        
+        # Extract storage information (same logic as other functions)
+        local storage_used_bytes=0
+        local storage_quota_bytes=0
+        local display_name=""
+        
+        # Get display name from the user info
+        display_name=$(echo "$user_info" | grep "Full Name:" | cut -d':' -f2- | xargs)
+        
+        # Parse storage used (try multiple patterns for GAM7)
+        if echo "$user_info" | grep -q "Storage Used:"; then
+            local storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+            local size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+            local size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+            
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
+        elif echo "$user_info" | grep -qi "quota.*used"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+            local size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+            local size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                case "${size_unit,,}" in
+                    "gb") storage_used_bytes=$(echo "$size_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_used_bytes=$(echo "$size_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_used_bytes=$(echo "$size_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_used_bytes="$size_value" ;;
+                    *) storage_used_bytes=0 ;;
+                esac
+            fi
+        fi
+        
+        # Parse storage quota (same logic)
+        if echo "$user_info" | grep -q "Storage Limit:"; then
+            local quota_line=$(echo "$user_info" | grep "Storage Limit:" | head -1)
+            local quota_value=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *\([0-9.]*\).*/\1/p')
+            local quota_unit=$(echo "$quota_line" | sed -n 's/.*Storage Limit: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+            
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
+        elif echo "$user_info" | grep -qi "quota.*limit"; then
+            local quota_line=$(echo "$user_info" | grep -i "quota.*limit" | head -1)
+            local quota_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+            local quota_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+            
+            if [[ -n "$quota_value" && -n "$quota_unit" ]]; then
+                case "${quota_unit,,}" in
+                    "gb") storage_quota_bytes=$(echo "$quota_value * 1073741824" | bc 2>/dev/null || echo "0") ;;
+                    "mb") storage_quota_bytes=$(echo "$quota_value * 1048576" | bc 2>/dev/null || echo "0") ;;
+                    "kb") storage_quota_bytes=$(echo "$quota_value * 1024" | bc 2>/dev/null || echo "0") ;;
+                    "bytes"|"b") storage_quota_bytes="$quota_value" ;;
+                    *) storage_quota_bytes=0 ;;
+                esac
+            fi
+        fi
+        
+        # Calculate derived values
+        local storage_used_gb=$(echo "scale=3; $storage_used_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local storage_quota_gb=$(echo "scale=3; $storage_quota_bytes / 1073741824" | bc 2>/dev/null || echo "0")
+        local usage_percentage=0
+        
+        if [[ $storage_quota_bytes -gt 0 ]]; then
+            usage_percentage=$(echo "scale=2; ($storage_used_bytes * 100) / $storage_quota_bytes" | bc 2>/dev/null || echo "0")
+        fi
+        
+        # Store in account_storage_sizes table
+        sqlite3 local-config/gwombat.db "
+            INSERT OR REPLACE INTO account_storage_sizes (
+                email, display_name, storage_used_bytes, storage_used_gb,
+                storage_quota_bytes, storage_quota_gb, usage_percentage,
+                measurement_date, scan_session_id
+            ) VALUES (
+                '$(echo "$email" | sed "s/'/''/g")',
+                '$(echo "$display_name" | sed "s/'/''/g")',
+                $storage_used_bytes,
+                $storage_used_gb,
+                $storage_quota_bytes,
+                $storage_quota_gb,
+                $usage_percentage,
+                DATE('now'),
+                '$scan_session_id'
+            );
+        " 2>/dev/null && ((accounts_processed++))
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ List-based storage analysis completed!${NC}"
+    echo "   Accounts processed: $accounts_processed"
+    echo "   Session ID: $scan_session_id"
     echo ""
     read -p "Press Enter to continue..."
 }
@@ -21013,20 +21727,21 @@ system_diagnostics_menu() {
         echo "13. 📡 Domain Connectivity Analysis"
         echo "14. ⚡ GAM Performance Benchmark"
         echo "15. 🔧 GAM Configuration Validation"
+        echo "16. 🚗 Drive API Health Check & Auto-Fix"
         echo ""
         echo -e "${YELLOW}=== TROUBLESHOOTING TOOLS ===${NC}"
-        echo "16. 🚨 Error Log Analysis"
-        echo "17. 🔍 Recent Issues Summary"
-        echo "18. 📋 System Repair Recommendations"
-        echo "19. 🛠️ Automated Fix Suggestions"
-        echo "20. 📚 Diagnostic Report Generation"
+        echo "17. 🚨 Error Log Analysis"
+        echo "18. 🔍 Recent Issues Summary"
+        echo "19. 📋 System Repair Recommendations"
+        echo "20. 🛠️ Automated Fix Suggestions"
+        echo "21. 📚 Diagnostic Report Generation"
         echo ""
         echo "b. ⬅️ Back to Analysis & Discovery"
         echo "m. 🏠 Main menu"
         echo "x. ❌ Exit"
         echo ""
         
-        read -p "Select an option (1-20, b, m, x): " diag_choice
+        read -p "Select an option (1-21, b, m, x): " diag_choice
         echo ""
         
         case $diag_choice in
@@ -22078,6 +22793,12 @@ system_diagnostics_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             16)
+                # Drive API Health Check & Auto-Fix
+                drive_api_health_check
+                echo ""
+                read -p "Press Enter to continue..."
+                ;;
+            17)
                 # Error Log Analysis - Coming Soon
                 echo -e "${YELLOW}🚨 Error Log Analysis${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -22093,7 +22814,7 @@ system_diagnostics_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            17)
+            18)
                 # Recent Issues Summary - Coming Soon
                 echo -e "${YELLOW}🔍 Recent Issues Summary${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -22109,7 +22830,7 @@ system_diagnostics_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            18)
+            19)
                 # System Repair Recommendations - Coming Soon
                 echo -e "${YELLOW}📋 System Repair Recommendations${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -22125,7 +22846,7 @@ system_diagnostics_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            19)
+            20)
                 # Automated Fix Suggestions - Coming Soon
                 echo -e "${YELLOW}🛠️ Automated Fix Suggestions${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -22141,7 +22862,7 @@ system_diagnostics_menu() {
                 echo ""
                 read -p "Press Enter to continue..."
                 ;;
-            20)
+            21)
                 # Diagnostic Report Generation - Coming Soon
                 echo -e "${YELLOW}📚 Diagnostic Report Generation${NC}"
                 echo "═══════════════════════════════════════════════════════════════════════════════"
@@ -22170,7 +22891,7 @@ system_diagnostics_menu() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-20, b, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-21, b, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
@@ -28979,10 +29700,46 @@ export_user_accounts_to_csv() {
     if [[ -f temp_users.csv ]]; then
         # Process each user and add storage data
         tail -n +2 temp_users.csv | while IFS=',' read -r email firstname lastname fullname ou creation lastlogin suspended admin tos twofa rest; do
-            # Get storage usage
-            storage_info=$($GAM_PATH user "$email" show usage 2>/dev/null | grep -E "(drive|total)" | head -1)
-            storage_used=$(echo "$storage_info" | awk '{print $2}' | sed 's/[^0-9.]//g' || echo "0")
-            storage_quota=$($GAM_PATH user "$email" show quota 2>/dev/null | awk '/quota:/ {print $2}' | sed 's/[^0-9.]//g' || echo "15")
+            # Get storage usage using correct GAM7 syntax
+            user_info=$($GAM_PATH info user "$email" 2>/dev/null)
+            
+            # Parse storage used from GAM info output
+            storage_used_gb="0"
+            if [[ -n "$user_info" ]]; then
+                # Try multiple patterns for GAM7 storage information
+                if echo "$user_info" | grep -q "Storage Used:"; then
+                    storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+                    size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+                    size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+                    
+                    if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                        case "${size_unit,,}" in
+                            "gb") storage_used_gb="$size_value" ;;
+                            "mb") storage_used_gb=$(echo "scale=3; $size_value / 1024" | bc 2>/dev/null || echo "0") ;;
+                            "kb") storage_used_gb=$(echo "scale=3; $size_value / 1048576" | bc 2>/dev/null || echo "0") ;;
+                            "bytes"|"b") storage_used_gb=$(echo "scale=3; $size_value / 1073741824" | bc 2>/dev/null || echo "0") ;;
+                            *) storage_used_gb="0" ;;
+                        esac
+                    fi
+                elif echo "$user_info" | grep -qi "quota.*used"; then
+                    quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+                    size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+                    size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+                    
+                    if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                        case "${size_unit,,}" in
+                            "gb") storage_used_gb="$size_value" ;;
+                            "mb") storage_used_gb=$(echo "scale=3; $size_value / 1024" | bc 2>/dev/null || echo "0") ;;
+                            "kb") storage_used_gb=$(echo "scale=3; $size_value / 1048576" | bc 2>/dev/null || echo "0") ;;
+                            "bytes"|"b") storage_used_gb=$(echo "scale=3; $size_value / 1073741824" | bc 2>/dev/null || echo "0") ;;
+                            *) storage_used_gb="0" ;;
+                        esac
+                    fi
+                fi
+            fi
+            
+            # Set default quota (15 GB for standard users)
+            storage_quota="15"
             
             # Determine account type
             account_type="Standard"
@@ -28992,8 +29749,7 @@ export_user_accounts_to_csv() {
                 account_type="Suspended"
             fi
             
-            # Convert bytes to GB for storage
-            storage_used_gb=$(echo "scale=2; $storage_used / 1073741824" | bc 2>/dev/null || echo "0")
+            # storage_used_gb already calculated above from GAM info output
             
             echo "\"$email\",\"$firstname\",\"$lastname\",\"$fullname\",\"$ou\",\"$creation\",\"$lastlogin\",\"$suspended\",\"$admin\",\"$twofa\",\"$storage_used_gb\",\"$storage_quota\",\"$account_type\"" >> "$export_file"
         done
