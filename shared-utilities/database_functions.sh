@@ -10,6 +10,7 @@ if [[ "$(basename "$SCRIPTPATH")" != "gwombat" ]]; then
     SCRIPTPATH="${SCRIPTPATH}/gwombat"
 fi
 DB_FILE="${SCRIPTPATH}/local-config/gwombat.db"
+# SECURITY: Menu database is read-only (chmod 444) to prevent tampering and SQL injection
 MENU_DB_FILE="${SCRIPTPATH}/shared-config/menu.db"
 DB_SCHEMA_FILE="${SCRIPTPATH}/shared-config/database_schema.sql"
 
