@@ -74,8 +74,10 @@
 - **'p'** = Previous menu (back) - replaces old 'b' for consistency
 - **'m'** = Main menu - direct return to top level
 - **'s'** = Search all menu options - database-driven search
-- **'i'** = Index of all menus (where available)
 - **'x'** = Exit application
+
+**Planned Navigation Features**:
+- **'i'** = Index of all menus (planned future feature)
 
 **SQLite-Driven Menu Implementation Status**:
 - ✅ **system_overview_menu** (15 system monitoring & health check options) - **CONVERTED**
@@ -245,7 +247,7 @@ secure_sqlite_query "$MENU_DB_FILE" "SELECT * FROM menu_items WHERE name = '%s';
 ### Testing Commands
 ```bash
 # Test SQLite menu system
-./gwombat.sh # Use 's' for search, 'i' for index
+./gwombat.sh # Use 's' for search functionality
 
 # Test menu database population
 ./shared-utilities/menu_data_loader.sh
