@@ -1132,9 +1132,19 @@ get_menu_function() {
 search_menu_database() {
     local search_term="$1"
     
+    # If no search term provided, ask interactively
     if [[ -z "$search_term" ]]; then
-        echo -e "${RED}Please enter a search term${NC}"
-        return 1
+        echo -e "${CYAN}Menu Search${NC}"
+        echo ""
+        echo "Type 'exit' or press Enter with no text to cancel"
+        echo ""
+        read -p "Enter search term: " search_term
+        
+        # Allow exit on empty input or 'exit'
+        if [[ -z "$search_term" || "$search_term" == "exit" ]]; then
+            echo -e "${YELLOW}Search cancelled${NC}"
+            return 0
+        fi
     fi
     
     # Sanitize search term to prevent SQL injection
