@@ -344,12 +344,13 @@ db_add_to_list() {
     
     init_database || return 1
     
-    sqlite3 "$DB_FILE" <<EOF
-INSERT OR IGNORE INTO account_list_memberships (account_id, list_id)
-SELECT a.id, l.id
-FROM accounts a, account_lists l
-WHERE a.email = '$email' AND l.name = '$list_name';
-EOF
+    # Use secure query to prevent SQL injection
+    secure_sqlite_query "$DB_FILE" "
+        INSERT OR IGNORE INTO account_list_memberships (account_id, list_id)
+        SELECT a.id, l.id
+        FROM accounts a, account_lists l
+        WHERE a.email = '%s' AND l.name = '%s';
+    " "$email" "$list_name"
     
     if [[ $? -eq 0 ]]; then
         log_info "Added account to list: $email -> $list_name"
@@ -419,11 +420,12 @@ db_set_verification() {
     
     init_database || return 1
     
-    sqlite3 "$DB_FILE" <<EOF
-INSERT OR REPLACE INTO verification_status (account_id, stage, verification_type, status, details, verified_at)
-SELECT id, '$stage', '$verification_type', '$status', '$details', CURRENT_TIMESTAMP
-FROM accounts WHERE email = '$email';
-EOF
+    # Use secure query to prevent SQL injection
+    secure_sqlite_query "$DB_FILE" "
+        INSERT OR REPLACE INTO verification_status (account_id, stage, verification_type, status, details, verified_at)
+        SELECT id, '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP
+        FROM accounts WHERE email = '%s';
+    " "$stage" "$verification_type" "$status" "$details" "$email"
     
     if [[ $? -eq 0 ]]; then
         log_info "Verification status set: $email [$stage:$verification_type] -> $status"
@@ -448,14 +450,17 @@ db_get_list_accounts() {
     
     init_database || return 1
     
-    sqlite3 "$DB_FILE" -header -column <<EOF
-SELECT a.email, a.display_name, a.current_stage, a.updated_at
-FROM accounts a
-JOIN account_list_memberships alm ON a.id = alm.account_id
-JOIN account_lists l ON alm.list_id = l.id
-WHERE l.name = '$list_name' AND l.is_active = 1
-ORDER BY a.updated_at DESC;
-EOF
+    # Use secure parameterized query to prevent SQL injection
+    local query="SELECT a.email || '|' || a.display_name || '|' || a.current_stage || '|' || a.updated_at
+        FROM accounts a
+        JOIN account_list_memberships alm ON a.id = alm.account_id
+        JOIN account_lists l ON alm.list_id = l.id
+        WHERE l.name = '%s' AND l.is_active = 1
+        ORDER BY a.updated_at DESC;"
+    
+    # Output with proper formatting
+    echo "email|display_name|current_stage|updated_at"
+    secure_sqlite_query "$DB_FILE" "$query" "$list_name" | column -t -s '|'
 }
 
 # Get verification status for account
@@ -474,18 +479,20 @@ db_get_verification_status() {
     
     init_database || return 1
     
-    local stage_filter=""
+    # Use secure parameterized query to prevent SQL injection
+    local base_query="SELECT vs.stage || '|' || vs.verification_type || '|' || vs.status || '|' || vs.verified_at || '|' || vs.details
+        FROM verification_status vs
+        JOIN accounts a ON vs.account_id = a.id
+        WHERE a.email = '%s'"
+    
+    local full_query="$base_query ORDER BY vs.verified_at DESC;"
     if [[ -n "$stage" ]]; then
-        stage_filter="AND vs.stage = '$stage'"
+        local stage_escaped=$(sanitize_sql_input "$stage")
+        full_query="$base_query AND vs.stage = '$stage_escaped' ORDER BY vs.verified_at DESC;"
     fi
     
-    sqlite3 "$DB_FILE" -header -column <<EOF
-SELECT vs.stage, vs.verification_type, vs.status, vs.verified_at, vs.details
-FROM verification_status vs
-JOIN accounts a ON vs.account_id = a.id
-WHERE a.email = '$email' $stage_filter
-ORDER BY vs.verified_at DESC;
-EOF
+    echo "stage|verification_type|status|verified_at|details"
+    secure_sqlite_query "$DB_FILE" "$full_query" "$email" | column -t -s '|'
 }
 
 # List all account lists with progress
@@ -1022,12 +1029,12 @@ generate_submenu() {
         return 1
     fi
     
-    # Get section info
-    local section_info=$(sqlite3 "$MENU_DB_FILE" "
+    # Get section info using secure query
+    local section_info=$(secure_sqlite_query "$MENU_DB_FILE" "
         SELECT display_name, description, icon, color_code 
         FROM menu_sections 
-        WHERE name = '$section_name' AND is_active = 1;
-    ")
+        WHERE name = '%s' AND is_active = 1;
+    " "$section_name")
     
     if [[ -z "$section_info" ]]; then
         echo -e "${RED}Error: Section '$section_name' not found${NC}"
@@ -1075,13 +1082,13 @@ generate_submenu() {
         echo "$item_order. $icon $display_name"
         ((item_count++))
         
-    done < <(sqlite3 "$MENU_DB_FILE" "
+    done < <(secure_sqlite_query "$MENU_DB_FILE" "
         SELECT item_order, display_name, description, icon, keywords
         FROM menu_items 
-        WHERE section_id = (SELECT id FROM menu_sections WHERE name = '$section_name')
+        WHERE section_id = (SELECT id FROM menu_sections WHERE name = '%s')
         AND is_active = 1 
         ORDER BY item_order;
-    ")
+    " "$section_name")
     
     # Display navigation options
     echo ""
@@ -1129,45 +1136,81 @@ search_menu_database() {
         return 1
     fi
     
-    local search_lower=$(echo "$search_term" | tr '[:upper:]' '[:lower:]')
+    # Sanitize search term to prevent SQL injection
+    local sanitized_search_term=$(sanitize_sql_input "$search_term")
+    local search_lower=$(echo "$sanitized_search_term" | tr '[:upper:]' '[:lower:]')
     local found=false
     
     echo -e "${CYAN}Search results for: '$search_term'${NC}"
     echo ""
     
-    # Search through menu items and sections  
-    while IFS='|' read -r result_type result_id title description sort_order icon color_code function_name keywords searchable_text; do
+    # Use secure parameterized query to search menu items and sections
+    # Search in display_name, description, and keywords fields with LIKE operator
+    while IFS='|' read -r result_type result_id title description sort_order icon color_code function_name keywords; do
         [[ -z "$result_type" ]] && continue
         
-        # Check if search term matches
-        if [[ "$searchable_text" =~ .*$search_lower.* ]]; then
-            found=true
-            
-            if [[ "$result_type" == "section" ]]; then
-                local color_var="${color_code:-GREEN}"
-                echo -e "${!color_var}$sort_order. $title${NC}"
-                if [[ -n "$description" ]]; then
-                    echo "   • $description"
-                fi
-            else
-                # Get section info for context
-                local section_info=$(sqlite3 "$DB_FILE" "
-                    SELECT ms.display_name, ms.id
-                    FROM menu_sections ms
-                    JOIN menu_items mi ON ms.id = mi.section_id
-                    WHERE mi.function_name = '$function_name';
-                ")
-                IFS='|' read -r section_name section_id <<< "$section_info"
-                
-                echo -e "${CYAN}$icon $title${NC}"
-                echo "   → $section_name"
-                if [[ -n "$description" ]]; then
-                    echo "   • $description"
-                fi
+        found=true
+        
+        if [[ "$result_type" == "section" ]]; then
+            local color_var="${color_code:-GREEN}"
+            echo -e "${!color_var}$sort_order. $title${NC}"
+            if [[ -n "$description" ]]; then
+                echo "   • $description"
             fi
-            echo ""
+        else
+            # Get section info for context using secure query
+            local section_info=$(secure_sqlite_query "$MENU_DB_FILE" "
+                SELECT ms.display_name, ms.id
+                FROM menu_sections ms
+                JOIN menu_items mi ON ms.id = mi.section_id
+                WHERE mi.function_name = '%s';
+            " "$function_name")
+            IFS='|' read -r section_name section_id <<< "$section_info"
+            
+            echo -e "${CYAN}$icon $title${NC}"
+            echo "   → $section_name"
+            if [[ -n "$description" ]]; then
+                echo "   • $description"
+            fi
         fi
-    done < <(sqlite3 "$MENU_DB_FILE" "SELECT * FROM menu_search ORDER BY sort_order;")
+        echo ""
+    done < <(secure_sqlite_query "$MENU_DB_FILE" "
+        SELECT 
+            'item' as result_type,
+            mi.id as result_id,
+            mi.display_name as title,
+            mi.description,
+            mi.item_order as sort_order,
+            mi.icon,
+            ms.color_code,
+            mi.function_name,
+            mi.keywords
+        FROM menu_items mi
+        JOIN menu_sections ms ON mi.section_id = ms.id
+        WHERE mi.is_active = 1 AND ms.is_active = 1
+        AND (mi.display_name LIKE '%%%s%%' 
+             OR mi.description LIKE '%%%s%%' 
+             OR mi.keywords LIKE '%%%s%%')
+        
+        UNION ALL
+        
+        SELECT 
+            'section' as result_type,
+            ms.id as result_id,
+            ms.display_name as title,
+            ms.description,
+            ms.section_order as sort_order,
+            ms.icon,
+            ms.color_code,
+            '' as function_name,
+            '' as keywords
+        FROM menu_sections ms
+        WHERE ms.is_active = 1
+        AND (ms.display_name LIKE '%%%s%%' 
+             OR ms.description LIKE '%%%s%%')
+        
+        ORDER BY sort_order;
+    " "$search_lower" "$search_lower" "$search_lower" "$search_lower" "$search_lower")
     
     if [[ "$found" != "true" ]]; then
         echo -e "${YELLOW}No menu options found matching '$search_term'${NC}"
