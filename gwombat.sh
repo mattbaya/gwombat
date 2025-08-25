@@ -747,6 +747,63 @@ log_info() {
     fi
 }
 
+# GAM Command Logging and Execution Function
+execute_gam() {
+    local gam_command="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Display GAM commands if enabled (default: true)
+    if [[ "${SHOW_GAM_COMMANDS:-true}" == "true" ]]; then
+        echo -e "${YELLOW}🔧 GAM:${NC} $GAM $gam_command"
+    fi
+    
+    # Log GAM command to file
+    echo "[$timestamp] [GAM] $GAM $gam_command" >> "$LOG_FILE"
+    
+    # Execute the command and capture both stdout and stderr
+    local start_time=$(date +%s.%N)
+    local temp_output=$(mktemp)
+    local temp_error=$(mktemp)
+    
+    # Execute GAM command
+    $GAM "$@" > "$temp_output" 2> "$temp_error"
+    local exit_code=$?
+    
+    local end_time=$(date +%s.%N)
+    local duration=$(echo "$end_time - $start_time" | bc 2>/dev/null || echo "0")
+    
+    # Log execution results
+    echo "[$timestamp] [GAM-RESULT] Exit code: $exit_code, Duration: ${duration}s" >> "$LOG_FILE"
+    
+    # Handle output and errors
+    if [[ -s "$temp_output" ]]; then
+        cat "$temp_output"
+        echo "[$timestamp] [GAM-OUTPUT] $(wc -l < "$temp_output") lines of output" >> "$LOG_FILE"
+    fi
+    
+    if [[ -s "$temp_error" ]]; then
+        echo -e "${RED}GAM Error:${NC}" >&2
+        cat "$temp_error" >&2
+        echo "[$timestamp] [GAM-ERROR] $(cat "$temp_error")" >> "$LOG_FILE"
+    fi
+    
+    # Cleanup temp files
+    rm -f "$temp_output" "$temp_error"
+    
+    return $exit_code
+}
+
+# Simple GAM command display (for commands that don't need full logging)
+show_gam() {
+    # Check if GAM command display is enabled (default: true)
+    if [[ "${SHOW_GAM_COMMANDS:-true}" == "true" ]]; then
+        echo -e "${YELLOW}🔧 GAM:${NC} $GAM $*"
+    fi
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [GAM] $GAM $*" >> "$LOG_FILE"
+    $GAM "$@"
+}
+
 log_error() {
     local message="$1"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
@@ -3185,7 +3242,7 @@ sync_domain_to_database() {
     
     # Get all users from domain with key fields
     local temp_users=$(mktemp)
-    $GAM print users fields primaryemail,suspended,orgunitpath 2>/dev/null > "$temp_users"
+    execute_gam print users fields primaryemail,suspended,orgunitpath > "$temp_users"
     
     if [[ ! -s "$temp_users" ]]; then
         echo "  ❌ Failed to retrieve domain users"
@@ -3197,11 +3254,15 @@ sync_domain_to_database() {
     local processed=0
     local updated=0
     
-    tail -n +2 "$temp_users" | while IFS=',' read -r email suspended orgunit; do
+    # Use a different approach to avoid subshell variable scope issues
+    while IFS=',' read -r email suspended suspension_reason orgunit; do
         # Clean up fields (remove quotes if present)
         email=$(echo "$email" | tr -d '"')
         suspended=$(echo "$suspended" | tr -d '"')
         orgunit=$(echo "$orgunit" | tr -d '"')
+        
+        # Skip empty lines
+        [[ -z "$email" ]] && continue
         
         # Determine current stage based on OU and suspension status
         local stage="active"  # Default to active
@@ -3236,11 +3297,10 @@ sync_domain_to_database() {
             );
         " 2>/dev/null
         
-        ((processed++))
         if [[ $? -eq 0 ]]; then
-            ((updated++))
+            ((processed++))
         fi
-    done
+    done < <(tail -n +2 "$temp_users")
     
     rm -f "$temp_users"
     echo "  ✅ Synced $processed users to database"
@@ -3309,12 +3369,12 @@ show_quick_stats() {
             db_accounts="$total_users"
             
             # Get groups and shared drives counts (these don't change often, so direct GAM is OK)
-            total_groups=$($GAM print groups fields email 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+            total_groups=$(execute_gam print groups fields email | tail -n +2 | wc -l | tr -d ' ')
             if [[ -z "$total_groups" || "$total_groups" == "0" ]]; then
                 total_groups="?"
             fi
             
-            shared_drives=$($GAM print teamdrives fields id 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+            shared_drives=$(execute_gam print teamdrives fields id | tail -n +2 | wc -l | tr -d ' ')
             if [[ -z "$shared_drives" || "$shared_drives" == "0" ]]; then
                 shared_drives="0"
             fi

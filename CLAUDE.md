@@ -188,6 +188,26 @@ gam create admin <email> _SEED_ADMIN_ROLE customer
 - ✅ **Retry Logic**: Handles timing issues with admin privilege grants
 - ✅ **Clean Error Messages**: Clear feedback and recovery instructions
 
+### GAM Command Logging & Display (`gwombat.sh`)
+**Comprehensive GAM Transparency System**:
+- **Command Display**: All GAM commands shown as `🔧 GAM: gam print users fields email`
+- **Complete Logging**: Every GAM command logged to `local-config/logs/gwombat.log`
+- **Performance Tracking**: Execution timing and exit codes logged
+- **Error Capture**: GAM errors displayed in red and logged separately
+- **Configurable**: `SHOW_GAM_COMMANDS="true/false"` in `.env` to control display
+
+**GAM Logging Functions**:
+- ✅ **`execute_gam`**: Full logging with timing, error handling, output capture
+- ✅ **`show_gam`**: Simple command display and basic logging
+- ✅ **Default Enabled**: New installs show GAM commands by default
+- ✅ **Always Logged**: Commands logged to files regardless of display setting
+- ✅ **Audit Trail**: Complete GAM command history for debugging and compliance
+
+**Log Locations**:
+- **Main Log**: `local-config/logs/gwombat.log` - All operations and GAM commands
+- **Error Log**: `local-config/logs/gwombat-errors.log` - Errors only
+- **Setup Log**: `local-config/logs/setup-YYYY-MM-DD.log` - Setup wizard progress
+
 ### Testing Commands
 ```bash
 # Test SQLite menu system

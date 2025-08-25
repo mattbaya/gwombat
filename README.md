@@ -16,6 +16,7 @@ A comprehensive Google Workspace administration system with revolutionary SQLite
 - **🔐 Advanced Security** - Domain verification, audit trails, and secure deployment
 - **📊 Python Integration** - Compliance dashboards and API interfaces
 - **🏗️ Multi-Schema Database** - Specialized schemas for different functional domains
+- **🔧 GAM Command Transparency** - All GAM commands displayed and logged for complete visibility
 
 ## 🎯 Core Menu Categories
 
@@ -252,6 +253,7 @@ s → "security"  # Find compliance and security features
 - **📊 CSV Export System** - Comprehensive data export with automated integration
 - **🧪 Test Domain Management** - Safe production/test domain switching with backup/restore
 - **🗂️ Database Architecture Enhancement** - Proper shared-config/local-config separation
+- **🔧 GAM Command Transparency** - Complete GAM command logging and display system
 - **📚 Enhanced Documentation** - Complete feature documentation and user guides
 
 ### 🔄 Previous Enhancements (v4.0 - August 2025)
@@ -277,6 +279,14 @@ s → "security"  # Find compliance and security features
 - **Domain Synchronization** - GAM, GYB, rclone all point to same domain
 - **Configuration Management** - Centralized external tool setup
 - **Verification System** - Automated domain verification and tool status
+
+### GAM Command Transparency & Logging
+- **Complete Visibility** - All GAM commands displayed as `🔧 GAM: gam print users fields email`
+- **Comprehensive Logging** - Every GAM command logged to `local-config/logs/gwombat.log`
+- **Performance Tracking** - Command execution timing and exit codes logged
+- **Error Capture** - GAM errors displayed and logged with full context
+- **Configurable Display** - `SHOW_GAM_COMMANDS="true/false"` setting in configuration
+- **Audit Trail** - Complete command history for debugging and compliance
 
 ### Advanced Security
 - **Domain Security Verification** - Prevents operations on wrong domains
