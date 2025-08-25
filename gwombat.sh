@@ -8512,13 +8512,28 @@ list_all_accounts_menu() {
         read -p "Select filter option (1-6): " filter_choice
         echo ""
         
+        # Debug: Show what was entered (remove this later)
+        echo "DEBUG: You entered '$filter_choice'" >&2
+        
         case $filter_choice in
-            1) list_accounts_filtered "all" ;;
-            2) list_accounts_filtered "active" ;;
-            3) list_accounts_filtered "suspended" ;;
-            4) list_accounts_by_ou ;;
-            5) search_accounts ;;
-            6) return ;;
+            1) 
+                list_accounts_filtered "all"
+                ;;
+            2) 
+                list_accounts_filtered "active"
+                ;;
+            3) 
+                list_accounts_filtered "suspended"
+                ;;
+            4) 
+                list_accounts_by_ou
+                ;;
+            5) 
+                search_accounts
+                ;;
+            6) 
+                return
+                ;;
             *) 
                 echo -e "${RED}Invalid option. Please select 1-6.${NC}"
                 read -p "Press Enter to continue..."
