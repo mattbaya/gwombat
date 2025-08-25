@@ -8570,6 +8570,93 @@ list_accounts_filtered() {
     read -p "Press Enter to continue..."
 }
 
+# Function to list accounts by organizational unit
+list_accounts_by_ou() {
+    echo -e "${CYAN}=== List Accounts by OU ===${NC}"
+    echo ""
+    
+    # Get list of OUs from GAM
+    echo "Getting organizational units..."
+    local ou_list
+    if ! ou_list=$($GAM print orgunits 2>&1); then
+        echo -e "${RED}Error retrieving organizational units: $ou_list${NC}"
+        read -p "Press Enter to continue..."
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Available Organizational Units:${NC}"
+    echo "$ou_list" | grep -v "orgUnitPath" | head -20
+    echo ""
+    
+    read -p "Enter OU path (e.g., /Students, /Faculty): " ou_path
+    
+    if [[ -z "$ou_path" ]]; then
+        echo -e "${RED}OU path cannot be empty${NC}"
+        read -p "Press Enter to continue..."
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${CYAN}=== Accounts in OU: $ou_path ===${NC}"
+    
+    # Get accounts in the specified OU
+    if ! $GAM print users query "orgUnitPath='$ou_path'" fields name,primaryemail,suspended,orgunitpath 2>/dev/null; then
+        echo -e "${RED}Error retrieving accounts for OU: $ou_path${NC}"
+        echo "Note: OU path must be exact (case-sensitive)"
+    fi
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+# Function to search accounts by email or name
+search_accounts() {
+    echo -e "${CYAN}=== Search Accounts ===${NC}"
+    echo ""
+    
+    echo "Search options:"
+    echo "1. Search by email (partial match)"
+    echo "2. Search by name (partial match)"
+    echo "3. Search by exact email"
+    echo ""
+    
+    read -p "Select search type (1-3): " search_type
+    
+    case $search_type in
+        1)
+            read -p "Enter email pattern to search for: " email_pattern
+            if [[ -n "$email_pattern" ]]; then
+                echo ""
+                echo -e "${CYAN}=== Accounts matching email pattern: $email_pattern ===${NC}"
+                $GAM print users query "email:$email_pattern*" fields name,primaryemail,suspended,orgunitpath 2>/dev/null
+            fi
+            ;;
+        2)
+            read -p "Enter name pattern to search for: " name_pattern
+            if [[ -n "$name_pattern" ]]; then
+                echo ""
+                echo -e "${CYAN}=== Accounts matching name pattern: $name_pattern ===${NC}"
+                $GAM print users query "name:$name_pattern*" fields name,primaryemail,suspended,orgunitpath 2>/dev/null
+            fi
+            ;;
+        3)
+            read -p "Enter exact email address: " exact_email
+            if [[ -n "$exact_email" ]]; then
+                echo ""
+                echo -e "${CYAN}=== Account details for: $exact_email ===${NC}"
+                $GAM info user "$exact_email" 2>/dev/null
+            fi
+            ;;
+        *)
+            echo -e "${RED}Invalid search type${NC}"
+            ;;
+    esac
+    
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
 # Function to calculate account storage sizes
 calculate_account_sizes_menu() {
     clear
