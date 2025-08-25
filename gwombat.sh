@@ -15595,8 +15595,8 @@ user_group_management_menu() {
             fi
         fi
         
-        # Check GAM functionality
-        if [[ -x "$GAM" ]] && $GAM info domain >/dev/null 2>&1; then
+        # Check GAM functionality (with timeout to prevent hanging)
+        if [[ -x "$GAM" ]] && timeout 3 $GAM info domain >/dev/null 2>&1; then
             gam_status="✅"
         fi
         
@@ -17810,8 +17810,8 @@ file_operations_menu() {
             permissions_status="✅"
         fi
         
-        # Check GAM for file operations
-        if [[ -x "$GAM" ]] && $GAM info domain >/dev/null 2>&1; then
+        # Check GAM for file operations (with timeout to prevent hanging)
+        if [[ -x "$GAM" ]] && timeout 3 $GAM info domain >/dev/null 2>&1; then
             gam_status="✅"
         fi
         
@@ -17838,7 +17838,7 @@ file_operations_menu() {
             SELECT mi.item_order, mi.icon, mi.display_name, mi.description, mi.function_name
             FROM menu_items mi
             JOIN menu_sections ms ON mi.section_id = ms.id
-            WHERE ms.name = 'file_operations' AND mi.is_active = 1
+            WHERE ms.name = 'file_drive_operations' AND mi.is_active = 1
             ORDER BY mi.item_order;
         ")
         
@@ -21784,8 +21784,8 @@ system_diagnostics_menu() {
             db_status="✅"
         fi
         
-        # Check GAM
-        if [[ -x "$GAM" ]] && $GAM info domain >/dev/null 2>&1; then
+        # Check GAM (with timeout to prevent hanging)
+        if [[ -x "$GAM" ]] && timeout 3 $GAM info domain >/dev/null 2>&1; then
             gam_status="✅"
         fi
         
@@ -25209,8 +25209,8 @@ shared_drive_menu() {
         local domain_status="❌"
         local permissions_status="❌"
         
-        # Check GAM availability
-        if [[ -x "$GAM" ]] && $GAM info domain >/dev/null 2>&1; then
+        # Check GAM availability (with timeout to prevent hanging)
+        if [[ -x "$GAM" ]] && timeout 3 $GAM info domain >/dev/null 2>&1; then
             gam_status="✅"
         fi
         
