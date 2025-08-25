@@ -2129,12 +2129,12 @@ dashboard_menu() {
         # Load menu items from database with category organization
         echo -e "${GREEN}=== DASHBOARD OPTIONS ===${NC}"
         
-        # Get menu items for dashboard_menu section
+        # Get menu items for dashboard_statistics section
         local menu_items
         menu_items=$(sqlite3 "$MENU_DB_PATH" "
             SELECT item_order, display_name, description, name
             FROM menu_items 
-            WHERE section_id = (SELECT id FROM menu_sections WHERE name = 'dashboard_menu')
+            WHERE section_id = (SELECT id FROM menu_sections WHERE name = 'dashboard_statistics')
             AND is_active = 1
             ORDER BY item_order;
         " 2>/dev/null)
@@ -2187,9 +2187,9 @@ dashboard_menu() {
                 # Get function name from database for numeric choice
                 local function_name
                 function_name=$(sqlite3 "$MENU_DB_PATH" "
-                    SELECT name
+                    SELECT function_name
                     FROM menu_items 
-                    WHERE section_id = (SELECT id FROM menu_sections WHERE name = 'dashboard_menu')
+                    WHERE section_id = (SELECT id FROM menu_sections WHERE name = 'dashboard_statistics')
                     AND item_order = '$dashboard_choice'
                     AND is_active = 1;
                 " 2>/dev/null)
