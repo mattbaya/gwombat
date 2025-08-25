@@ -2281,6 +2281,10 @@ dashboard_function_dispatcher() {
             # Call the main statistics menu function
             statistics_menu
             ;;
+        "system_overview_menu")
+            # Call the system overview menu function
+            system_overview_menu
+            ;;
         *)
             # Generic function implementation for other dashboard options
             local display_name
@@ -24754,7 +24758,12 @@ search_menu_options() {
         echo ""
         echo -e "${GRAY}Tip: Use short keywords for better results${NC}"
         echo ""
-        read -p "Press Enter to search again (or type 'back' to return)..."
+        echo ""
+        read -p "Press Enter to search again (or type 'exit' to return to menu): " next_action
+        
+        if [[ "$next_action" == "exit" || "$next_action" == "back" || "$next_action" == "b" ]]; then
+            break
+        fi
     done
 }
 # Main script execution
@@ -24950,8 +24959,17 @@ main() {
             8)
                 scuba_compliance_menu
                 ;;
-            c)
+            9)
                 # Configuration Management
+                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                    show_config_menu
+                else
+                    configuration_menu
+                fi
+                ;;
+            c)
+                # Configuration Management (legacy shortcut)
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
                     source "$SHARED_UTILITIES_PATH/config_manager.sh"
                     show_config_menu
