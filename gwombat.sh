@@ -8512,9 +8512,6 @@ list_all_accounts_menu() {
         read -p "Select filter option (1-6): " filter_choice
         echo ""
         
-        # Debug: Show what was entered (remove this later)
-        echo "DEBUG: You entered '$filter_choice'" >&2
-        
         case $filter_choice in
             1) 
                 list_accounts_filtered "all"
@@ -8568,15 +8565,22 @@ list_accounts_filtered() {
         case $filter_type in
             "all")
                 echo "Getting fresh account list from GAM7..."
-                $GAM print users allfields name,primaryemail,suspended,orgunitpath,lastlogintime
+                if ! $GAM print users fields name,primaryemail,suspended,orgunitpath,lastlogintime 2>/dev/null; then
+                    echo -e "${RED}Error: GAM command failed. Please check GAM configuration.${NC}"
+                    echo "You may need to run the setup wizard to configure GAM."
+                fi
                 ;;
             "active")
                 echo "Getting active accounts from GAM7..."
-                $GAM print users query "isSuspended=false" allfields name,primaryemail,suspended,orgunitpath,lastlogintime
+                if ! $GAM print users query "isSuspended=false" fields name,primaryemail,suspended,orgunitpath,lastlogintime 2>/dev/null; then
+                    echo -e "${RED}Error: GAM command failed. Please check GAM configuration.${NC}"
+                fi
                 ;;
             "suspended")
                 echo "Getting suspended accounts from GAM7..."
-                $GAM print users query "isSuspended=true" allfields name,primaryemail,suspended,orgunitpath,lastlogintime
+                if ! $GAM print users query "isSuspended=true" fields name,primaryemail,suspended,orgunitpath,lastlogintime 2>/dev/null; then
+                    echo -e "${RED}Error: GAM command failed. Please check GAM configuration.${NC}"
+                fi
                 ;;
         esac
     fi
