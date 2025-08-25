@@ -187,6 +187,186 @@ get_user_input() {
     echo "$user_input"
 }
 
+# Configure GWOMBAT service account after GAM is set up
+configure_gwombat_service_account() {
+    local gam_path="$1"
+    
+    echo -e "${CYAN}🤖 GWOMBAT Service Account Setup${NC}"
+    echo ""
+    echo "Now that GAM is configured, let's set up the GWOMBAT service account."
+    echo "Service account: ${SETUP_ADMIN_EMAIL}"
+    echo ""
+    
+    # Check if the service account exists
+    echo "Checking if service account exists..."
+    if $gam_path info user "$SETUP_ADMIN_EMAIL" &>/dev/null; then
+        echo -e "${GREEN}✓ Service account exists: $SETUP_ADMIN_EMAIL${NC}"
+        
+        # Check if it has admin privileges
+        echo "Verifying admin privileges..."
+        local is_admin=$($gam_path print users query "email:$SETUP_ADMIN_EMAIL" isadmin 2>/dev/null | grep -i "true" || echo "")
+        
+        if [[ -n "$is_admin" ]]; then
+            echo -e "${GREEN}✓ Service account has admin privileges${NC}"
+        else
+            echo -e "${YELLOW}⚠ Service account exists but lacks admin privileges${NC}"
+            echo ""
+            local grant_admin
+            grant_admin=$(get_user_input "Grant admin privileges to $SETUP_ADMIN_EMAIL? (y/n)" "y" "false" "yn")
+            
+            if [[ "$grant_admin" =~ ^[Yy] ]]; then
+                echo "Granting super admin privileges..."
+                if $gam_path create admin "$SETUP_ADMIN_EMAIL" _SEED_ADMIN_ROLE customer; then
+                    echo -e "${GREEN}✓ Super admin privileges granted${NC}"
+                    log_setup "Granted super admin privileges to service account $SETUP_ADMIN_EMAIL"
+                else
+                    echo -e "${RED}✗ Failed to grant super admin privileges${NC}"
+                    echo "You can grant them manually with:"
+                    echo "  $gam_path create admin $SETUP_ADMIN_EMAIL _SEED_ADMIN_ROLE customer"
+                    log_setup "Failed to grant super admin privileges to $SETUP_ADMIN_EMAIL" "ERROR"
+                fi
+            fi
+        fi
+    else
+        echo -e "${YELLOW}Service account does not exist${NC}"
+        echo ""
+        local create_account
+        create_account=$(get_user_input "Create service account $SETUP_ADMIN_EMAIL? (y/n)" "y" "false" "yn")
+        
+        if [[ "$create_account" =~ ^[Yy] ]]; then
+            echo ""
+            echo "Creating service account..."
+            
+            # Generate a secure random password
+            local service_password=$(openssl rand -base64 20 | tr -d "=+/" | cut -c1-16)
+            
+            # Extract username from email
+            local username="${SETUP_ADMIN_EMAIL%%@*}"
+            
+            # Create the user (step 1)
+            if $gam_path create user "$SETUP_ADMIN_EMAIL" firstname "GWOMBAT" lastname "Service" password "$service_password" changepassword false; then
+                echo -e "${GREEN}✓ Service account user created${NC}"
+                
+                # Wait a moment for Google to propagate the user
+                echo "Waiting for user propagation..."
+                sleep 3
+                
+                # Make them a super admin (step 2)
+                echo "Granting super admin privileges..."
+                if $gam_path create admin "$SETUP_ADMIN_EMAIL" _SEED_ADMIN_ROLE customer; then
+                    echo -e "${GREEN}✓ Service account created successfully with admin privileges${NC}"
+                    echo ""
+                    echo -e "${YELLOW}IMPORTANT: Save this service account password securely:${NC}"
+                    echo -e "${CYAN}Email: $SETUP_ADMIN_EMAIL${NC}"
+                    echo -e "${CYAN}Password: $service_password${NC}"
+                    echo ""
+                    echo "This password is for emergency access only. Normal operations use OAuth."
+                    echo ""
+                    read -p "Press Enter when you have saved this information..."
+                    
+                    log_setup "Created service account $SETUP_ADMIN_EMAIL with super admin privileges"
+                else
+                    echo -e "${RED}✗ CRITICAL: Failed to grant admin privileges${NC}"
+                    echo ""
+                    echo "The service account was created but cannot function without admin privileges."
+                    echo ""
+                    echo "Options:"
+                    echo "1. Retry the admin grant command (recommended)"
+                    echo "2. Open another terminal window and run the command manually"
+                    echo "3. Delete the account and start over"
+                    echo ""
+                    
+                    while true; do
+                        local retry_choice
+                        retry_choice=$(get_user_input "Choose option (1-3)" "1" "false" "1-3")
+                        
+                        case "$retry_choice" in
+                            1)
+                                echo ""
+                                echo "Retrying admin privilege grant..."
+                                sleep 2
+                                if $gam_path create admin "$SETUP_ADMIN_EMAIL" _SEED_ADMIN_ROLE customer; then
+                                    echo -e "${GREEN}✓ Service account created successfully with admin privileges${NC}"
+                                    echo ""
+                                    echo -e "${YELLOW}IMPORTANT: Save this service account password securely:${NC}"
+                                    echo -e "${CYAN}Email: $SETUP_ADMIN_EMAIL${NC}"
+                                    echo -e "${CYAN}Password: $service_password${NC}"
+                                    echo ""
+                                    echo "This password is for emergency access only. Normal operations use OAuth."
+                                    echo ""
+                                    read -p "Press Enter when you have saved this information..."
+                                    
+                                    log_setup "Created service account $SETUP_ADMIN_EMAIL with super admin privileges (after retry)"
+                                    break
+                                else
+                                    echo -e "${RED}✗ Retry failed${NC}"
+                                    echo "Try option 2 or 3"
+                                    continue
+                                fi
+                                ;;
+                            2)
+                                echo ""
+                                echo -e "${CYAN}Open another terminal window and run this command:${NC}"
+                                echo ""
+                                echo "  $gam_path create admin $SETUP_ADMIN_EMAIL _SEED_ADMIN_ROLE customer"
+                                echo ""
+                                echo "Press Enter here when the command succeeds in the other window..."
+                                read -p ""
+                                
+                                # Verify it worked
+                                echo "Verifying admin privileges..."
+                                if $gam_path info user "$SETUP_ADMIN_EMAIL" | grep -q "_SEED_ADMIN_ROLE\|Admin"; then
+                                    echo -e "${GREEN}✓ Admin privileges verified!${NC}"
+                                    echo ""
+                                    echo -e "${YELLOW}IMPORTANT: Save this service account password securely:${NC}"
+                                    echo -e "${CYAN}Email: $SETUP_ADMIN_EMAIL${NC}"
+                                    echo -e "${CYAN}Password: $service_password${NC}"
+                                    echo ""
+                                    echo "This password is for emergency access only. Normal operations use OAuth."
+                                    echo ""
+                                    read -p "Press Enter when you have saved this information..."
+                                    
+                                    log_setup "Created service account $SETUP_ADMIN_EMAIL with super admin privileges (manual)"
+                                    break
+                                else
+                                    echo -e "${RED}✗ Admin privileges not detected${NC}"
+                                    echo "Please verify the command succeeded and try again."
+                                    continue
+                                fi
+                                ;;
+                            3)
+                                echo ""
+                                echo "Deleting incomplete service account..."
+                                if $gam_path delete user "$SETUP_ADMIN_EMAIL"; then
+                                    echo -e "${YELLOW}Account deleted. Service account setup cancelled.${NC}"
+                                else
+                                    echo -e "${YELLOW}Delete may have failed. Check manually: $SETUP_ADMIN_EMAIL${NC}"
+                                fi
+                                log_setup "Service account creation cancelled - account deleted" "WARN"
+                                return 1
+                                ;;
+                        esac
+                    done
+                fi
+            else
+                echo -e "${RED}✗ Failed to create service account${NC}"
+                echo "You can create it manually later with:"
+                echo "  $gam_path create user $SETUP_ADMIN_EMAIL firstname GWOMBAT lastname Service password [password] changepassword false"
+                echo "  $gam_path create admin $SETUP_ADMIN_EMAIL _SEED_ADMIN_ROLE customer"
+                log_setup "Failed to create service account $SETUP_ADMIN_EMAIL" "ERROR"
+            fi
+        else
+            echo -e "${YELLOW}Skipping service account creation${NC}"
+            echo "You can create it later with:"
+            echo "  $gam_path create user $SETUP_ADMIN_EMAIL firstname GWOMBAT lastname Service password [password] changepassword false"
+            echo "  $gam_path create admin $SETUP_ADMIN_EMAIL _SEED_ADMIN_ROLE customer"
+        fi
+    fi
+    
+    echo ""
+    echo -e "${GREEN}✓ Service account configuration complete${NC}"
+}
+
 # Configure basic domain settings
 configure_domain_settings() {
     echo -e "${CYAN}📋 Domain and Organization Configuration${NC}"
@@ -198,15 +378,20 @@ configure_domain_settings() {
     local domain
     domain=$(get_user_input "Enter your Google Workspace domain" "" "true" "domain")
     
-    # Admin email
-    local admin_email
-    admin_email=$(get_user_input "Enter your GWOMBAT admin email" "gwombat@$domain" "true" "email")
-    
-    # Actual admin user
+    # Personal admin account FIRST
     local admin_user
     echo ""
-    echo -e "${YELLOW}Enter your personal admin account (the account you use for administration):${NC}"
-    admin_user=$(get_user_input "Your admin user email" "" "true" "email")
+    echo -e "${YELLOW}Enter YOUR Google Workspace admin account:${NC}"
+    echo -e "${YELLOW}(This is the account you use to log into Google Admin Console)${NC}"
+    admin_user=$(get_user_input "Your personal admin email" "admin@$domain" "true" "email")
+    
+    # GWOMBAT service account (we'll configure this later after GAM is set up)
+    local admin_email
+    echo ""
+    echo -e "${CYAN}GWOMBAT Service Account Configuration:${NC}"
+    echo -e "${YELLOW}Note: We'll create or verify this service account after GAM is configured.${NC}"
+    echo "For now, enter the desired service account email for GWOMBAT operations."
+    admin_email=$(get_user_input "GWOMBAT service account email" "gwombat@$domain" "true" "email")
     
     # Store in temporary variables
     export SETUP_DOMAIN="$domain"
@@ -222,33 +407,205 @@ configure_organizational_units() {
     echo ""
     echo -e "${CYAN}🏢 Organizational Unit Configuration${NC}"
     echo ""
-    echo "Configure the OUs used for account lifecycle management."
+    
+    # Check if GAM is configured
+    if [[ -z "$SETUP_GAM_PATH" ]] || [[ ! -x "$SETUP_GAM_PATH" ]]; then
+        echo -e "${YELLOW}⚠ GAM not configured yet. Using default OU paths.${NC}"
+        export SETUP_SUSPENDED_OU="/Suspended Users"
+        export SETUP_PENDING_DELETION_OU="/Suspended Users/Pending Deletion"
+        export SETUP_TEMPORARY_HOLD_OU="/Suspended Users/Temporary Hold"
+        export SETUP_EXIT_ROW_OU="/Suspended Users/Exit Row"
+        return
+    fi
+    
+    # Query existing OUs
+    echo "Checking existing organizational units in your domain..."
     echo ""
     
-    # Suspended OU
-    local suspended_ou
-    suspended_ou=$(get_user_input "Suspended Users OU path" "/Suspended Users" "true")
+    local existing_ous_file="/tmp/gwombat_existing_ous_$$.txt"
+    if $SETUP_GAM_PATH print orgs 2>/dev/null > "$existing_ous_file"; then
+        # Get list of existing OUs
+        local existing_ous=$(tail -n +2 "$existing_ous_file" | cut -d',' -f1 | sort)
+        
+        # Check for our recommended OUs
+        local has_suspended=$(echo "$existing_ous" | grep -E "^/?Suspended Users$" || echo "")
+        local has_pending=$(echo "$existing_ous" | grep -i "pending.*deletion\|deletion.*pending" || echo "")
+        local has_temp=$(echo "$existing_ous" | grep -i "temporary.*hold\|temp.*hold" || echo "")
+        local has_exit=$(echo "$existing_ous" | grep -i "exit.*row" || echo "")
+        
+        # Display existing OUs
+        echo -e "${CYAN}Existing OUs in your domain:${NC}"
+        echo "$existing_ous" | head -20
+        if [[ $(echo "$existing_ous" | wc -l) -gt 20 ]]; then
+            echo "... and $(( $(echo "$existing_ous" | wc -l) - 20 )) more"
+        fi
+        echo ""
+        
+        # Check if recommended structure exists
+        if [[ -n "$has_suspended" ]]; then
+            echo -e "${GREEN}✓ Found Suspended Users OU${NC}"
+            
+            # Check for sub-OUs under Suspended Users
+            local suspended_sub_ous=$(echo "$existing_ous" | grep "^/Suspended Users/")
+            if [[ -n "$suspended_sub_ous" ]]; then
+                echo -e "${CYAN}Found sub-OUs under Suspended Users:${NC}"
+                echo "$suspended_sub_ous" | sed 's/^/  • /'
+                echo ""
+            fi
+        fi
+        
+        rm -f "$existing_ous_file"
+        
+        # Determine configuration approach
+        echo -e "${YELLOW}GWOMBAT recommends this OU structure for account lifecycle management:${NC}"
+        echo "• /Suspended Users - Main container for all suspended accounts"
+        echo "• /Suspended Users/Pending Deletion - Accounts scheduled for deletion"
+        echo "• /Suspended Users/Temporary Hold - Short-term suspensions"
+        echo "• /Suspended Users/Exit Row - Final stage before deletion"
+        echo ""
+        
+        if [[ -n "$has_suspended" ]] || [[ -n "$has_pending" ]] || [[ -n "$has_temp" ]] || [[ -n "$has_exit" ]]; then
+            # Some relevant OUs exist
+            echo -e "${YELLOW}It looks like you have some suspension-related OUs already.${NC}"
+            local use_existing
+            use_existing=$(get_user_input "Would you like to use your existing OUs? (y/n)" "y" "false" "yn")
+            
+            if [[ "$use_existing" =~ ^[Yy] ]]; then
+                echo ""
+                echo "Please specify which existing OUs to use:"
+                
+                # Suspended OU
+                local suspended_ou
+                if [[ -n "$has_suspended" ]]; then
+                    suspended_ou=$(get_user_input "Suspended Users OU" "$(echo "$has_suspended" | head -1)" "true")
+                else
+                    suspended_ou=$(get_user_input "Suspended Users OU" "/Suspended Users" "true")
+                fi
+                
+                # Other OUs - suggest based on what exists
+                local pending_deletion_ou
+                if [[ -n "$has_pending" ]]; then
+                    pending_deletion_ou=$(get_user_input "Pending Deletion OU" "$(echo "$has_pending" | head -1)" "true")
+                else
+                    pending_deletion_ou=$(get_user_input "Pending Deletion OU" "$suspended_ou/Pending Deletion" "true")
+                fi
+                
+                local temp_hold_ou
+                if [[ -n "$has_temp" ]]; then
+                    temp_hold_ou=$(get_user_input "Temporary Hold OU" "$(echo "$has_temp" | head -1)" "true")
+                else
+                    temp_hold_ou=$(get_user_input "Temporary Hold OU" "$suspended_ou/Temporary Hold" "true")
+                fi
+                
+                local exit_row_ou
+                if [[ -n "$has_exit" ]]; then
+                    exit_row_ou=$(get_user_input "Exit Row OU" "$(echo "$has_exit" | head -1)" "true")
+                else
+                    exit_row_ou=$(get_user_input "Exit Row OU" "$suspended_ou/Exit Row" "true")
+                fi
+            else
+                # Create recommended structure
+                configure_create_recommended_ous
+                return
+            fi
+        else
+            # No relevant OUs exist
+            echo -e "${YELLOW}No suspension-related OUs found in your domain.${NC}"
+            local create_ous
+            create_ous=$(get_user_input "Would you like to create the recommended OU structure? (y/n)" "y" "false" "yn")
+            
+            if [[ "$create_ous" =~ ^[Yy] ]]; then
+                configure_create_recommended_ous
+                return
+            else
+                echo ""
+                echo "Please specify custom OU paths to use:"
+                
+                local suspended_ou=$(get_user_input "Suspended Users OU" "/Suspended Users" "true")
+                local pending_deletion_ou=$(get_user_input "Pending Deletion OU" "/Suspended Users/Pending Deletion" "true")
+                local temp_hold_ou=$(get_user_input "Temporary Hold OU" "/Suspended Users/Temporary Hold" "true")
+                local exit_row_ou=$(get_user_input "Exit Row OU" "/Suspended Users/Exit Row" "true")
+            fi
+        fi
+    else
+        echo -e "${YELLOW}⚠ Could not query existing OUs. Using manual configuration.${NC}"
+        echo ""
+        
+        local use_defaults
+        use_defaults=$(get_user_input "Use recommended OU structure? (y/n)" "y" "false" "yn")
+        
+        if [[ "$use_defaults" =~ ^[Yy] ]]; then
+            configure_create_recommended_ous
+            return
+        else
+            echo ""
+            echo "Please specify custom OU paths:"
+            local suspended_ou=$(get_user_input "Suspended Users OU" "/Suspended Users" "true")
+            local pending_deletion_ou=$(get_user_input "Pending Deletion OU" "/Suspended Users/Pending Deletion" "true")
+            local temp_hold_ou=$(get_user_input "Temporary Hold OU" "/Suspended Users/Temporary Hold" "true")
+            local exit_row_ou=$(get_user_input "Exit Row OU" "/Suspended Users/Exit Row" "true")
+        fi
+    fi
     
-    # Pending Deletion OU
-    local pending_deletion_ou
-    pending_deletion_ou=$(get_user_input "Pending Deletion OU path" "/Suspended Users/Pending Deletion" "true")
-    
-    # Temporary Hold OU
-    local temp_hold_ou
-    temp_hold_ou=$(get_user_input "Temporary Hold OU path" "/Suspended Users/Temporary Hold" "true")
-    
-    # Exit Row OU
-    local exit_row_ou
-    exit_row_ou=$(get_user_input "Exit Row OU path" "/Suspended Users/Exit Row" "true")
-    
-    # Store in temporary variables
+    # Store configured values
     export SETUP_SUSPENDED_OU="$suspended_ou"
     export SETUP_PENDING_DELETION_OU="$pending_deletion_ou"
     export SETUP_TEMPORARY_HOLD_OU="$temp_hold_ou"
     export SETUP_EXIT_ROW_OU="$exit_row_ou"
     
+    echo ""
+    echo -e "${CYAN}Configured OU paths:${NC}"
+    echo "• Suspended Users: $suspended_ou"
+    echo "• Pending Deletion: $pending_deletion_ou"
+    echo "• Temporary Hold: $temp_hold_ou"
+    echo "• Exit Row: $exit_row_ou"
+    
     echo -e "${GREEN}✓ Organizational units configured${NC}"
     log_setup "OUs configured: $suspended_ou, $pending_deletion_ou, $temp_hold_ou, $exit_row_ou"
+}
+
+# Helper function to create recommended OUs
+configure_create_recommended_ous() {
+    local suspended_ou="/Suspended Users"
+    local pending_deletion_ou="/Suspended Users/Pending Deletion"
+    local temp_hold_ou="/Suspended Users/Temporary Hold"
+    local exit_row_ou="/Suspended Users/Exit Row"
+    
+    echo ""
+    echo "Creating recommended OU structure..."
+    
+    # Create main Suspended Users OU first
+    echo -n "Creating $suspended_ou... "
+    if $SETUP_GAM_PATH create org "$suspended_ou" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${YELLOW}already exists or failed${NC}"
+    fi
+    
+    # Create sub-OUs
+    for ou in "$pending_deletion_ou" "$temp_hold_ou" "$exit_row_ou"; do
+        echo -n "Creating $ou... "
+        if $SETUP_GAM_PATH create org "$ou" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC}"
+        else
+            echo -e "${YELLOW}already exists or failed${NC}"
+        fi
+    done
+    
+    # Store values
+    export SETUP_SUSPENDED_OU="$suspended_ou"
+    export SETUP_PENDING_DELETION_OU="$pending_deletion_ou"
+    export SETUP_TEMPORARY_HOLD_OU="$temp_hold_ou"
+    export SETUP_EXIT_ROW_OU="$exit_row_ou"
+    
+    echo ""
+    echo -e "${GREEN}✓ OU structure created${NC}"
+    echo ""
+    echo -e "${CYAN}Created OU paths:${NC}"
+    echo "• Suspended Users: $suspended_ou"
+    echo "• Pending Deletion: $pending_deletion_ou"
+    echo "• Temporary Hold: $temp_hold_ou"
+    echo "• Exit Row: $exit_row_ou"
 }
 
 # Check and configure GAM
@@ -259,11 +616,43 @@ configure_gam() {
     
     # Check if GAM is installed
     local gam_path=""
+    
+    # First check if gam is in PATH
     if command -v gam >/dev/null 2>&1; then
-        gam_path=$(which gam)
+        # Handle aliases by resolving the actual path
+        local which_output=$(which gam 2>/dev/null)
+        if [[ "$which_output" =~ "aliased to" ]]; then
+            # Extract path from alias output
+            gam_path=$(echo "$which_output" | sed 's/.*aliased to //')
+        else
+            gam_path="$which_output"
+        fi
         echo -e "${GREEN}✓ GAM found at: $gam_path${NC}"
     else
-        echo -e "${YELLOW}GAM not found in PATH${NC}"
+        # Check common installation locations
+        local common_paths=(
+            "$HOME/bin/gamadv-xtd3/gam"
+            "$HOME/bin/gam/gam"
+            "$HOME/gamadv-xtd3/gam"
+            "/usr/local/bin/gam"
+            "/usr/bin/gam"
+            "/opt/gam/gam"
+        )
+        
+        for path in "${common_paths[@]}"; do
+            if [[ -x "$path" ]]; then
+                gam_path="$path"
+                echo -e "${GREEN}✓ GAM found at: $gam_path${NC}"
+                break
+            fi
+        done
+        
+        if [[ -z "$gam_path" ]]; then
+            echo -e "${YELLOW}GAM not found in PATH or common locations${NC}"
+        fi
+    fi
+    
+    if [[ -z "$gam_path" ]]; then
         echo ""
         echo -e "${BLUE}GAM Installation Guide:${NC}"
         echo "1. Download GAM from: https://github.com/GAM-team/GAM"
@@ -312,20 +701,24 @@ configure_gam() {
             local domain_info=$($gam_path info domain 2>/dev/null | grep "Primary Domain" | awk '{print $3}' || echo "unknown")
             echo -e "${GREEN}  Primary Domain: $domain_info${NC}"
             log_setup "GAM configured: $gam_version for domain $domain_info"
+            
+            # Since GAM is already configured, offer to set up service account
+            echo ""
+            configure_gwombat_service_account "$gam_path"
         else
             echo -e "${YELLOW}GAM needs to be configured with your Google Workspace domain${NC}"
             echo ""
             echo -e "${BLUE}GAM Configuration Steps:${NC}"
             echo ""
-            echo "1. ${CYAN}Create OAuth credentials:${NC}"
+            echo -e "1. ${CYAN}Create OAuth credentials:${NC}"
             echo "   $gam_path oauth create"
             echo ""
-            echo "2. ${CYAN}Authorize GAM:${NC}"
+            echo -e "2. ${CYAN}Authorize GAM:${NC}"
             echo "   - This will open a browser window"
             echo "   - Log in with your Google Workspace admin account"
             echo "   - Grant the requested permissions"
             echo ""
-            echo "3. ${CYAN}Test configuration:${NC}"
+            echo -e "3. ${CYAN}Test configuration:${NC}"
             echo "   $gam_path info domain"
             echo ""
             
@@ -334,11 +727,27 @@ configure_gam() {
             
             if [[ "$configure_now" =~ ^[Yy] ]]; then
                 echo ""
-                echo -e "${CYAN}Running GAM OAuth setup...${NC}"
-                echo "Follow the instructions in your browser..."
+                echo -e "${CYAN}Setting up GAM project and OAuth...${NC}"
                 echo ""
                 
-                if $gam_path oauth create; then
+                # Step 1: Create or use Google Cloud project
+                echo -e "${CYAN}Step 1: Creating Google Cloud project...${NC}"
+                echo "This will open a browser window to create/select a Google Cloud project."
+                echo ""
+                read -p "Press Enter to continue..."
+                
+                if $gam_path create project; then
+                    echo -e "${GREEN}✓ Google Cloud project configured${NC}"
+                    echo ""
+                    
+                    # Step 2: Create OAuth credentials
+                    echo -e "${CYAN}Step 2: Creating OAuth credentials...${NC}"
+                    echo "This will open another browser window for OAuth authorization."
+                    echo "Log in with your Google Workspace admin account and grant permissions."
+                    echo ""
+                    read -p "Press Enter to continue..."
+                    
+                    if $gam_path oauth create; then
                     echo ""
                     echo -e "${CYAN}Testing GAM configuration...${NC}"
                     if $gam_path info domain 2>/dev/null | grep -q "Customer ID"; then
@@ -346,6 +755,10 @@ configure_gam() {
                         local domain_info=$($gam_path info domain 2>/dev/null | grep "Primary Domain" | awk '{print $3}' || echo "configured")
                         echo -e "${GREEN}  Primary Domain: $domain_info${NC}"
                         log_setup "GAM configured successfully for domain $domain_info"
+                        
+                        # Now that GAM is configured, handle the service account
+                        echo ""
+                        configure_gwombat_service_account "$gam_path"
                     else
                         echo -e "${YELLOW}⚠ GAM configuration may need additional setup${NC}"
                         echo "You can complete this later by running:"
@@ -353,10 +766,20 @@ configure_gam() {
                         echo "  $gam_path info domain"
                         log_setup "GAM OAuth created but needs verification" "WARN"
                     fi
+                    else
+                        echo -e "${YELLOW}⚠ GAM OAuth setup incomplete${NC}"
+                        echo "You can complete this later by running: $gam_path oauth create"
+                        log_setup "GAM OAuth setup failed" "WARN"
+                    fi
                 else
-                    echo -e "${YELLOW}⚠ GAM OAuth setup incomplete${NC}"
-                    echo "You can complete this later by running: $gam_path oauth create"
-                    log_setup "GAM OAuth setup failed" "WARN"
+                    echo -e "${RED}✗ Google Cloud project setup failed${NC}"
+                    echo ""
+                    echo "Project creation failed. You can complete this manually by running:"
+                    echo "1. $gam_path create project"
+                    echo "2. $gam_path oauth create"
+                    echo "3. $gam_path info domain"
+                    echo ""
+                    log_setup "GAM project creation failed" "ERROR"
                 fi
             else
                 echo -e "${YELLOW}⚠ Skipping GAM configuration${NC}"
@@ -739,10 +1162,23 @@ configure_python_environment() {
             local packages_verified=0
             local packages_failed=()
             
-            # Test key imports
+            # Test key imports (use appropriate Python based on venv usage)
+            local python_cmd="python3"
+            local verification_env=""
+            
+            if [[ "$SETUP_PYTHON_USE_VENV" == "true" && -n "$SETUP_PYTHON_VENV_PATH" ]]; then
+                echo -e "${CYAN}  Verifying packages in virtual environment...${NC}"
+                # Use venv python directly instead of trying to activate in subshell
+                python_cmd="$SETUP_PYTHON_VENV_PATH/bin/python"
+                verification_env="venv"
+            else
+                echo -e "${CYAN}  Verifying packages in system Python...${NC}"
+                verification_env="system"
+            fi
+            
             local key_packages=("pandas" "numpy" "matplotlib" "jinja2" "requests" "cryptography")
             for package in "${key_packages[@]}"; do
-                if python3 -c "import $package" 2>/dev/null; then
+                if "$python_cmd" -c "import $package" 2>/dev/null; then
                     echo -e "${GREEN}  ✓ $package${NC}"
                     ((packages_verified++))
                 else
@@ -1665,6 +2101,31 @@ perform_initial_scans() {
         return 0
     fi
     
+    # Verify GAM is properly configured before running scans
+    if [[ -n "$SETUP_GAM_PATH" && -x "$SETUP_GAM_PATH" ]]; then
+        echo -e "${CYAN}Verifying GAM configuration...${NC}"
+        if ! $SETUP_GAM_PATH info domain >/dev/null 2>&1; then
+            echo ""
+            echo -e "${RED}✗ GAM is not properly configured!${NC}"
+            echo -e "${YELLOW}GAM OAuth authentication must be completed before running scans.${NC}"
+            echo ""
+            echo "To complete GAM setup, run:"
+            echo "  ${CYAN}$SETUP_GAM_PATH oauth create${NC}"
+            echo ""
+            echo "Then verify with:"
+            echo "  ${CYAN}$SETUP_GAM_PATH info domain${NC}"
+            echo ""
+            echo -e "${YELLOW}Skipping initial scans due to incomplete GAM configuration.${NC}"
+            log_setup "Skipped initial scans - GAM not configured" "WARN"
+            return 1
+        fi
+        echo -e "${GREEN}✓ GAM configuration verified${NC}"
+    else
+        echo -e "${RED}✗ GAM not found or not executable${NC}"
+        echo -e "${YELLOW}Skipping initial scans - GAM required${NC}"
+        return 1
+    fi
+    
     # Create scan results directory
     local scan_date=$(date +%Y%m%d-%H%M%S)
     local scan_dir="$GWOMBAT_ROOT/reports/initial-scan-$scan_date"
@@ -1858,7 +2319,11 @@ perform_initial_scans() {
             echo "Total Users: $total_users_check" >> "$security_summary"
             echo "Users with 2FA: $users_with_2fa" >> "$security_summary"
             echo "Admin Accounts: $admin_count" >> "$security_summary"
-            echo "2FA Coverage: $(( users_with_2fa * 100 / total_users_check ))%" >> "$security_summary"
+            if [[ $total_users_check -gt 0 ]]; then
+                echo "2FA Coverage: $(( users_with_2fa * 100 / total_users_check ))%" >> "$security_summary"
+            else
+                echo "2FA Coverage: N/A (no users found)" >> "$security_summary"
+            fi
             echo "" >> "$security_summary"
             
             echo -e "${GREEN}  ✓ Security baseline scan completed${NC}"
@@ -2187,8 +2652,8 @@ main() {
     fi
     
     configure_domain_settings
-    configure_organizational_units
     configure_gam
+    configure_organizational_units
     configure_python_environment
     configure_optional_tools
     configure_deployment_settings

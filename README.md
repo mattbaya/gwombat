@@ -125,18 +125,17 @@ Safely switch between production and test Google Workspace domains:
 git clone git@github.com:mattbaya/gwombat.git
 cd gwombat
 
-# Initialize environment (setup wizard creates local-config/.env)
-./shared-utilities/setup_wizard.sh  # Interactive configuration setup
+# Run the interactive setup wizard (handles everything automatically)
+./shared-utilities/setup_wizard.sh
 
-# Initialize menu database
-./shared-utilities/menu_data_loader.sh
-
-# (Optional) Setup Python environment for advanced features
-cd python-modules
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
+# The setup wizard will:
+# 1. Ask for your personal Google Workspace admin account
+# 2. Configure GAM with proper OAuth setup (gam create project + gam oauth create)
+# 3. Optionally create a GWOMBAT service account with proper admin privileges
+# 4. Query existing OUs and configure organizational structure
+# 5. Set up Python virtual environment with all required packages (including jinja2)
+# 6. Initialize the menu database
+# 7. Configure optional tools (GYB, rclone)
 
 # Launch GWOMBAT
 ./gwombat.sh

@@ -2511,6 +2511,7 @@ system_administration_function_dispatcher() {
     
     case "$function_name" in
         # Configuration & Setup
+        "system_configuration_menu") configuration_menu ;;
         "configuration_menu") configuration_menu ;;
         "dry_run_mode") dry_run_mode ;;
         
@@ -3397,7 +3398,7 @@ show_main_menu() {
     echo ""
     echo "x. ❌ Exit"
     echo ""
-    read -p "Select an option (1-9, c, s, i, x): " choice
+    read -p "Select an option (1-10, c, s, i, x): " choice
     echo ""
     
     # Convert letters to numbers for case handling
@@ -24051,6 +24052,23 @@ main() {
             10)
                 statistics_menu
                 ;;
+            c)
+                # Configuration Management
+                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                    show_config_menu
+                else
+                    configuration_menu
+                fi
+                ;;
+            s)
+                # Search Menu Options
+                search_menu_options
+                ;;
+            i)
+                # Menu Index (Alphabetical)
+                show_menu_index
+                ;;
             x)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
@@ -24076,7 +24094,7 @@ main() {
                 fi
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select a number between 1-10, c, s, i, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select 1-10, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac

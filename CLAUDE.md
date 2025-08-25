@@ -132,6 +132,30 @@
 - **GAM (Google Apps Manager)**: Primary Google Workspace interface (GAM7 compatible)
 - **SQLite**: Multi-schema database backend for all persistence and menu management
 - **Python 3.12+**: Advanced compliance modules and dashboard capabilities
+
+### ⚠️ CRITICAL GAM7 Command Syntax
+**ALWAYS use official GAM7 wiki syntax. Never guess commands.**
+**Reference: https://github.com/GAM-team/GAM/wiki**
+
+**Correct User Creation Syntax (two steps required):**
+```bash
+# Step 1: Create the user
+gam create user <email> firstname "First" lastname "Last" password "password" changepassword false
+
+# Step 2: Grant super admin privileges  
+gam create admin <email> _SEED_ADMIN_ROLE customer
+```
+
+**Available Admin Roles (use `gam show adminroles` to verify):**
+- `_SEED_ADMIN_ROLE` - Super admin (isSuperAdminRole: True)
+- `_USER_MANAGEMENT_ADMIN_ROLE` - User management only
+- `_GROUPS_ADMIN_ROLE` - Groups management only
+- Other limited roles available
+
+**❌ WRONG (invalid syntax):**
+- `admin on` / `isadmin true` / `isdelegatedadmin true` → Use two-step process above
+- `changepassword off` → Use `changepassword false`
+- `_SUPER_ADMIN_ROLE` → Use `_SEED_ADMIN_ROLE`
   - **Core Python packages** (see `python-modules/requirements.txt`):
     - `google-api-python-client>=2.100.0` - Google Workspace API client
     - `google-auth>=2.22.0` - Google authentication libraries
@@ -144,6 +168,25 @@
 - **rclone**: Cloud storage synchronization
 - **SSH/Git**: Secure deployment infrastructure
 - **expect**: Password automation for interactive prompts
+
+### Setup Wizard (`shared-utilities/setup_wizard.sh`)
+**Fully Automated Configuration System**:
+- **Personal Admin First**: Asks for your personal Google Workspace admin account
+- **GAM OAuth Setup**: Runs `gam create project` then `gam oauth create` to prevent client restriction errors
+- **Service Account Creation**: Two-step process with proper admin privileges using `_SEED_ADMIN_ROLE`
+- **OU Configuration**: Queries existing OUs after GAM is configured, offers to create best-practice structure
+- **Python Environment**: Creates virtual environment and installs all packages (jinja2, pandas, matplotlib, etc.)
+- **Menu Database**: Initializes SQLite menu system automatically
+- **External Tools**: Configures GYB, rclone with domain synchronization
+- **Error Handling**: Comprehensive retry logic and manual fallback options
+
+**Setup Wizard Features**:
+- ✅ **GAM Project Creation**: Handles Google Cloud project setup before OAuth
+- ✅ **Two-Step Admin Creation**: Proper `gam create user` + `gam create admin _SEED_ADMIN_ROLE`
+- ✅ **Python Venv Fix**: Uses venv's Python directly for package verification
+- ✅ **OU Intelligence**: Queries existing structure before configuration
+- ✅ **Retry Logic**: Handles timing issues with admin privilege grants
+- ✅ **Clean Error Messages**: Clear feedback and recovery instructions
 
 ### Testing Commands
 ```bash
@@ -202,7 +245,7 @@ gwombat/
 │   ├── test_domain_manager.sh          # Test domain management
 │   ├── menu_data_loader.sh             # Menu database population
 │   ├── config_manager.sh               # Configuration management
-│   ├── setup_wizard.sh                 # Interactive setup and configuration
+│   ├── setup_wizard.sh                 # Interactive setup wizard - fully automated configuration
 │   ├── deploy.sh                       # Production deployment script
 │   ├── standalone-file-analysis-tools.sh # File system analysis tools
 │   ├── test_*.sh                       # Testing and QA scripts (15+ scripts)
