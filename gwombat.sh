@@ -1906,7 +1906,7 @@ configuration_menu() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-15, p, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-16, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
