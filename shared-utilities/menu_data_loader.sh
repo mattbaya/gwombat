@@ -50,6 +50,7 @@ populate_menu_sections() {
         ('reports_monitoring', 'Reports & Monitoring', 'Activity reports, logs, performance monitoring', 6, '📈', 'PURPLE'),
         ('system_administration', 'System Administration', 'System configuration, maintenance, backups', 7, '⚙️', 'PURPLE'),
         ('scuba_compliance', 'SCuBA Compliance Management', 'CISA security baselines, compliance monitoring', 8, '🔐', 'RED'),
+        ('account_analysis_submenu', 'Account Analysis Tools', 'Comprehensive account analysis and discovery tools', 120, '🔍', 'BLUE'),
         ('configuration_management', 'Configuration Management', 'System setup, domain configuration, external tools', 99, '⚙️', 'CYAN');
     "
     
@@ -185,6 +186,39 @@ populate_remaining_sections() {
     echo "✓ Remaining sections populated"
 }
 
+# Populate Account Analysis submenu items
+populate_account_analysis_submenu() {
+    echo "Populating Account Analysis submenu items..."
+    
+    local section_id=$(sqlite3 "$MENU_DB_PATH" "SELECT id FROM menu_sections WHERE name = 'account_analysis_submenu';")
+    
+    sqlite3 "$MENU_DB_PATH" "
+        INSERT INTO menu_items (section_id, name, display_name, description, function_name, item_order, icon, keywords) VALUES
+        ($section_id, 'search_accounts', 'Search Accounts by Criteria', 'Advanced account search with multiple criteria', 'search_accounts_by_criteria', 1, '🔍', 'search find criteria filter accounts discovery'),
+        ($section_id, 'account_profile', 'Account Profile Analysis', 'Complete profile analysis of individual accounts', 'account_profile_analysis', 2, '👤', 'profile analysis individual account details user'),
+        ($section_id, 'department_analysis', 'Department Analysis', 'Analyze accounts by department or organizational unit', 'department_analysis_menu', 3, '🏢', 'department ou organizational unit analysis group'),
+        ($section_id, 'email_pattern', 'Email Pattern Analysis', 'Analyze email address patterns and naming conventions', 'email_pattern_analysis', 4, '📧', 'email pattern naming convention analysis format'),
+        ($section_id, 'storage_usage', 'Storage Usage Analysis', 'Analyze account storage usage and quota utilization', 'storage_usage_analysis', 5, '💾', 'storage usage quota analysis size disk space'),
+        ($section_id, 'login_activity', 'Login Activity Analysis', 'Analyze user login patterns and frequency', 'login_activity_analysis', 6, '🔑', 'login activity patterns frequency access usage'),
+        ($section_id, 'account_activity', 'Account Activity Patterns', 'Comprehensive account activity and usage patterns', 'account_activity_patterns', 7, '📊', 'activity patterns usage behavior analysis trends'),
+        ($section_id, 'drive_usage', 'Drive Usage Analysis', 'Analyze Google Drive usage patterns and file activity', 'drive_usage_analysis', 8, '📁', 'drive usage files activity patterns google storage'),
+        ($section_id, 'security_profile', 'Security Profile Analysis', 'Analyze account security settings and compliance', 'security_profile_analysis', 9, '🔒', 'security profile analysis compliance settings protection'),
+        ($section_id, 'twofa_adoption', '2FA Adoption Analysis', 'Analyze two-factor authentication adoption rates', 'twofa_adoption_analysis', 10, '🔐', '2fa two factor authentication adoption security analysis'),
+        ($section_id, 'admin_access', 'Admin Access Analysis', 'Analyze administrative access and privilege distribution', 'admin_access_analysis', 11, '👑', 'admin access privileges analysis administrative rights'),
+        ($section_id, 'risk_assessment', 'Risk Assessment', 'Comprehensive account risk assessment and scoring', 'account_risk_assessment', 12, '⚠️', 'risk assessment security analysis threat evaluation'),
+        ($section_id, 'lifecycle_analysis', 'Account Lifecycle Analysis', 'Analyze account creation, usage, and lifecycle stages', 'account_lifecycle_analysis', 13, '🔄', 'lifecycle creation usage stages analysis timeline'),
+        ($section_id, 'account_age', 'Account Age Analysis', 'Analyze account age distribution and patterns', 'account_age_analysis', 14, '⏰', 'age analysis distribution creation date patterns time'),
+        ($section_id, 'growth_analysis', 'Account Growth Analysis', 'Analyze account growth trends over time', 'account_growth_analysis', 15, '📈', 'growth trends analysis time series expansion users'),
+        ($section_id, 'health_scoring', 'Account Health Scoring', 'Generate comprehensive account health scores', 'account_health_scoring', 16, '💚', 'health scoring assessment analysis rating quality'),
+        ($section_id, 'department_comparison', 'Department Comparison Analysis', 'Compare metrics across departments and units', 'department_comparison_analysis', 17, '⚖️', 'department comparison metrics analysis units organizational'),
+        ($section_id, 'year_over_year', 'Year-over-Year Analysis', 'Compare account metrics across multiple years', 'year_over_year_analysis', 18, '📅', 'year over year comparison analysis trends annual'),
+        ($section_id, 'benchmark_analysis', 'Benchmark Analysis', 'Compare against industry standards and benchmarks', 'benchmark_analysis_menu', 19, '🎯', 'benchmark standards comparison industry analysis metrics'),
+        ($section_id, 'batch_analysis', 'Batch Account Analysis', 'Perform analysis operations on multiple accounts', 'batch_account_analysis', 20, '📋', 'batch multiple analysis accounts bulk operations group');
+    "
+    
+    echo "✓ Account Analysis submenu items populated"
+}
+
 # Main execution
 main() {
     echo "=== GWOMBAT Menu Database Loader ==="
@@ -200,6 +234,7 @@ main() {
     populate_user_group_items
     populate_file_drive_items
     populate_remaining_sections
+    populate_account_analysis_submenu
     
     echo ""
     echo "✓ Menu database population complete!"
