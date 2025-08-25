@@ -15774,14 +15774,14 @@ group_operations_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            15)
+            6)
                 echo -e "${CYAN}All groups in domain:${NC}"
                 $GAM print groups 2>/dev/null | head -20
                 echo ""
                 echo -e "${YELLOW}(Showing first 20 groups)${NC}"
                 read -p "Press Enter to continue..."
                 ;;
-            16) return ;;
+            7) return ;;
             m|M) return ;;
             x|X) exit 0 ;;
             *)
