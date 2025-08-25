@@ -1153,8 +1153,18 @@ search_menu_database() {
         found=true
         
         if [[ "$result_type" == "section" ]]; then
-            local color_var="${color_code:-GREEN}"
-            echo -e "${!color_var}$sort_order. $title${NC}"
+            # Map color codes to actual color variables
+            local color_output=""
+            case "${color_code:-GREEN}" in
+                "GREEN") color_output="$GREEN" ;;
+                "BLUE") color_output="$BLUE" ;;
+                "PURPLE") color_output="$PURPLE" ;;
+                "YELLOW") color_output="$YELLOW" ;;
+                "CYAN") color_output="$CYAN" ;;
+                "RED") color_output="$RED" ;;
+                *) color_output="$GREEN" ;;
+            esac
+            echo -e "${color_output}$sort_order. $title${NC}"
             if [[ -n "$description" ]]; then
                 echo "   • $description"
             fi

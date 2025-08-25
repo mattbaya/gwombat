@@ -23,6 +23,20 @@
 - ✅ **analysis_discovery_menu() converted to SQLite-driven** - Analysis tools interface (4 functions) with comprehensive diagnostic tools
 - ✅ **system_administration_menu() converted to SQLite-driven** - System admin tools (7 functions) with categorized operations
 
+## 🚨 **CRITICAL ERROR FOUND DURING QA TESTING - August 25, 2025**
+**Location**: Main Menu → Initial Display
+**Error Type**: Menu Structure Mismatch / Infinite Loop
+**Steps to Reproduce**: 
+1. Launch `./gwombat.sh`
+2. Main menu displays 10 options (items 1-10) instead of expected 8 options (1-8)
+3. System shows "Invalid choice. Please select 1-8, c, s, i, or x." but menu displays 10 items
+4. Creates infinite loop when user selects option 9 or 10
+**Expected Behavior**: Menu should display only 8 options (1-8) matching the prompt
+**Actual Behavior**: Menu displays 10 options causing validation mismatch and infinite error loop
+**Severity**: HIGH - Main menu is broken, affects primary navigation
+**Root Cause Found**: Database contains duplicate section_order=1 entries ("User & Group Management" and "Account Analysis Tools")
+**QA Testing Status**: ✅ Error documented, root cause identified, testing continues with other sections
+
 ### ✅ **Recently Completed Conversions** (August 25, 2025)
 - [x] **Convert account_analysis_menu() to SQLite-driven** - Comprehensive account analysis (20 functions) - Complete SQLite conversion with database-driven dispatcher
 

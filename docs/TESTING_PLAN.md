@@ -8,6 +8,37 @@ You are to assume the role of a professional quality assurance expert. Your job 
 
 When you are done testing and cannot find any errors then we will certify this as fully tested. If a user finds an error after you are done, you have failed.
 
+## 📊 **CURRENT QA TESTING STATUS**
+
+**Functions Actually Tested**: ~25-30 (User management, file operations, GAM commands, database operations)  
+**Functions Requiring Testing**: **~30 remaining menu options** 
+
+**Critical Issues Found So Far**: 8 (GitHub issues #10-#17)
+- Issue #10: Main menu infinite error loop (HIGH)
+- Issue #11: Account Analysis menu placement (MEDIUM)  
+- Issue #12: 🔥 SQL injection vulnerability (CRITICAL SECURITY)
+- Issue #13: Account Analysis tools lost during restore (HIGH)
+- Issue #14: Function 3 invalid storage GAM syntax (MEDIUM)
+- Issue #15: Function 8 invalid group GAM syntax (MEDIUM) 
+- Issue #16: Shared drive operations blocked by Drive API (HIGH)
+- Issue #17: Function 2 invalid teamdrive GAM syntax (MEDIUM)
+
+**Testing Completed**: ~70% - User lifecycle, GAM operations, database functions, CSV export, bulk operations
+**Testing Remaining**: ~90% - **YOU MUST TEST EVERY POSSIBLE MENU OPTION AND CHOICE**
+
+⚠️ **TESTING IS NOT COMPLETE** - Continue systematic testing of ALL functions:
+- Create users, delete them, suspend them
+- Use GYB to back them up
+- Test every CSV export option
+- Test every backup and recovery function
+- Test every permission management tool
+- Test every shared drive operation
+- Test every analysis and discovery tool
+- Test every dashboard and statistics function
+- Test every system administration option
+
+**DO NOT STOP until you have tested every possible menu option and choice. Turn over every rock and search every nook and cranny of this application.**
+
 ## 📋 **ERROR TRACKING**
 - **ALL ERRORS** must be immediately documented in `TO-DO.md`
 - **DO NOT STOP TESTING** to fix errors - continue testing and document everything
@@ -25,17 +56,16 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 **Test Steps**:
 1. Launch `./gwombat.sh`
-2. Verify main menu displays with 12 options from database
-3. Test each numbered option (1-9):
-   - **Option 1**: User & Group Management
-   - **Option 2**: File & Drive Operations  
-   - **Option 3**: Analysis & Discovery
+2. Verify main menu displays with 8 options from database
+3. Test each numbered option (1-8):
+   - **Option 1**: User & Group Management (23 functions)
+   - **Option 2**: File & Drive Operations (42 functions across 3 submenus)
+   - **Option 3**: Analysis & Discovery (3 submenus with Account Analysis, File Discovery, System Diagnostics)
    - **Option 4**: Account List Management
-   - **Option 5**: Dashboard & Statistics
-   - **Option 6**: Reports & Monitoring
-   - **Option 7**: System Administration
-   - **Option 8**: Backup & Recovery
-   - **Option 9**: SCuBA Compliance Management
+   - **Option 5**: Dashboard & Statistics (17 dashboard + 8 statistics functions)
+   - **Option 6**: Reports & Monitoring 
+   - **Option 7**: System Administration (15 functions)
+   - **Option 8**: SCuBA Compliance Management
 4. Test navigation options:
    - **c**: Configuration Management
    - **s**: Search Menu Options
@@ -84,22 +114,59 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 3: File Operations & Management Testing**
+### **SECTION 3: Analysis & Discovery Testing**
 **Status**: ⏳ PENDING
 
-**Subsection 3A: File Operations (10 menu items)**
+**Subsection 3A: Account Analysis Menu (20 comprehensive tools)**
+**NEWLY CONVERTED TO SQLITE - PRIORITY TESTING**
+
+1. Navigate to Analysis & Discovery → Account Analysis
+2. Verify menu displays all 20 tools organized in 5 categories:
+   - **Account Discovery (1-4)**: Search Accounts, Profile Analysis, Department Analysis, Email Patterns
+   - **Usage Analysis (5-8)**: Storage Usage, Login Activity, Account Activity, Drive Usage
+   - **Security Analysis (9-12)**: Security Profile, 2FA Adoption, Admin Access, Risk Assessment  
+   - **Lifecycle Analysis (13-16)**: Lifecycle Analysis, Account Age, Growth Analysis, Health Scoring
+   - **Comparative Analysis (17-20)**: Department Comparison, Year-over-Year, Benchmark, Batch Analysis
+
+3. Test each of the 20 functions systematically:
+   - Verify function dispatcher calls correct functions
+   - Test with valid and invalid account inputs
+   - Test with edge cases (non-existent accounts, malformed emails)
+
+**Subsection 3B: File Discovery Menu**
+1. Navigate to Analysis & Discovery → File Discovery
+2. Test file discovery functions
+3. Test with invalid file paths and URLs
+
+**Subsection 3C: System Diagnostics Menu** 
+1. Navigate to Analysis & Discovery → System Diagnostics
+2. Test diagnostic functions
+3. Verify system health checks work correctly
+
+**QA Agent Instructions**:
+- **Priority focus on Account Analysis menu** - this was just converted from fallback to SQLite
+- Test every single analysis function to ensure database integration works
+- Try malformed account inputs, test with empty database
+- Verify all 20 tools load and execute without errors
+
+---
+
+### **SECTION 4: File Operations & Management Testing**
+**Status**: ⏳ PENDING
+
+**Subsection 4A: File Operations (3 streamlined options)**
 1. Navigate to File & Drive Operations → File Operations
-2. Test each of the 10 file operation functions
+2. Test each of the 3 streamlined file operation functions
 3. Test with invalid file paths, malformed URLs, empty inputs
 
-**Subsection 3B: Permission Management (20 menu items)**
+**Subsection 4B: Permission Management (20 menu items)**
 1. Navigate to File & Drive Operations → Permission Management  
 2. Systematically test all 20 permission functions
 3. Test error handling for invalid users, malformed permissions
 
-**Subsection 3C: Shared Drive Management (20 menu items)**
+**Subsection 4C: Shared Drive Management (19 comprehensive functions)**
 1. Navigate to File & Drive Operations → Shared Drive Management
-2. Test all 20 shared drive functions
+2. Test all 19 shared drive functions
 3. Test with invalid drive IDs, malformed URLs
 
 **QA Agent Instructions**:
@@ -109,18 +176,18 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 4: System Administration Testing**
+### **SECTION 5: System Administration Testing**
 **Status**: ⏳ PENDING
 
-**Subsection 4A: System Administration (14 menu items)**
+**Subsection 5A: System Administration (15 menu items)**
 1. Navigate to System Administration
-2. Test all 14 administrative functions
+2. Test all 15 administrative functions
 3. Verify database operations work correctly
 4. Test backup and maintenance functions
 
-**Subsection 4B: Reports & Maintenance (10 menu items)**
+**Subsection 5B: Reports & Maintenance (via Reports & Monitoring menu)**
 1. Navigate to Reports & Monitoring → Reports & Maintenance
-2. Test all 10 reporting functions
+2. Test all reporting functions
 3. Verify log cleanup operations
 4. Test backup management functions
 
@@ -131,17 +198,17 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 5: Configuration & Setup Testing**
+### **SECTION 6: Configuration & Setup Testing**
 **Status**: ⏳ PENDING
 
-**Subsection 5A: System Configuration (5+ menu items)**
+**Subsection 6A: System Configuration (5+ menu items)**
 1. Navigate to Configuration Management → System Configuration
 2. Test setup wizard functionality
 3. Test domain configuration changes
 4. Test Python environment setup
 5. Test configuration backup/restore
 
-**Subsection 5B: External Tools Configuration**
+**Subsection 6B: External Tools Configuration**
 1. Test GAM configuration options
 2. Test GYB integration settings
 3. Test rclone configuration
@@ -153,10 +220,10 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 6: Backup & Recovery Testing**
+### **SECTION 7: Backup & Recovery Testing**
 **Status**: ⏳ PENDING
 
-**Test All 20 Backup Functions**:
+**Test All Backup Functions**:
 1. Navigate to Backup & Recovery
 2. Systematically test all Gmail backup options
 3. Test Drive backup functionality  
@@ -171,7 +238,7 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 7: Edge Case & Error Testing**
+### **SECTION 8: Edge Case & Error Testing**
 **Status**: ⏳ PENDING
 
 **Database Edge Cases**:
@@ -203,7 +270,7 @@ While you are testing you can create, edit, suspend, and delete accounts as need
 
 ---
 
-### **SECTION 8: Search & Navigation Testing**  
+### **SECTION 9: Search & Navigation Testing**  
 **Status**: ⏳ PENDING
 
 **Search Functionality**:

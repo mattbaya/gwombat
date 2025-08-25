@@ -25838,10 +25838,46 @@ export_user_accounts_to_csv() {
     if [[ -f temp_users.csv ]]; then
         # Process each user and add storage data
         tail -n +2 temp_users.csv | while IFS=',' read -r email firstname lastname fullname ou creation lastlogin suspended admin tos twofa rest; do
-            # Get storage usage
-            storage_info=$($GAM_PATH user "$email" show usage 2>/dev/null | grep -E "(drive|total)" | head -1)
-            storage_used=$(echo "$storage_info" | awk '{print $2}' | sed 's/[^0-9.]//g' || echo "0")
-            storage_quota=$($GAM_PATH user "$email" show quota 2>/dev/null | awk '/quota:/ {print $2}' | sed 's/[^0-9.]//g' || echo "15")
+            # Get storage usage using correct GAM7 syntax
+            user_info=$($GAM_PATH info user "$email" 2>/dev/null)
+            
+            # Parse storage used from GAM info output
+            storage_used_gb="0"
+            if [[ -n "$user_info" ]]; then
+                # Try multiple patterns for GAM7 storage information
+                if echo "$user_info" | grep -q "Storage Used:"; then
+                    storage_line=$(echo "$user_info" | grep "Storage Used:" | head -1)
+                    size_value=$(echo "$storage_line" | sed -n 's/.*Storage Used: *\([0-9.]*\).*/\1/p')
+                    size_unit=$(echo "$storage_line" | sed -n 's/.*Storage Used: *[0-9.]* *\([A-Za-z]*\).*/\1/p')
+                    
+                    if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                        case "${size_unit,,}" in
+                            "gb") storage_used_gb="$size_value" ;;
+                            "mb") storage_used_gb=$(echo "scale=3; $size_value / 1024" | bc 2>/dev/null || echo "0") ;;
+                            "kb") storage_used_gb=$(echo "scale=3; $size_value / 1048576" | bc 2>/dev/null || echo "0") ;;
+                            "bytes"|"b") storage_used_gb=$(echo "scale=3; $size_value / 1073741824" | bc 2>/dev/null || echo "0") ;;
+                            *) storage_used_gb="0" ;;
+                        esac
+                    fi
+                elif echo "$user_info" | grep -qi "quota.*used"; then
+                    quota_line=$(echo "$user_info" | grep -i "quota.*used" | head -1)
+                    size_value=$(echo "$quota_line" | grep -o '[0-9.]*' | head -1)
+                    size_unit=$(echo "$quota_line" | grep -o -i '\(bytes\|kb\|mb\|gb\|tb\)' | head -1)
+                    
+                    if [[ -n "$size_value" && -n "$size_unit" ]]; then
+                        case "${size_unit,,}" in
+                            "gb") storage_used_gb="$size_value" ;;
+                            "mb") storage_used_gb=$(echo "scale=3; $size_value / 1024" | bc 2>/dev/null || echo "0") ;;
+                            "kb") storage_used_gb=$(echo "scale=3; $size_value / 1048576" | bc 2>/dev/null || echo "0") ;;
+                            "bytes"|"b") storage_used_gb=$(echo "scale=3; $size_value / 1073741824" | bc 2>/dev/null || echo "0") ;;
+                            *) storage_used_gb="0" ;;
+                        esac
+                    fi
+                fi
+            fi
+            
+            # Set default quota (15 GB for standard users)
+            storage_quota="15"
             
             # Determine account type
             account_type="Standard"
@@ -25851,8 +25887,7 @@ export_user_accounts_to_csv() {
                 account_type="Suspended"
             fi
             
-            # Convert bytes to GB for storage
-            storage_used_gb=$(echo "scale=2; $storage_used / 1073741824" | bc 2>/dev/null || echo "0")
+            # storage_used_gb already calculated above from GAM info output
             
             echo "\"$email\",\"$firstname\",\"$lastname\",\"$fullname\",\"$ou\",\"$creation\",\"$lastlogin\",\"$suspended\",\"$admin\",\"$twofa\",\"$storage_used_gb\",\"$storage_quota\",\"$account_type\"" >> "$export_file"
         done

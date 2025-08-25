@@ -2277,6 +2277,10 @@ dashboard_function_dispatcher() {
                 read -p "Press Enter to continue..."
             fi
             ;;
+        "statistics_menu")
+            # Call the main statistics menu function
+            statistics_menu
+            ;;
         *)
             # Generic function implementation for other dashboard options
             local display_name
@@ -3022,7 +3026,8 @@ statistics_menu_original() {
                 echo -e "${RED}Invalid option. Please select 1-8, b, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
-        esac    done
+        esac
+    done
 }
 
 # Main statistics menu function - uses enhanced version by default
