@@ -2548,10 +2548,16 @@ EOF
         echo "  → Adding report file links..."
         # Add links to generated files
         local file_count=0
+        local files_to_process=$(find "$scan_dir" -name "*.csv" -o -name "*.txt" 2>/dev/null | wc -l)
+        echo "  → Processing $files_to_process report files..."
+        
         for file in "$scan_dir"/*.csv "$scan_dir"/*.txt; do
             if [[ -f "$file" ]]; then
                 local filename=$(basename "$file")
-                echo "    • Linking $filename..."
+                # Only show progress every 50 files to avoid spam
+                if (( file_count % 50 == 0 )) || (( file_count < 10 )); then
+                    echo "    • Processing file $((file_count + 1))/$files_to_process: $filename"
+                fi
                 echo "            <li><a href=\"$filename\">$filename</a></li>" >> "$html_dashboard"
                 ((file_count++))
             fi

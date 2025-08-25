@@ -2513,6 +2513,7 @@ system_administration_function_dispatcher() {
         # Configuration & Setup
         "system_configuration_menu") configuration_menu ;;
         "configuration_menu") configuration_menu ;;
+        "reset_setup_configuration") reset_setup_configuration ;;
         "dry_run_mode") dry_run_mode ;;
         
         # Maintenance & Health  
@@ -3396,8 +3397,6 @@ show_main_menu() {
     fi
     
     echo ""
-    echo "x. ❌ Exit"
-    echo ""
     read -p "Select an option (1-10, c, s, i, x): " choice
     echo ""
     
@@ -3783,6 +3782,57 @@ load_users_from_file() {
             echo -e "${RED}File not found. Please enter a valid file path.${NC}"
         fi
     done
+}
+
+# Function to reset setup configuration and force setup wizard
+reset_setup_configuration() {
+    echo -e "${CYAN}🔄 Reset Setup & Force Full Configuration${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  This will completely reset GWOMBAT setup and force the setup wizard to run.${NC}"
+    echo ""
+    echo "This action will:"
+    echo "• Reset all setup completion flags"
+    echo "• Clear first-time setup markers"  
+    echo "• Force the setup wizard to run from the beginning"
+    echo "• Keep your current configuration files as backup"
+    echo ""
+    read -p "Are you sure you want to reset setup? (y/N): " confirm_reset
+    echo ""
+    
+    if [[ "$confirm_reset" =~ ^[Yy]$ ]]; then
+        echo -e "${CYAN}Resetting setup flags...${NC}"
+        
+        # Reset setup flags in .env
+        if [[ -f "local-config/.env" ]]; then
+            sed -i.bak 's/SETUP_COMPLETE="true"/SETUP_COMPLETE="false"/' local-config/.env 2>/dev/null || true
+            sed -i.bak 's/SETTINGS_CONFIGURED="true"/SETTINGS_CONFIGURED="false"/' local-config/.env 2>/dev/null || true
+            sed -i.bak 's/SKIP_FIRST_TIME_SETUP="true"/SKIP_FIRST_TIME_SETUP="false"/' local-config/.env 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Reset .env flags${NC}"
+        fi
+        
+        # Remove setup completion markers
+        rm -f local-config/.setup_complete 2>/dev/null || true
+        echo -e "${GREEN}  ✓ Removed setup completion markers${NC}"
+        
+        echo ""
+        echo -e "${GREEN}✅ Setup reset complete!${NC}"
+        echo ""
+        echo "The setup wizard will now run to reconfigure GWOMBAT from the beginning."
+        echo ""
+        read -p "Press Enter to start setup wizard..."
+        
+        if [[ -x "./shared-utilities/setup_wizard.sh" ]]; then
+            ./shared-utilities/setup_wizard.sh
+            exit $?
+        else
+            echo -e "${RED}Error: Setup wizard not found at ./shared-utilities/setup_wizard.sh${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}Reset cancelled.${NC}"
+    fi
+    echo ""
+    read -p "Press Enter to continue..."
 }
 
 # Function to show what actions will be performed for adding temporary hold

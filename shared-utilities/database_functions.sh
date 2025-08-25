@@ -967,10 +967,10 @@ init_menu_database() {
 
 # Generate main menu from database
 generate_main_menu() {
-    local menu_html=""
+    local display_number=1
     
     # Get sections in order
-    while IFS='|' read -r section_id section_name display_name description icon color_code; do
+    while IFS='|' read -r section_id section_name display_name description icon color_code section_order; do
         [[ -z "$section_id" ]] && continue
         
         # Display section header (bash 3.2 compatible)
@@ -985,20 +985,26 @@ generate_main_menu() {
         esac
         display_upper=$(echo "$display_name" | tr '[:lower:]' '[:upper:]')
         echo -e "${color_var}=== ${display_upper} ===${NC}"
-        echo "$section_id. $icon $display_name"
+        echo "$display_number. $icon $display_name"
         echo ""
+        ((display_number++))
     done < <(sqlite3 "$MENU_DB_FILE" "
-        SELECT id, name, display_name, description, icon, color_code 
+        SELECT id, name, display_name, description, icon, color_code, section_order 
         FROM menu_sections 
         WHERE is_active = 1 
         ORDER BY section_order;
     ")
     
-    # Display navigation options
+    # Display navigation options (only appropriate ones for main menu)
     echo -e "${GRAY}=== NAVIGATION ===${NC}"
     while IFS='|' read -r key_char display_name icon; do
         [[ -z "$key_char" ]] && continue
-        echo "$key_char. $icon $display_name"
+        
+        # Skip inappropriate navigation for main menu
+        case "$key_char" in
+            "p"|"m") continue ;;  # Skip "previous" and "main" on main menu
+            *) echo "$key_char. $icon $display_name" ;;
+        esac
     done < <(sqlite3 "$MENU_DB_FILE" "
         SELECT key_char, display_name, icon 
         FROM menu_navigation 
