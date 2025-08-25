@@ -782,9 +782,38 @@ execute_gam() {
     fi
     
     if [[ -s "$temp_error" ]]; then
-        echo -e "${RED}GAM Error:${NC}" >&2
-        cat "$temp_error" >&2
-        echo "[$timestamp] [GAM-ERROR] $(cat "$temp_error")" >> "$LOG_FILE"
+        # Check if it's actually an error or just info messages
+        local error_content=$(cat "$temp_error")
+        
+        # Check for actual error patterns
+        if echo "$error_content" | grep -qE "ERROR:|Failed|Invalid|not found|Permission denied|not enabled|Error:|error:"; then
+            echo -e "${RED}GAM Error:${NC}" >&2
+            echo "$error_content" >&2
+            echo "[$timestamp] [GAM-ERROR] $error_content" >> "$LOG_FILE"
+            
+            # Check for Drive API not enabled error and auto-fix
+            if echo "$error_content" | grep -q "Drive API v3 Service/App not enabled"; then
+                echo -e "${YELLOW}[AUTO-FIX]${NC} Drive API not enabled, attempting to enable..."
+                echo "[$timestamp] [AUTO-FIX] Attempting to enable Drive API" >> "$LOG_FILE"
+                
+                # Enable Drive API
+                local enable_result=$($GAM enable drivev3 2>&1)
+                local enable_exit_code=$?
+                
+                echo "[$timestamp] [AUTO-FIX] gam enable drivev3 result: $enable_result (exit code: $enable_exit_code)" >> "$LOG_FILE"
+                
+                if [[ $enable_exit_code -eq 0 ]]; then
+                    echo -e "${GREEN}[AUTO-FIX]${NC} Drive API enabled successfully. Please retry your operation."
+                else
+                    echo -e "${RED}[AUTO-FIX]${NC} Failed to enable Drive API automatically: $enable_result"
+                    echo "You may need to enable it manually in Google Cloud Console."
+                fi
+            fi
+        else
+            # It's just informational output from GAM (like "Getting all Users...")
+            echo "$error_content"
+            echo "[$timestamp] [GAM-INFO] $error_content" >> "$LOG_FILE"
+        fi
     fi
     
     # Cleanup temp files
@@ -950,10 +979,21 @@ generate_daily_report() {
     # Ensure log directory exists
     mkdir -p "$log_dir"
     
+    # Check if this is the first report of the day
+    local is_first_report=true
+    if [[ -f "$daily_summary" ]]; then
+        is_first_report=false
+    fi
+    
     {
-        echo "=== DAILY ACTIVITY REPORT ==="
-        echo "Date: $report_date"
-        echo "Generated: $(date)"
+        if [[ "$is_first_report" == "true" ]]; then
+            echo "=== DAILY ACTIVITY REPORT ==="
+            echo "Date: $report_date"
+            echo "Started: $(date)"
+            echo "="
+        fi
+        echo ""
+        echo "=== SESSION REPORT - $(date) ==="
         echo ""
         
         echo "=== SESSION SUMMARY ==="
@@ -1001,7 +1041,11 @@ generate_daily_report() {
             echo "No performance data available"
         fi
         
-    } > "$daily_summary"
+        echo ""
+        echo "=================================="
+        echo ""
+        
+    } >> "$daily_summary"
     
     log_info "Daily report generated: $daily_summary"
     echo -e "${GREEN}Daily report generated: $daily_summary${NC}"
@@ -2611,32 +2655,32 @@ account_analysis_function_dispatcher() {
     case "$function_name" in
         # Account Discovery
         "search_accounts_by_criteria") search_accounts_by_criteria ;;
-        "account_profile_analysis") account_profile_analysis ;;
-        "department_analysis") department_analysis ;;
-        "email_pattern_analysis") email_pattern_analysis ;;
+        "analyze_account_profile") account_profile_analysis ;;
+        "analyze_department") department_analysis ;;
+        "analyze_email_patterns") email_pattern_analysis ;;
         
         # Usage Analysis
-        "storage_usage_analysis_detailed") storage_usage_analysis_detailed ;;
-        "login_activity_analysis") login_activity_analysis ;;
-        "account_activity_patterns") account_activity_patterns ;;
-        "drive_usage_analysis") drive_usage_analysis ;;
+        "analyze_storage_usage") storage_usage_analysis_detailed ;;
+        "analyze_login_activity") login_activity_analysis ;;
+        "analyze_account_activity") account_activity_patterns ;;
+        "analyze_drive_usage") drive_usage_analysis ;;
         
         # Security Analysis
-        "security_profile_analysis") security_profile_analysis ;;
-        "tfa_adoption_analysis") tfa_adoption_analysis ;;
-        "admin_access_analysis") admin_access_analysis ;;
-        "risk_assessment") risk_assessment ;;
+        "analyze_security_profile") security_profile_analysis ;;
+        "analyze_2fa_adoption") tfa_adoption_analysis ;;
+        "analyze_admin_access") admin_access_analysis ;;
+        "perform_risk_assessment") risk_assessment ;;
         
         # Lifecycle Analysis
-        "account_lifecycle_analysis") account_lifecycle_analysis ;;
-        "account_age_analysis") account_age_analysis ;;
-        "account_growth_analysis") account_growth_analysis ;;
-        "account_health_scoring") account_health_scoring ;;
+        "analyze_account_lifecycle") account_lifecycle_analysis ;;
+        "analyze_account_age") account_age_analysis ;;
+        "analyze_account_growth") account_growth_analysis ;;
+        "calculate_health_scores") account_health_scoring ;;
         
         # Comparative Analysis
-        "cross_department_comparison") cross_department_comparison ;;
-        "trend_comparison") trend_comparison ;;
-        "anomaly_detection") anomaly_detection ;;
+        "compare_departments") cross_department_comparison ;;
+        "analyze_year_over_year") trend_comparison ;;
+        "perform_benchmark_analysis") anomaly_detection ;;
         "batch_account_analysis") batch_account_analysis ;;
         
         *)
@@ -2832,8 +2876,7 @@ statistics_menu_original() {
                 return
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -3410,6 +3453,11 @@ show_quick_stats() {
 # Primary navigation interface with dynamic menu generation from database
 # Uses generate_main_menu() for database-driven display with fallback support
 show_main_menu() {
+    show_main_menu_with_stats
+}
+
+# Function to display main menu with quick stats (first load)
+show_main_menu_with_stats() {
     clear
     echo -e "${BLUE}=== GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner ===${NC}"
     echo ""
@@ -3429,6 +3477,33 @@ show_main_menu() {
         echo -e "${YELLOW}⚠️  No domain configured - run Configuration Management to set up${NC}"
         echo ""
     fi
+    
+    show_main_menu_content
+}
+
+# Function to display main menu without quick stats (for reloads)
+show_main_menu_no_stats() {
+    clear
+    echo -e "${BLUE}=== GWOMBAT - Google Workspace Optimization, Management, Backups And Taskrunner ===${NC}"
+    echo ""
+    
+    # Show domain configuration without stats
+    if [[ -n "$DOMAIN" ]]; then
+        echo -e "${GREEN}🌐 Domain: ${BOLD}$DOMAIN${NC}"
+        if [[ -n "$ADMIN_USER" ]]; then
+            echo -e "${GREEN}👤 Admin: $ADMIN_USER${NC}"
+        fi
+        echo ""
+    else
+        echo -e "${YELLOW}⚠️  No domain configured - run Configuration Management to set up${NC}"
+        echo ""
+    fi
+    
+    show_main_menu_content
+}
+
+# Common menu content (shared between stats and no-stats versions)
+show_main_menu_content() {
     
     echo -e "${YELLOW}Organized by Function Type for Easy Navigation${NC}"
     echo ""
@@ -3457,13 +3532,11 @@ show_main_menu() {
     fi
     
     echo ""
-    read -p "Select an option (1-10, c, s, i, x): " choice
+    read -p "Select an option (1-8, c, s, i, x): " choice
     echo ""
     
-    # Convert letters to numbers for case handling
-    if [[ "$choice" == "x" || "$choice" == "X" ]]; then
-        choice=10  # Exit
-    elif [[ "$choice" == "c" || "$choice" == "C" ]]; then
+    # Convert letters to numbers for case handling (but keep 'x' as 'x' for exit)
+    if [[ "$choice" == "c" || "$choice" == "C" ]]; then
         choice=99  # Configuration
     elif [[ "$choice" == "s" || "$choice" == "S" ]]; then
         choice=98  # Search
@@ -15920,8 +15993,7 @@ csv_operations_menu() {
                 return
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -16875,8 +16947,7 @@ database_operations_menu() {
                 return
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -16992,8 +17063,7 @@ file_operations_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -17624,8 +17694,7 @@ permission_management_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -22093,8 +22162,7 @@ system_diagnostics_menu() {
                 return
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)
@@ -22184,7 +22252,6 @@ account_analysis_menu() {
             done
         else
             # Fallback menu when database is not available
-            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
             echo -e "${YELLOW}=== ACCOUNT DISCOVERY ===${NC}"
             echo "  1. 🔍 Search Accounts by Criteria"
             echo "  2. 👤 Account Profile Analysis" 
@@ -24127,10 +24194,11 @@ main() {
         read -r
     fi
     
+    # First display with stats
+    show_main_menu_with_stats
+    choice=$MENU_CHOICE
+    
     while true; do
-        show_main_menu
-        choice=$MENU_CHOICE
-        
         case $choice in
             1)
                 user_group_management_menu
@@ -24154,13 +24222,7 @@ main() {
                 system_administration_menu
                 ;;
             8)
-                backup_operations_main_menu
-                ;;
-            9)
                 scuba_compliance_menu
-                ;;
-            10)
-                statistics_menu
                 ;;
             c)
                 # Configuration Management
@@ -24204,10 +24266,14 @@ main() {
                 fi
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select 1-10, c, s, i, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select 1-8, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
+        
+        # Reload menu without stats for subsequent displays
+        show_main_menu_no_stats
+        choice=$MENU_CHOICE
     done
 }
 
@@ -24401,8 +24467,7 @@ shared_drive_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             m)
-                # Main menu
-                show_main_menu
+                # Return to main menu
                 return
                 ;;
             x)

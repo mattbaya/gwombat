@@ -80,17 +80,19 @@
 **SQLite-Driven Menu Implementation Status**:
 - ✅ **system_overview_menu** (15 system monitoring & health check options) - **NEWLY CONVERTED**
 - ✅ **dashboard_menu** (17 dashboard, security, backup & database management options) - **NEWLY CONVERTED**
+- ✅ **account_analysis_menu** (20 comprehensive account analysis tools) - **NEWLY CONVERTED** 
 - ✅ **file_operations_menu** (3 streamlined options with 3-step workflow)
 - ✅ **shared_drive_menu** (19 comprehensive shared drive operations)  
 - ✅ **permission_management_menu** (20 security-focused permission tools)
 - ✅ **backup_operations_main_menu** (13 enterprise backup & recovery options)
 - ✅ **user_group_management_menu** (23 user lifecycle & group management tools)
 - ⏳ **Remaining High Priority**: statistics_menu, show_main_menu
-- ⏳ **Remaining Medium Priority**: file_operations_menu, permission_management_menu, shared_drive_menu, backup_operations_main_menu
+- ⏳ **Remaining Medium Priority**: analysis_discovery_menu, reports_and_cleanup_menu
 
 **Menu Database Sections Created**:
 - **system_overview**: System dashboard, health checks, performance metrics, maintenance tools
 - **dashboard_menu**: Dashboard operations, security reports, backup tools, configuration & database management
+- **account_analysis_submenu**: Comprehensive account analysis (20 tools in 5 categories: discovery, usage, security, lifecycle, comparative)
 - **file_operations**: Streamlined file management with Google Drive integration
 - **shared_drives**: Complete shared drive lifecycle management  
 - **permission_management**: Security-focused access control and auditing
@@ -103,7 +105,7 @@
 - **Error Handling**: 3-attempt input validation with progressive feedback
 - **Category Organization**: Visual grouping with color-coded section headers
 - **Function Resolution**: Dynamic function calling based on database function_name field
-- **Function Dispatchers**: system_overview_function_dispatcher(), dashboard_function_dispatcher()
+- **Function Dispatchers**: system_overview_function_dispatcher(), dashboard_function_dispatcher(), account_analysis_function_dispatcher()
 - **Export Integration**: CSV and Google Sheets export capabilities built into workflows
 
 ### 3. Configuration & External Tools (`shared-utilities/config_manager.sh`)

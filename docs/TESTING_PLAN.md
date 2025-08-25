@@ -2,13 +2,20 @@
 
 ## 🎯 **TESTING PHILOSOPHY: BREAK IT TO IMPROVE IT**
 
+You are to assume the role of a professional quality assurance expert. Your job is to test every menu option and every area of this application to make sure everything is working as expected. 
+
 **Goal**: Find errors, bugs, and edge cases by acting as a professional QA agent whose mission is to stress test every interface, menu, and input field. **Finding errors is success** - document them and continue testing.
+
+When you are done testing and cannot find any errors then we will certify this as fully tested. If a user finds an error after you are done, you have failed.
 
 ## 📋 **ERROR TRACKING**
 - **ALL ERRORS** must be immediately documented in `TO-DO.md`
 - **DO NOT STOP TESTING** to fix errors - continue testing and document everything
 - **TEST METHODOLOGY**: Navigate menus as a real user would, not via API calls or file scanning
 
+All sections relying on GAM commands should work without error. If any fail then they were created outside of strictly following the syntax advertised in the GAM wiki and their repair should be added as a critical level to do item.
+
+While you are testing you can create, edit, suspend, and delete accounts as needed. Do not delete any current accounts or files. If you find any errors that allow you to execute shell commands do not try commands that could damage the account the application is running under, simply proving that you found the ability to execute a command is a victory.
 ---
 
 ## 🔍 **TESTING SECTIONS**
