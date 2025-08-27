@@ -9,9 +9,38 @@ source "$(dirname "$0")/database_functions.sh"
 DB_PATH="local-config/gwombat.db"
 MENU_DB_PATH="shared-config/menu.db"
 
+# Function to safely execute database operations on read-only database
+safe_db_operation() {
+    # Check if database is read-only and temporarily make it writable
+    local was_readonly=false
+    if [[ -f "$MENU_DB_PATH" && ! -w "$MENU_DB_PATH" ]]; then
+        chmod 644 "$MENU_DB_PATH"
+        was_readonly=true
+    fi
+    
+    # Execute the database operation
+    "$@"
+    local result=$?
+    
+    # Restore read-only permissions for security if it was read-only before
+    if [[ "$was_readonly" == true ]]; then
+        chmod 444 "$MENU_DB_PATH"
+    fi
+    
+    return $result
+}
+
 # Initialize standalone menu database schema
 initialize_menu_database() {
     echo "Initializing standalone menu database schema..."
+    
+    # Check if database is read-only and temporarily make it writable
+    local was_readonly=false
+    if [[ -f "$MENU_DB_PATH" && ! -w "$MENU_DB_PATH" ]]; then
+        echo "Database is read-only, temporarily making writable for updates..."
+        chmod 644 "$MENU_DB_PATH"
+        was_readonly=true
+    fi
     
     # Apply menu schema to standalone database
     if [[ -f "shared-config/menu_schema.sql" ]]; then
@@ -19,7 +48,17 @@ initialize_menu_database() {
         echo "✓ Menu schema applied to $MENU_DB_PATH"
     else
         echo "❌ Menu schema file not found"
+        # Restore read-only if it was read-only before
+        if [[ "$was_readonly" == true ]]; then
+            chmod 444 "$MENU_DB_PATH"
+        fi
         return 1
+    fi
+    
+    # Restore read-only permissions for security if it was read-only before
+    if [[ "$was_readonly" == true ]]; then
+        echo "Restoring read-only permissions for security..."
+        chmod 444 "$MENU_DB_PATH"
     fi
 }
 
@@ -227,14 +266,14 @@ main() {
     # Create standalone menu database (no dependency on main database)
     echo "Creating standalone menu database at $MENU_DB_PATH..."
     
-    initialize_menu_database
-    clear_menu_data
-    populate_menu_sections
-    populate_menu_navigation
-    populate_user_group_items
-    populate_file_drive_items
-    populate_remaining_sections
-    populate_account_analysis_submenu
+    safe_db_operation initialize_menu_database
+    safe_db_operation clear_menu_data
+    safe_db_operation populate_menu_sections
+    safe_db_operation populate_menu_navigation
+    safe_db_operation populate_user_group_items
+    safe_db_operation populate_file_drive_items
+    safe_db_operation populate_remaining_sections
+    safe_db_operation populate_account_analysis_submenu
     
     echo ""
     echo "✓ Menu database population complete!"
