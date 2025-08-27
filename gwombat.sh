@@ -3681,7 +3681,7 @@ show_main_menu_content() {
     fi
     
     echo ""
-    read -p "Select an option (1-8, c, s, i, x): " choice
+    read -p "Select an option (1-10, c, s, i, x): " choice
     echo ""
     
     # Convert letters to numbers for case handling (but keep 'x' as 'x' for exit)
@@ -25074,6 +25074,10 @@ main() {
                     configuration_menu
                 fi
                 ;;
+            10)
+                # Account Analysis Tools
+                account_analysis_menu
+                ;;
             c)
                 # Configuration Management (legacy shortcut)
                 if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
@@ -25116,7 +25120,7 @@ main() {
                 fi
                 ;;
             *)
-                echo -e "${RED}Invalid choice. Please select 1-8, c, s, i, or x.${NC}"
+                echo -e "${RED}Invalid choice. Please select 1-10, c, s, i, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
