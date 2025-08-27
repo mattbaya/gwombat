@@ -143,10 +143,15 @@ scan_extended_statistics() {
     local shared_drives_count=0
     
     # Use GAM to count team drives (shared drives)
-    if shared_drives_count=$($GAM print shareddrives 2>/dev/null | tail -n +2 | wc -l); then
+    local gam_output
+    gam_output=$($GAM print shareddrives 2>&1)
+    if echo "$gam_output" | grep -q "Drive API v3 Service/App not enabled"; then
+        log_dashboard "Shared drives scan blocked: Drive API v3 not enabled" "WARNING" "extended_scan"
+        shared_drives_count="API_DISABLED"
+    elif shared_drives_count=$(echo "$gam_output" | tail -n +2 | wc -l 2>/dev/null) && [[ "$shared_drives_count" =~ ^[0-9]+$ ]]; then
         log_dashboard "Found $shared_drives_count shared drives" "INFO" "extended_scan"
     else
-        log_dashboard "Failed to scan shared drives" "WARNING" "extended_scan"
+        log_dashboard "Failed to scan shared drives: $gam_output" "WARNING" "extended_scan"
         shared_drives_count=0
     fi
     
@@ -210,7 +215,7 @@ scan_extended_statistics() {
     INSERT INTO extended_statistics (statistic_name, statistic_value, scan_session_id, scan_duration_seconds, status)
     VALUES 
         ('inactive_users_30d', $inactive_count, '$SESSION_ID', $duration, 'current'),
-        ('shared_drives_count', $shared_drives_count, '$SESSION_ID', $duration, 'current'),
+        ('shared_drives_count', $([ "$shared_drives_count" == "API_DISABLED" ] && echo "-1" || echo "$shared_drives_count"), '$SESSION_ID', $duration, 'current'),
         ('external_sharing_files', $external_sharing_count, '$SESSION_ID', $duration, 'current'),
         ('storage_used_gb', $used_storage_gb, '$SESSION_ID', $duration, 'current'),
         ('storage_total_gb', $total_storage_gb, '$SESSION_ID', $duration, 'current'),
@@ -436,7 +441,12 @@ show_dashboard() {
             "exit_row") exit_row="$count" ;;
             "domain_total") domain_total="$count" ;;
             "inactive_users_30d") inactive_users_30d="$count" ;;
-            "shared_drives_count") shared_drives_count="$count" ;;
+            "shared_drives_count") 
+                if [[ "$count" == "-1" ]]; then
+                    shared_drives_count="API_DISABLED"
+                else
+                    shared_drives_count="$count"
+                fi ;;
             "external_sharing_files") external_sharing_files="$count" ;;
             "storage_used_gb") storage_used_gb="$count" ;;
             "storage_total_gb") storage_total_gb="$count" ;;
@@ -465,7 +475,11 @@ show_dashboard() {
     
     # Display Drive & Sharing Statistics
     echo -e "${CYAN}📁 DRIVES & SHARING${NC}"
-    echo -e "${WHITE}Shared Drives:${NC}       ${GREEN}$shared_drives_count${NC} drives"
+    if [[ "$shared_drives_count" == "API_DISABLED" ]]; then
+        echo -e "${WHITE}Shared Drives:${NC}       ${RED}Drive API v3 not enabled${NC}"
+    else
+        echo -e "${WHITE}Shared Drives:${NC}       ${GREEN}$shared_drives_count${NC} drives"
+    fi
     if [[ "$external_sharing_files" -gt 0 ]]; then
         echo -e "${WHITE}External Sharing:${NC}    ${YELLOW}$external_sharing_files${NC} files"
     else
