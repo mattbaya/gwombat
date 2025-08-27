@@ -16407,10 +16407,10 @@ list_management_menu() {
                 esac
                 read -p "Press Enter to continue..."
                 ;;
-            12|p|P|m|M) return ;;
+            11|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-12, p, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-10, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
