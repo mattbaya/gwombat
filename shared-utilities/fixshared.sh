@@ -22,7 +22,7 @@ echo "Adding user gwombat to the shared drive id $drive_id"
 $GAM user ${ADMIN_USER:-gwombat@your-domain.edu} add drivefileacl $drive_id user ${ADMIN_USER:-gwombat@your-domain.edu} role editor asadmin 2>/dev/null
 
 # Query the files in the shared drive and output only the files with "(PENDING DELETION - CONTACT OIT)" or "(Suspended Account - Temporary Hold)" in the name
-allfiles="$( $GAM user ${ADMIN_USER:-gwombat@your-domain.edu} show filelist select teamdriveid "$drive_id" fields "id,name" )"
+allfiles="$( $GAM user ${ADMIN_USER:-gwombat@your-domain.edu} show filelist select shareddriveid "$drive_id" fields "id,name" )"
 
 #echo "$allfiles"
 #echo "---------"

@@ -808,7 +808,7 @@ show_quick_stats() {
                 total_groups="?"
             fi
             
-            shared_drives=$($GAM print teamdrives fields id 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+            shared_drives=$($GAM print shareddrives fields id 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
             if [[ -z "$shared_drives" || "$shared_drives" == "0" ]]; then
                 shared_drives="0"
             fi
@@ -1525,7 +1525,7 @@ cleanup_shared_drive() {
     echo -e "${CYAN}Scanning shared drive for files with pending deletion markers...${NC}"
     
     # Get all files in the shared drive with pending deletion markers
-    if ! $GAM user "$admin_user" show filelist select teamdriveid "$drive_id" fields "id,name" > "$tempfile" 2>/dev/null; then
+    if ! $GAM user "$admin_user" show filelist select shareddriveid "$drive_id" fields "id,name" > "$tempfile" 2>/dev/null; then
         echo -e "${RED}Error: Failed to retrieve file list from shared drive${NC}"
         rm -f "$tempfile"
         $GAM user "$admin_user" delete drivefileacl "$drive_id" "$admin_user" asadmin 2>/dev/null
@@ -21907,7 +21907,7 @@ quick_inactive_drive_analysis() {
     
     # Get all shared drives
     echo "Step 1: Retrieving all shared drives..."
-    if ! $GAM print teamdrives > "$drive_list" 2>/dev/null; then
+    if ! $GAM print shareddrives > "$drive_list" 2>/dev/null; then
         echo -e "${RED}Failed to retrieve shared drives. Check GAM configuration.${NC}"
         read -p "Press Enter to continue..."
         return 1
@@ -21951,7 +21951,7 @@ quick_inactive_drive_analysis() {
         
         # Get drive members
         local members_file="/tmp/drive_members_${drive_id}_$$.txt"
-        if $GAM print teamdrivemembers teamdrive "$drive_id" > "$members_file" 2>/dev/null; then
+        if $GAM print shareddrivemembers shareddrive "$drive_id" > "$members_file" 2>/dev/null; then
             
             # Count active users (exclude suspended and external)
             local active_members=0
@@ -22119,7 +22119,7 @@ detailed_inactive_drive_analysis() {
     
     # Get all shared drives
     echo "Retrieving shared drive list..."
-    if ! $GAM print teamdrives > "$drive_list" 2>/dev/null; then
+    if ! $GAM print shareddrives > "$drive_list" 2>/dev/null; then
         echo -e "${RED}Failed to retrieve shared drives. Check GAM configuration.${NC}"
         read -p "Press Enter to continue..."
         return 1
@@ -22172,7 +22172,7 @@ detailed_inactive_drive_analysis() {
             echo ""
         } >> "$detailed_report"
         
-        if $GAM print teamdrivemembers teamdrive "$drive_id" > "$members_file" 2>/dev/null; then
+        if $GAM print shareddrivemembers shareddrive "$drive_id" > "$members_file" 2>/dev/null; then
             local drive_active=0
             local drive_suspended=0
             local drive_external=0
@@ -24498,7 +24498,7 @@ EOF
                 echo "Shared Drives Summary:" >> "$report_file"
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$report_file"
                 
-                if timeout 10 $GAM print teamdrives 2>/dev/null | head -20 >> "$report_file"; then
+                if timeout 10 $GAM print shareddrives 2>/dev/null | head -20 >> "$report_file"; then
                     echo "✅ Shared drives data retrieved" >> "$report_file"
                 else
                     echo "❌ Unable to retrieve shared drives data" >> "$report_file"
@@ -24852,7 +24852,7 @@ monitoring_menu() {
                 fi
                 
                 echo -n "Google Drive API: "
-                if timeout 5 $GAM print teamdrives >/dev/null 2>&1; then
+                if timeout 5 $GAM print shareddrives >/dev/null 2>&1; then
                     echo "✅ OK"
                 else
                     echo "❌ FAILED"
@@ -25078,7 +25078,7 @@ drive_cleanup_menu() {
                 
                 # Get all shared drives
                 local shared_drives_file=$(mktemp)
-                $GAM print teamdrives > "$shared_drives_file" 2>/dev/null
+                $GAM print shareddrives > "$shared_drives_file" 2>/dev/null
                 
                 if [[ ! -s "$shared_drives_file" ]]; then
                     echo -e "${RED}❌ Unable to retrieve shared drives or no drives found${NC}"
@@ -25098,7 +25098,7 @@ drive_cleanup_menu() {
                     total_count=$((total_count + 1))
                     
                     # Check if drive has any files
-                    local file_count=$($GAM show teamdrive "$id" | grep -c "File:" 2>/dev/null || echo "0")
+                    local file_count=$($GAM show shareddrive "$id" | grep -c "File:" 2>/dev/null || echo "0")
                     
                     if [[ "$file_count" -eq 0 ]]; then
                         empty_count=$((empty_count + 1))
@@ -25141,9 +25141,9 @@ drive_cleanup_menu() {
                         echo "🔍 Performing quick duplicate scan..."
                         # Quick scan implementation
                         local temp_file=$(mktemp)
-                        $GAM print teamdrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
+                        $GAM print shareddrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
                             echo "  Scanning: $drive_name"
-                            $GAM print filelist teamdriveid "$drive_id" > "$temp_file" 2>/dev/null
+                            $GAM print filelist shareddriveid "$drive_id" > "$temp_file" 2>/dev/null
                             
                             # Find duplicates by name and size
                             awk -F',' 'NR>1 {print $2,$3}' "$temp_file" | sort | uniq -d | while read -r name size; do
@@ -25187,7 +25187,7 @@ drive_cleanup_menu() {
                 
                 # Get all shared drives
                 local drives_file=$(mktemp)
-                $GAM print teamdrives > "$drives_file" 2>/dev/null
+                $GAM print shareddrives > "$drives_file" 2>/dev/null
                 
                 if [[ ! -s "$drives_file" ]]; then
                     echo -e "${RED}❌ Unable to retrieve shared drives${NC}"
@@ -25205,7 +25205,7 @@ drive_cleanup_menu() {
                     
                     # Get drive permissions
                     local perms_file=$(mktemp)
-                    $GAM print permissions teamdriveid "$drive_id" > "$perms_file" 2>/dev/null
+                    $GAM print permissions shareddriveid "$drive_id" > "$perms_file" 2>/dev/null
                     
                     if [[ -s "$perms_file" ]]; then
                         # Check each permission for validity
@@ -25219,7 +25219,7 @@ drive_cleanup_menu() {
                                     echo "   Remove this orphaned permission? (y/n): "
                                     read -r remove_confirm
                                     if [[ "$remove_confirm" == "y" || "$remove_confirm" == "Y" ]]; then
-                                        $GAM delete permissions teamdriveid "$drive_id" "$email_addr" 2>/dev/null
+                                        $GAM delete permissions shareddriveid "$drive_id" "$email_addr" 2>/dev/null
                                         if [[ $? -eq 0 ]]; then
                                             echo "   ✅ Removed orphaned permission"
                                         else
@@ -25288,11 +25288,11 @@ drive_cleanup_menu() {
                 local total_size=0
                 
                 # Get shared drives and scan for old files
-                $GAM print teamdrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
+                $GAM print shareddrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
                     echo "  📁 Scanning: $drive_name"
                     
                     local files_file=$(mktemp)
-                    $GAM print filelist teamdriveid "$drive_id" > "$files_file" 2>/dev/null
+                    $GAM print filelist shareddriveid "$drive_id" > "$files_file" 2>/dev/null
                     
                     if [[ -s "$files_file" ]]; then
                         # Process each file
@@ -25337,18 +25337,18 @@ drive_cleanup_menu() {
                 echo -e "${WHITE}Drive Size Analysis:${NC}"
                 echo ""
                 
-                $GAM print teamdrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
+                $GAM print shareddrives | tail -n +2 | while IFS=',' read -r drive_id drive_name; do
                     total_drives=$((total_drives + 1))
                     
                     # Get drive size information
                     local drive_info=$(mktemp)
-                    $GAM show teamdrive "$drive_id" > "$drive_info" 2>/dev/null
+                    $GAM show shareddrive "$drive_id" > "$drive_info" 2>/dev/null
                     
                     local drive_size=0
                     if [[ -s "$drive_info" ]]; then
                         # Calculate size from file listing
                         local files_file=$(mktemp)
-                        $GAM print filelist teamdriveid "$drive_id" > "$files_file" 2>/dev/null
+                        $GAM print filelist shareddriveid "$drive_id" > "$files_file" 2>/dev/null
                         
                         if [[ -s "$files_file" ]]; then
                             drive_size=$(tail -n +2 "$files_file" | awk -F',' '{sum += $3} END {print sum+0}')
