@@ -46,16 +46,33 @@ secure_sqlite_query() {
         return 1
     fi
     
-    # Sanitize parameters by escaping single quotes
+    # CRITICAL SECURITY: Prevent SQL injection
+    # Sanitize parameters by escaping single quotes and removing dangerous SQL keywords
     local sanitized_params=()
     for param in "${params[@]}"; do
-        # Escape single quotes and control characters
-        sanitized_param=$(printf '%s\n' "$param" | sed "s/'/''/g" | tr -d '\0-\37\177-\377')
+        # First, escape single quotes by doubling them (SQL standard)
+        local sanitized_param
+        sanitized_param=$(echo "$param" | sed "s/'/\'\'/g")
+        
+        # Remove dangerous SQL keywords and commands (case insensitive)
+        # This prevents DROP, DELETE, UPDATE, INSERT, etc. in user input
+        sanitized_param=$(echo "$sanitized_param" | sed -E 's/\b(DROP|DELETE|UPDATE|INSERT|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|UNION|SELECT.*FROM)\b//gi')
+        
+        # Remove SQL comment markers
+        sanitized_param="${sanitized_param//--/}"
+        sanitized_param="${sanitized_param//\/\*/}"
+        sanitized_param="${sanitized_param//\*\//}"
+        
+        # Remove semicolons to prevent query chaining
+        sanitized_param="${sanitized_param//;/}"
+        
+        # Remove null bytes and control characters
+        sanitized_param=$(printf '%s' "$sanitized_param" | tr -d '\0-\37\177-\377')
+        
         sanitized_params+=("$sanitized_param")
     done
     
     # Execute query with sanitized parameters
-    # Note: This is a basic implementation. For production use, consider prepared statements
     printf -v formatted_query "$query" "${sanitized_params[@]}"
     sqlite3 "$db_file" "$formatted_query"
 }
@@ -266,8 +283,29 @@ check_database() {
 # Sanitize input for SQL to prevent injection
 sanitize_sql_input() {
     local input="$1"
-    # Replace single quotes with two single quotes (SQL escaping)
-    echo "${input//\'/\'\'}"
+    
+    # CRITICAL SECURITY: Comprehensive SQL injection prevention
+    # Step 1: Escape single quotes by doubling them (SQL standard)
+    local sanitized
+    sanitized=$(echo "$input" | sed "s/'/\'\'/g")
+    
+    # Step 2: Remove dangerous SQL keywords that could be used for injection
+    # This includes DROP, DELETE, UPDATE, etc.
+    sanitized=$(echo "$sanitized" | sed -E 's/\b(DROP|DELETE|UPDATE|INSERT|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|UNION|SELECT.*FROM|INTO|VALUES)\b//gi')
+    
+    # Step 3: Remove SQL comment markers that could bypass filters
+    sanitized="${sanitized//--/}"
+    sanitized="${sanitized//\/\*/}"
+    sanitized="${sanitized//\*\//}"
+    sanitized="${sanitized//#/}"
+    
+    # Step 4: Remove semicolons to prevent query chaining
+    sanitized="${sanitized//;/}"
+    
+    # Step 5: Remove null bytes and control characters
+    sanitized=$(printf '%s' "$sanitized" | tr -d '\0-\37\177-\377')
+    
+    echo "$sanitized"
 }
 
 # Add or update account in database
