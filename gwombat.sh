@@ -18219,6 +18219,15 @@ file_drive_operations_function_dispatcher() {
             echo "• Cloud storage integration"
             read -p "Press Enter to continue..."
             ;;
+        "drive_cleanup_menu")
+            echo -e "${CYAN}Drive Cleanup Operations - Coming Soon${NC}"
+            echo "This feature will include:"
+            echo "• Remove duplicate files"
+            echo "• Clean up temporary files"
+            echo "• Organize folder structures"
+            echo "• Archive old files"
+            read -p "Press Enter to continue..."
+            ;;
         "permission_management_menu") permission_management_menu ;;
         "export_data_menu") export_data_menu ;;
         *)
