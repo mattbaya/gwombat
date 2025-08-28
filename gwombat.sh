@@ -2761,6 +2761,24 @@ system_administration_function_dispatcher() {
         "dry_run_mode") dry_run_mode ;;
         
         # Maintenance & Health  
+        "system_maintenance_menu")
+            echo -e "${CYAN}System Maintenance - Coming Soon${NC}"
+            echo "This feature will include:"
+            echo "• System health checks"
+            echo "• Performance optimization"
+            echo "• Log file management"
+            echo "• Database maintenance"
+            read -p "Press Enter to continue..."
+            ;;
+        "system_backup_menu")
+            echo -e "${CYAN}System Backup - Coming Soon${NC}"
+            echo "This feature will include:"
+            echo "• Configuration backups"
+            echo "• Database backups"
+            echo "• System state snapshots"
+            echo "• Recovery procedures"
+            read -p "Press Enter to continue..."
+            ;;
         "check_incomplete_operations") check_incomplete_operations ;;
         "view_backup_files") 
             echo -e "${CYAN}Backup files location: $BACKUP_DIR${NC}"
