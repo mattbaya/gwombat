@@ -16428,7 +16428,7 @@ list_management_menu() {
             11|p|P|m|M) return ;;
             x|X) exit 0 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-10, p, m, or x.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-11, p, m, or x.${NC}"
                 read -p "Press Enter to continue..."
                 ;;
         esac
