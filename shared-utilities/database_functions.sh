@@ -1169,9 +1169,11 @@ get_menu_function() {
 # Database-driven search function
 search_menu_database() {
     local search_term="$1"
+    local interactive_mode=false
     
     # If no search term provided, ask interactively
     if [[ -z "$search_term" ]]; then
+        interactive_mode=true
         echo -e "${CYAN}Menu Search${NC}"
         echo ""
         echo "Type 'exit' or press Enter with no text to cancel"

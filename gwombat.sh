@@ -1422,18 +1422,14 @@ reports_and_cleanup_menu() {
                 fi
             done
         else
-            # Fallback menu when database is not available
-            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
-            echo "1. Generate daily activity report"
-            echo "2. Generate operation summary for current session"
-            echo "3. View current session log"
-            echo "4. View error log"
-            echo "5. View performance statistics"
-            echo "6. Clean up old logs (30+ days)"
-            echo "7. Clean up old logs (custom days)"
-            echo "8. Database backup management"
-            echo "9. Configuration management"
-            echo "10. Audit file ownership locations"
+            # Critical error - database is required
+            echo -e "${RED}ERROR: Menu database not found at shared-config/menu.db${NC}"
+            echo ""
+            echo "Please run the setup wizard to initialize the database:"
+            echo "  ./shared-utilities/setup_wizard.sh"
+            echo ""
+            read -p "Press Enter to return to main menu..."
+            return
         fi
         
         echo ""
@@ -1451,20 +1447,8 @@ reports_and_cleanup_menu() {
                     local func_name="${function_names[$report_choice]}"
                     reports_cleanup_function_dispatcher "$func_name"
                 else
-                    # Fallback for when database is not available
-                    case $report_choice in
-                        1) generate_daily_report ;;
-                        2) generate_session_summary ;;
-                        3) view_current_session_log ;;
-                        4) view_recent_errors ;;
-                        5) view_performance_stats ;;
-                        6) cleanup_logs 30 ;;
-                        7) cleanup_logs_custom ;;
-                        8) database_backup_submenu ;;
-                        9) configuration_menu ;;
-                        10) audit_file_ownership_menu ;;
-                        *) echo -e "${RED}Invalid option${NC}"; read -p "Press Enter to continue..." ;;
-                    esac
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
                 fi
                 ;;
             p|P)
@@ -2366,12 +2350,11 @@ system_overview_menu() {
                 echo "$order. $display_name ($description)"
             done <<< "$menu_items"
         else
-            # Fallback to basic options if database not available
-            echo "1. 🎯 System Dashboard (Real-time overview with key metrics)"
-            echo "2. 📊 System Health Check (Comprehensive system diagnostics)" 
-            echo "3. 📈 Performance Metrics (System performance and response times)"
-            echo "4. 🔍 System Status Report (Detailed status of all components)"
-            echo "5. 🗄️ Database Overview (Database status and statistics)"
+            # Critical error - database is required
+            echo -e "${RED}ERROR: Menu database not found${NC}"
+            echo ""
+            read -p "Press Enter to return to previous menu..."
+            return
         fi
         
         echo ""
@@ -2988,19 +2971,11 @@ statistics_menu_original() {
                 fi
             done
         else
-            # Fallback menu when database is not available
-            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
-            echo -e "${GREEN}=== CORE STATISTICS ===${NC}"
-            echo "1. 📊 Domain Overview Statistics (Comprehensive domain metrics)"
-            echo "2. 👥 User Account Statistics (Active, suspended, lifecycle stages)"
-            echo "3. 📈 Historical Trends (Account changes over time)"
-            echo "4. 💾 Storage Analytics (Storage usage patterns and trends)"
-            echo "5. 📋 Group Statistics (Groups, memberships, and distribution)"
+            # Critical error - database is required
+            echo -e "${RED}ERROR: Menu database not found${NC}"
             echo ""
-            echo -e "${PURPLE}=== PERFORMANCE METRICS ===${NC}"
-            echo "6. ⚡ System Performance (Response times, operation speeds)"
-            echo "7. 📊 Database Performance (Query performance, growth rates)"
-            echo "8. 🔧 GAM Operation Metrics (Command success rates, timing)"
+            read -p "Press Enter to return to previous menu..."
+            return
         fi
         
         echo ""
@@ -3019,17 +2994,8 @@ statistics_menu_original() {
                     local func_name="${function_names[$stats_choice]}"
                     statistics_function_dispatcher "$func_name"
                 else
-                    # Fallback for when database is not available
-                    case $stats_choice in
-                        1) domain_overview_statistics ;;
-                        2) user_account_statistics ;;
-                        3) historical_trends_statistics ;;
-                        4) storage_analytics_statistics ;;
-                        5) group_statistics_analysis ;;
-                        6) system_performance_metrics ;;
-                        7) database_performance_metrics ;;
-                        8) gam_operation_metrics ;;
-                    esac
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
                 fi
                 ;;
             b)
@@ -3680,32 +3646,24 @@ show_main_menu_content() {
         # Use SQLite-driven menu generation (bash 3.2 compatible)
         generate_main_menu
     else
-        # Simplified fallback menu when database is not available
-        echo -e "${YELLOW}Database not available. Using simplified fallback menu.${NC}"
+        # Critical error - database is required
+        echo -e "${RED}ERROR: Menu database not found at shared-config/menu.db${NC}"
         echo ""
-        echo "1. 👥 User & Group Management"
-        echo "2. 💾 File & Drive Operations"
-        echo "3. 🔍 Analysis & Discovery"
-        echo "4. 📋 Account List Management"
-        echo "5. 🎯 Dashboard & Statistics"
-        echo "6. 📈 Reports & Monitoring"
-        echo "7. ⚙️ System Administration"
-        echo "8. 💾 Backup & Recovery"
-        echo "9. 🔐 SCuBA Compliance Management"
+        echo "Please run the setup wizard to initialize the database:"
+        echo "  ./shared-utilities/setup_wizard.sh"
         echo ""
-        echo "c. ⚙️ Configuration Management"
-        echo "s. 🔍 Search Menu Options"
-        echo "i. 📋 Menu Index (Alphabetical)"
+        echo "x. Exit"
+        echo ""
+        read -p "Press x to exit: " choice
+        exit 1
     fi
     
     echo ""
-    read -p "Select an option (1-10, c, s, i, x): " choice
+    read -p "Select an option (1-9, s, i, x): " choice
     echo ""
     
     # Convert letters to numbers for case handling (but keep 'x' as 'x' for exit)
-    if [[ "$choice" == "c" || "$choice" == "C" ]]; then
-        choice=99  # Configuration
-    elif [[ "$choice" == "s" || "$choice" == "S" ]]; then
+    if [[ "$choice" == "s" || "$choice" == "S" ]]; then
         choice=98  # Search
     elif [[ "$choice" == "i" || "$choice" == "I" ]]; then
         choice=97  # Index
@@ -18299,14 +18257,11 @@ file_drive_operations_menu() {
                 fi
             done
         else
-            # Simplified fallback menu when database is not available
-            echo -e "${YELLOW}Database not available. Using fallback menu.${NC}"
-            echo -e "${YELLOW}Core Operations:${NC}"
-            echo "  1. 📁 File Operations"
-            echo "  2. 🗂️ Shared Drive Management"
-            echo "  3. 💾 Backup Operations"
-            echo "  4. 🔐 Permission Management"
-            echo "  5. 📊 CSV Data Export"
+            # Critical error - database is required
+            echo -e "${RED}ERROR: Menu database not found${NC}"
+            echo ""
+            read -p "Press Enter to return to main menu..."
+            return
         fi
         
         echo ""
@@ -18330,22 +18285,8 @@ file_drive_operations_menu() {
                     local func_name="${function_names[$file_choice]}"
                     file_drive_operations_function_dispatcher "$func_name"
                 else
-                    # Fallback for when database is not available
-                    case $file_choice in
-                        1) file_operations_menu ;;
-                        2) shared_drive_menu ;;
-                        3) 
-                            echo -e "${CYAN}Backup Operations - Coming Soon${NC}"
-                            echo "This feature will include:"
-                            echo "• File backup and restore"
-                            echo "• Automated backup scheduling"
-                            echo "• Backup verification and integrity checks"
-                            echo "• Cloud storage integration"
-                            read -p "Press Enter to continue..."
-                            ;;
-                        4) permission_management_menu ;;
-                        5) export_data_menu ;;
-                    esac
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
                 fi
                 ;;
             99|p|m)
@@ -24870,16 +24811,33 @@ search_menu_options() {
         echo -e "${BLUE}=== GWOMBAT Menu Search ===${NC}"
         echo ""
         echo -e "${CYAN}Search for menu options by keyword${NC}"
+        echo -e "${GRAY}Type 'back' or 'exit' to return to main menu${NC}"
         echo ""
-        read -p "Enter search term (or 'back' to return): " search_term
         
-        if [[ "$search_term" == "back" || "$search_term" == "b" ]]; then
+        # Check if stdin is a terminal to handle piped input correctly
+        if [[ -t 0 ]]; then
+            read -p "Enter search term: " search_term
+        else
+            # For non-interactive mode (piped input), read available input
+            read search_term || break
+        fi
+        
+        # Handle exit commands
+        if [[ "$search_term" == "back" || "$search_term" == "b" || "$search_term" == "exit" ]]; then
             break
         fi
         
+        # Validate input
         if [[ -z "$search_term" ]]; then
             echo -e "${RED}Please enter a search term${NC}"
-            read -p "Press Enter to continue..."
+            # Only wait for Enter in interactive mode
+            if [[ -t 0 ]]; then
+                read -p "Press Enter to continue..."
+            else
+                # In non-interactive mode, exit to prevent infinite loop
+                echo "Exiting search due to empty input in non-interactive mode"
+                break
+            fi
             continue
         fi
         
@@ -24891,10 +24849,17 @@ search_menu_options() {
         echo ""
         echo -e "${GRAY}Tip: Use short keywords for better results${NC}"
         echo ""
-        echo ""
-        read -p "Press Enter to search again (or type 'exit' to return to menu): " next_action
         
-        if [[ "$next_action" == "exit" || "$next_action" == "back" || "$next_action" == "b" ]]; then
+        # Only prompt for another search in interactive mode
+        if [[ -t 0 ]]; then
+            echo ""
+            read -p "Search again? (Enter = yes, 'exit' or 'back' = return to menu): " next_action
+            
+            if [[ "$next_action" == "exit" || "$next_action" == "back" || "$next_action" == "b" ]]; then
+                break
+            fi
+        else
+            # In non-interactive mode, do one search and exit
             break
         fi
     done
@@ -25068,61 +25033,31 @@ main() {
     
     while true; do
         case $choice in
-            1)
-                user_group_management_menu
-                ;;
-            2)
-                file_drive_operations_menu
-                ;;
-            3)
-                analysis_discovery_menu
-                ;;
-            4)
-                list_management_menu
-                ;;
-            5)
-                dashboard_menu
-                ;;
-            6)
-                reports_and_cleanup_menu
-                ;;
-            7)
-                system_administration_menu
-                ;;
-            8)
-                scuba_compliance_menu
-                ;;
-            9)
-                # Configuration Management
-                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
-                    show_config_menu
+            [1-9])
+                # Use database-driven navigation for numeric choices
+                local section_name
+                section_name=$(sqlite3 "$MENU_DB_FILE" "
+                    SELECT name 
+                    FROM menu_sections 
+                    WHERE section_order = '$choice' AND is_active = 1;
+                " 2>/dev/null)
+                
+                if [[ -n "$section_name" ]]; then
+                    main_menu_function_dispatcher "$section_name"
                 else
-                    configuration_menu
+                    echo -e "${RED}Invalid option${NC}"
+                    read -p "Press Enter to continue..."
                 fi
                 ;;
-            10)
-                # Account Analysis Tools
-                account_analysis_menu
-                ;;
-            c)
-                # Configuration Management (legacy shortcut)
-                if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
-                    source "$SHARED_UTILITIES_PATH/config_manager.sh"
-                    show_config_menu
-                else
-                    configuration_menu
-                fi
-                ;;
-            s)
+            98|s|S)
                 # Search Menu Options
                 search_menu_options
                 ;;
-            i)
+            97|i|I)
                 # Menu Index (Alphabetical)
                 show_menu_index
                 ;;
-            x)
+            x|X)
                 echo -e "${BLUE}Goodbye!${NC}"
                 log_info "Session ended by user"
                 echo "=== SESSION END: $(date) ===" >> "$LOG_FILE"
@@ -37059,6 +36994,50 @@ handle_menu_choice() {
     done
     
     get_user_input "$prompt" "$valid_options" "$max_attempts"
+}
+
+# Main Menu Function Dispatcher - Routes section names to their respective menu functions
+main_menu_function_dispatcher() {
+    local section_name="$1"
+    
+    case "$section_name" in
+        "user_group_management")
+            user_group_management_menu
+            ;;
+        "file_drive_operations")
+            file_drive_operations_menu
+            ;;
+        "analysis_discovery")
+            analysis_discovery_menu
+            ;;
+        "account_list_management")
+            list_management_menu
+            ;;
+        "dashboard_statistics")
+            dashboard_menu
+            ;;
+        "reports_monitoring")
+            reports_and_cleanup_menu
+            ;;
+        "system_administration")
+            system_administration_menu
+            ;;
+        "scuba_compliance")
+            scuba_compliance_menu
+            ;;
+        "configuration_management")
+            if [[ -x "$SHARED_UTILITIES_PATH/config_manager.sh" ]]; then
+                source "$SHARED_UTILITIES_PATH/config_manager.sh"
+                show_config_menu
+            else
+                configuration_menu
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown section: $section_name${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
 }
 
 # Call main function to start the application
