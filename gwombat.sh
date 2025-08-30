@@ -37040,7 +37040,28 @@ main_menu_function_dispatcher() {
     esac
 }
 
+# Check if hierarchical menu system should be used
+USE_HIERARCHICAL_MENUS="${USE_HIERARCHICAL_MENUS:-true}"
+
 # Call main function to start the application
 load_configuration
-main
+
+if [[ "$USE_HIERARCHICAL_MENUS" == "true" ]]; then
+    # Check for enhanced version first
+    if [[ -f "shared-utilities/enhanced_hierarchical_menu.sh" ]]; then
+        echo -e "${BLUE}Starting GWOMBAT with Enhanced Hierarchical Menu System...${NC}"
+        source shared-utilities/enhanced_hierarchical_menu.sh
+        init_hierarchical_menu
+    elif [[ -f "shared-utilities/hierarchical_menu_system.sh" ]]; then
+        echo -e "${BLUE}Starting GWOMBAT with Hierarchical Menu System...${NC}"
+        source shared-utilities/hierarchical_menu_system.sh
+        init_hierarchical_menu
+    else
+        echo -e "${YELLOW}Hierarchical menu system not found. Using original system.${NC}"
+        main
+    fi
+else
+    # Use original system
+    main
+fi
 
