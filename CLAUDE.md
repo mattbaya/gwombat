@@ -346,6 +346,7 @@ gwombat/
     ├── INSTALLATION.md                  # Setup instructions
     ├── DEPLOYMENT.md                    # Production deployment guide
     ├── CSV_EXPORT_SYSTEM.md             # Export system documentation
+    ├── TESTING.md                       # Comprehensive testing framework
     ├── UX_ENHANCEMENT_GUIDE.md          # Terminal interface improvements (NEW)
     └── [additional technical guides]    # Specialized documentation
 ```

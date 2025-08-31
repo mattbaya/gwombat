@@ -268,6 +268,7 @@ s → "security"  # Find compliance and security features
 
 ### Feature Documentation
 - **[CSV_EXPORT_SYSTEM.md](docs/CSV_EXPORT_SYSTEM.md)** - Complete CSV export functionality guide
+- **[TESTING.md](TESTING.md)** - Comprehensive testing framework and security testing procedures
 - **[TEST_DOMAIN_MANAGEMENT.md](docs/TEST_DOMAIN_MANAGEMENT.md)** - Test domain configuration and safety procedures
 - **[DRIVE_API_TROUBLESHOOTING.md](docs/DRIVE_API_TROUBLESHOOTING.md)** - Drive API v3 enablement and troubleshooting guide
 
