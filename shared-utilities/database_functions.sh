@@ -1059,6 +1059,23 @@ generate_main_menu() {
     ")
 }
 
+# Get dynamic menu range for input validation
+get_menu_range() {
+    local section_name="$1"
+    
+    if [[ -z "$section_name" || "$section_name" == "main" ]]; then
+        # Main menu - count active sections
+        sqlite3 "$MENU_DB_FILE" "SELECT COUNT(*) FROM menu_sections WHERE is_active = 1;"
+    else
+        # Submenu - count active items in section
+        sqlite3 "$MENU_DB_FILE" "
+            SELECT COUNT(*) 
+            FROM menu_items mi 
+            JOIN menu_sections ms ON mi.section_id = ms.id 
+            WHERE ms.name = '$section_name' AND mi.is_active = 1 AND ms.is_active = 1;"
+    fi
+}
+
 # Generate submenu from database
 generate_submenu() {
     local section_name="$1"

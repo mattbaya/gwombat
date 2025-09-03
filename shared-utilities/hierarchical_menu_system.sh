@@ -216,7 +216,7 @@ handle_menu_choice() {
     fi
     
     # Handle navigation shortcuts
-    case "${choice,,}" in
+    case "$(echo "$choice" | tr '[:upper:]' '[:lower:]')" in
         b|back)
             # Go back to previous menu (bash 3.2 compatible)
             if [[ -n "$MENU_HISTORY" ]]; then

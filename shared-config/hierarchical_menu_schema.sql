@@ -160,3 +160,17 @@ SELECT
     (SELECT COUNT(*) FROM menu_items_v2 WHERE parent_id IS NULL) as root_items,
     (SELECT MAX(depth) FROM v_menu_hierarchy) as max_depth,
     (SELECT COUNT(*) FROM menu_items_v2 WHERE is_active = 0 OR is_visible = 0) as hidden_items;
+
+-- Workflow Automation menu entries
+INSERT OR IGNORE INTO menu_items_v2 (name, display_name, description, icon, item_type, sort_order, keywords) VALUES
+    ('workflow_automation', 'Workflow Automation', 'Automated task scheduling and management', '🤖', 'menu', 110, 'workflow automation schedule cron batch');
+
+-- Workflow automation submenu items
+INSERT OR IGNORE INTO menu_items_v2 (parent_id, name, display_name, description, icon, item_type, function_name, sort_order, keywords) VALUES
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'workflow_status', 'Workflow Status', 'View running workflows and execution history', '📊', 'action', 'show_workflow_status', 1, 'status running executions history'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'list_workflows', 'List Workflows', 'Show all configured workflows', '📋', 'action', 'list_workflows', 2, 'list workflows configured available'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'workflow_templates', 'Workflow Templates', 'Manage workflow templates and create new workflows', '📝', 'action', 'manage_workflow_templates', 3, 'templates create manage new'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'enable_disable_workflows', 'Enable/Disable Workflows', 'Enable or disable specific workflows', '🔧', 'action', 'toggle_workflow_status', 4, 'enable disable toggle workflows'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'manual_execution', 'Manual Execution', 'Run workflows manually outside of schedule', '▶️', 'action', 'manual_workflow_execution', 5, 'manual run execute now trigger'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'scheduler_control', 'Scheduler Control', 'Start/stop workflow scheduler daemon', '⚙️', 'action', 'workflow_scheduler_control', 6, 'scheduler daemon start stop control'),
+    ((SELECT id FROM menu_items_v2 WHERE name = 'workflow_automation'), 'workflow_logs', 'Workflow Logs', 'View detailed workflow execution logs', '📄', 'action', 'view_workflow_logs', 7, 'logs execution history details output');
