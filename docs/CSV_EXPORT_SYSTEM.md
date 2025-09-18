@@ -2,7 +2,7 @@
 
 ## Overview
 
-GWOMBAT includes a comprehensive CSV export system that allows you to export any data displayed in the system to CSV format for external analysis, reporting, and integration with other tools.
+GWOMBAT includes a comprehensive CSV export system that allows you to export any data displayed in the system to CSV format for external analysis, reporting, and integration with other tools. The export routines live in `shared-utilities/export_functions.sh`; because the hierarchical menu refactor is still in progress, some export options may need to be called manually (e.g. by sourcing `gwombat.sh`) until the navigation is fully rewired.
 
 ## Features
 
@@ -61,7 +61,7 @@ Exports only active (non-suspended) user accounts.
 ### 4. 🗂️ Export Shared Drives
 Exports complete shared drive directory.
 
-**GAM Command**: `gam print teamdrives`
+**GAM Command**: `gam print shareddrives`
 **Output**: `shared_drives_YYYYMMDD_HHMMSS.csv`
 
 ### 5. 📋 Export Account List (from database)
