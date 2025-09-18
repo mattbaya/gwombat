@@ -3740,7 +3740,7 @@ get_shared_drive_id() {
 }
 
 shared_drive_cleanup_menu() {
-    render_menu "file_drive_operations"
+    render_menu "fdo_cleanup"
 }
 
 # License management functions
@@ -3792,7 +3792,147 @@ manage_user_license() {
 }
 
 license_management_menu() {
-    render_menu "user_group_management"
+    while true; do
+        clear
+        echo -e "${BLUE}=== License Management ===${NC}"
+        echo ""
+        echo "Manage Google Workspace licenses for users."
+        echo ""
+        echo "1. Add license to user"
+        echo "2. Remove license from user"
+        echo "3. Show user licenses"
+        echo "4. Batch license operations"
+        echo "5. Return to discovery menu"
+        echo ""
+        read -p "Select an option (1-5): " license_choice
+        echo ""
+
+        case $license_choice in
+            1)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo "Available license types:"
+                    echo "1. Google Workspace for Education Plus (default)"
+                    echo "2. Google Workspace for Education Standard"
+                    echo "3. Custom license name"
+                    read -p "Select license type (1-3): " license_type_choice
+
+                    case $license_type_choice in
+                        1) license_type="Google Workspace for Education Plus" ;;
+                        2) license_type="Google Workspace for Education Standard" ;;
+                        3)
+                            read -p "Enter custom license name: " license_type
+                            [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                            ;;
+                        *) license_type="Google Workspace for Education Plus" ;;
+                    esac
+
+                    manage_user_license "$username" "add" "$license_type"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            2)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    echo "Available license types:"
+                    echo "1. Google Workspace for Education Plus (default)"
+                    echo "2. Google Workspace for Education Standard"
+                    echo "3. Custom license name"
+                    read -p "Select license type (1-3): " license_type_choice
+
+                    case $license_type_choice in
+                        1) license_type="Google Workspace for Education Plus" ;;
+                        2) license_type="Google Workspace for Education Standard" ;;
+                        3)
+                            read -p "Enter custom license name: " license_type
+                            [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                            ;;
+                        *) license_type="Google Workspace for Education Plus" ;;
+                    esac
+
+                    manage_user_license "$username" "remove" "$license_type"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            3)
+                read -p "Enter username (email): " username
+                if [[ -n "$username" ]]; then
+                    manage_user_license "$username" "show"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                else
+                    echo -e "${RED}Username cannot be empty${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            4)
+                echo -e "${CYAN}Batch License Operations${NC}"
+                echo ""
+                read -p "Enter path to file containing usernames (one per line): " user_file
+                if [[ -f "$user_file" ]]; then
+                    echo "1. Add license to all users"
+                    echo "2. Remove license from all users"
+                    echo "3. Show licenses for all users"
+                    read -p "Select operation (1-3): " batch_operation
+
+                    case $batch_operation in
+                        1) batch_action="add" ;;
+                        2) batch_action="remove" ;;
+                        3) batch_action="show" ;;
+                        *)
+                            echo -e "${RED}Invalid operation${NC}"
+                            read -p "Press Enter to continue..."
+                            continue
+                            ;;
+                    esac
+
+                    if [[ "$batch_action" != "show" ]]; then
+                        echo "Available license types:"
+                        echo "1. Google Workspace for Education Plus (default)"
+                        echo "2. Google Workspace for Education Standard"
+                        echo "3. Custom license name"
+                        read -p "Select license type (1-3): " license_type_choice
+
+                        case $license_type_choice in
+                            1) license_type="Google Workspace for Education Plus" ;;
+                            2) license_type="Google Workspace for Education Standard" ;;
+                            3)
+                                read -p "Enter custom license name: " license_type
+                                [[ -z "$license_type" ]] && license_type="Google Workspace for Education Plus"
+                                ;;
+                            *) license_type="Google Workspace for Education Plus" ;;
+                        esac
+                    fi
+
+                    while read -r username; do
+                        [[ -z "$username" ]] && continue
+                        manage_user_license "$username" "$batch_action" "$license_type"
+                    done < "$user_file"
+
+                    echo ""
+                    read -p "Batch operation completed. Press Enter to continue..."
+                else
+                    echo -e "${RED}File not found: $user_file${NC}"
+                    read -p "Press Enter to continue..."
+                fi
+                ;;
+            5)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Orphaned file collection functions
@@ -6780,7 +6920,47 @@ rescan_all_accounts() {
 
 # Function to list all accounts with filtering
 list_all_accounts_menu() {
-    render_menu "account_list_management"
+    while true; do
+        clear
+        echo -e "${GREEN}=== List All Accounts ===${NC}"
+        echo ""
+        echo "Filter options:"
+        echo "1. All accounts"
+        echo "2. Active accounts only"
+        echo "3. Suspended accounts only"
+        echo "4. Accounts by OU (organizational unit)"
+        echo "5. Search accounts by email/name"
+        echo ""
+        echo "6. Return to previous menu"
+        echo ""
+        read -p "Select filter option (1-6): " filter_choice
+        echo ""
+
+        case $filter_choice in
+            1)
+                list_accounts_filtered "all"
+                ;;
+            2)
+                list_accounts_filtered "active"
+                ;;
+            3)
+                list_accounts_filtered "suspended"
+                ;;
+            4)
+                list_accounts_by_ou
+                ;;
+            5)
+                search_accounts
+                ;;
+            6)
+                return
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-6.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Function to list accounts with filters
@@ -6922,7 +7102,35 @@ search_accounts() {
 
 # Function to calculate account storage sizes
 calculate_account_sizes_menu() {
-    render_menu "account_analysis"
+    clear
+    echo -e "${GREEN}=== Calculate Account Storage Sizes ===${NC}"
+    echo ""
+    echo -e "${YELLOW}⚠️  This operation queries storage for each account and may take considerable time.${NC}"
+    echo ""
+    echo "Scope options:"
+    echo "1. All accounts"
+    echo "2. Suspended accounts only"
+    echo "3. Specific account"
+    echo "4. Accounts from list/CSV"
+    echo ""
+    echo "m) Return to main menu"
+    echo "x) Exit"
+    echo ""
+    read -p "Select scope (1-4, m, x): " scope_choice
+    echo ""
+
+    case $scope_choice in
+        1) calculate_all_account_sizes ;;
+        2) calculate_suspended_account_sizes ;;
+        3) calculate_single_account_size ;;
+        4) calculate_account_sizes_from_list ;;
+        m) return ;;
+        x) exit 0 ;;
+        *)
+            echo -e "${RED}Invalid option.${NC}"
+            read -p "Press Enter to continue..."
+            ;;
+    esac
 }
 
 # Function to calculate storage for all accounts
@@ -8546,7 +8754,45 @@ show_top_storage_growth() {
 
 # Stub functions for menu items (to be implemented)
 account_search_diagnostics_menu() {
-    render_menu "account_analysis"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Account Search & Diagnostics ===${NC}"
+        echo ""
+        echo -e "${CYAN}Search and analyze account information and health${NC}"
+        echo ""
+        echo "Search options:"
+        echo "1. 🔍 Search by email address"
+        echo "2. 👤 Search by display name"
+        echo "3. 🏢 Search by organizational unit"
+        echo "4. 📊 Account health diagnostics"
+        echo "5. 📋 Detailed account information"
+        echo "6. 🔄 Account status verification"
+        echo "7. 📈 Account activity analysis"
+        echo "8. 🎯 Quick account lookup"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-8, m, x): " search_choice
+        echo ""
+
+        case $search_choice in
+            1) search_accounts_by_email ;;
+            2) search_accounts_by_name ;;
+            3) search_accounts_by_ou ;;
+            4) account_health_diagnostics ;;
+            5) detailed_account_information ;;
+            6) account_status_verification ;;
+            7) account_activity_analysis ;;
+            8) quick_account_lookup ;;
+            m) return ;;
+            x) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Search accounts by email address
@@ -9020,7 +9266,49 @@ quick_account_lookup() {
 }
 
 individual_user_management_menu() {
-    render_menu "user_group_management"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Individual User Management ===${NC}"
+        echo ""
+        echo -e "${CYAN}Manage individual user accounts and settings${NC}"
+        echo ""
+        echo "User operations:"
+        echo "1. 👤 Modify user details and settings"
+        echo "2. 🔐 Reset user password"
+        echo "3. 🔑 Reset 2FA and app passwords"
+        echo "4. 🏢 Change organizational unit"
+        echo "5. 📧 Update user aliases"
+        echo "6. 👥 Manage group memberships"
+        echo "7. 📄 Assign/remove licenses"
+        echo "8. 🚫 Suspend/restore account"
+        echo "9. 📊 View user information"
+        echo "10. 🔄 Sync user to database"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-10, m, x): " user_mgmt_choice
+        echo ""
+
+        case $user_mgmt_choice in
+            1) modify_user_details ;;
+            2) reset_user_password ;;
+            3) reset_user_2fa ;;
+            4) change_user_ou ;;
+            5) update_user_aliases ;;
+            6) manage_user_groups ;;
+            7) manage_user_licenses ;;
+            8) suspend_restore_user ;;
+            9) view_user_information ;;
+            10) sync_user_to_database ;;
+            m) return ;;
+            x) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Modify user details and settings
@@ -9703,7 +9991,49 @@ sync_user_to_database() {
 }
 
 bulk_user_operations_menu() {
-    render_menu "user_group_management"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Bulk User Operations ===${NC}"
+        echo ""
+        echo -e "${CYAN}Batch operations for multiple user accounts${NC}"
+        echo ""
+        echo "Bulk operations:"
+        echo "1. 👥 Bulk user creation from CSV"
+        echo "2. 🏢 Bulk organizational unit moves"
+        echo "3. 🔐 Batch password resets"
+        echo "4. 📧 Bulk email alias management"
+        echo "5. 👥 Bulk group membership operations"
+        echo "6. 📄 Bulk license management"
+        echo "7. 🚫 Bulk suspend/restore operations"
+        echo "8. 🔄 Bulk user synchronization to database"
+        echo "9. 📊 Bulk operations from account lists"
+        echo "10. 📝 Generate bulk operation templates"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-10, m, x): " bulk_choice
+        echo ""
+
+        case $bulk_choice in
+            1) bulk_user_creation_from_csv ;;
+            2) bulk_organizational_unit_moves ;;
+            3) batch_password_resets ;;
+            4) bulk_email_alias_management ;;
+            5) bulk_group_membership_operations ;;
+            6) bulk_license_management ;;
+            7) bulk_suspend_restore_operations ;;
+            8) bulk_user_synchronization ;;
+            9) bulk_operations_from_lists ;;
+            10) generate_bulk_operation_templates ;;
+            m) return ;;
+            x) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Bulk user creation from CSV
@@ -10437,7 +10767,61 @@ generate_bulk_operation_templates() {
 }
 
 account_status_operations_menu() {
-    render_menu "user_group_management"
+    while true; do
+        clear
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                          GWOMBAT - Account Status Operations                  ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${CYAN}Select an operation:${NC}"
+        echo ""
+        echo -e "${YELLOW}Individual Account Operations:${NC}"
+        echo "  1. Suspend User Account"
+        echo "  2. Restore User Account"
+        echo "  3. Check Account Status"
+        echo "  4. View Account Suspension History"
+        echo ""
+        echo -e "${YELLOW}Bulk Operations:${NC}"
+        echo "  5. Bulk Suspend Accounts"
+        echo "  6. Bulk Restore Accounts"
+        echo "  7. Bulk Status Check"
+        echo ""
+        echo -e "${YELLOW}Status Management:${NC}"
+        echo "  8. Set Suspension Reason"
+        echo "  9. List All Suspended Accounts"
+        echo " 10. Export Status Report"
+        echo ""
+        echo -e "${YELLOW}Advanced Operations:${NC}"
+        echo " 11. Verify Status Consistency"
+        echo " 12. Schedule Status Changes"
+        echo ""
+        echo " 99. Return to Previous Menu"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+
+        read -p "Enter your choice: " status_choice
+        echo ""
+
+        case $status_choice in
+            1) suspend_user_account ;;
+            2) restore_user_account ;;
+            3) check_account_status ;;
+            4) view_account_suspension_history ;;
+            5) bulk_suspend_accounts ;;
+            6) bulk_restore_accounts ;;
+            7) bulk_status_check ;;
+            8) set_suspension_reason ;;
+            9) list_all_suspended_accounts ;;
+            10) export_status_report ;;
+            11) verify_status_consistency ;;
+            12) schedule_status_changes ;;
+            99) return ;;
+            *)
+                echo -e "${RED}Invalid option. Please try again.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Account Status Operations Functions
@@ -11052,7 +11436,86 @@ schedule_status_changes() {
 }
 
 user_statistics_menu() {
-    render_menu "statistics_metrics"
+    while true; do
+        clear
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                           GWOMBAT - User Statistics                           ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${CYAN}Comprehensive user analytics and statistical reporting${NC}"
+        echo ""
+        echo -e "${YELLOW}=== ACCOUNT OVERVIEW ===${NC}"
+        echo "  1. 📊 Current Account Summary"
+        echo "  2. 👥 User Count by Status"
+        echo "  3. 🏢 Organizational Unit Distribution"
+        echo "  4. 📅 Account Creation Timeline"
+        echo ""
+        echo -e "${YELLOW}=== STORAGE ANALYTICS ===${NC}"
+        echo "  5. 💾 Storage Usage Statistics"
+        echo "  6. 📈 Storage Growth Trends"
+        echo "  7. 🔍 Top Storage Users"
+        echo "  8. 📊 Storage Distribution Analysis"
+        echo ""
+        echo -e "${YELLOW}=== ACTIVITY METRICS ===${NC}"
+        echo "  9. 🔐 Login Activity Summary"
+        echo " 10. 📧 Email Usage Statistics"
+        echo " 11. 🗂️  Drive Activity Patterns"
+        echo " 12. 👥 Group Membership Analytics"
+        echo ""
+        echo -e "${YELLOW}=== LIFECYCLE ANALYSIS ===${NC}"
+        echo " 13. 🔄 Account Stage Distribution"
+        echo " 14. ⏱️  Average Account Tenure"
+        echo " 15. 📋 Suspension & Deletion Stats"
+        echo " 16. 🎯 Account Health Metrics"
+        echo ""
+        echo -e "${YELLOW}=== CUSTOM REPORTS ===${NC}"
+        echo " 17. 📈 Generate Statistical Report"
+        echo " 18. 📊 Export Statistics to CSV"
+        echo " 19. 📅 Historical Trend Analysis"
+        echo " 20. 🔍 Custom Query Builder"
+        echo ""
+        echo " 99. Return to User & Group Management"
+        echo ""
+        echo -e "${GRAY}Additional Options:${NC}"
+        echo "  p. Previous menu"
+        echo "  m. Main menu"
+        echo "  x. Exit"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+
+        read -p "Enter your choice: " stats_choice
+        echo ""
+
+        case $stats_choice in
+            1) current_account_summary ;;
+            2) user_count_by_status ;;
+            3) organizational_unit_distribution ;;
+            4) account_creation_timeline ;;
+            5) storage_usage_statistics ;;
+            6) storage_growth_trends ;;
+            7) top_storage_users ;;
+            8) storage_distribution_analysis ;;
+            9) login_activity_summary ;;
+            10) email_usage_statistics ;;
+            11) drive_activity_patterns ;;
+            12) group_membership_analytics ;;
+            13) account_stage_distribution ;;
+            14) average_account_tenure ;;
+            15) suspension_deletion_stats ;;
+            16) account_health_metrics ;;
+            17) generate_statistical_report ;;
+            18) export_statistics_csv ;;
+            19) historical_trend_analysis ;;
+            20) custom_query_builder ;;
+            99|p) return 0 ;;
+            m) return 0 ;;
+            x) exit_gracefully ;;
+            *)
+                echo -e "${RED}Invalid option. Please try again.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # User Statistics Functions
@@ -11778,7 +12241,86 @@ custom_query_builder() {
 }
 
 account_lifecycle_reports_menu() {
-    render_menu "reports_monitoring"
+    while true; do
+        clear
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                       GWOMBAT - Account Lifecycle Reports                     ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${CYAN}Comprehensive lifecycle analysis and reporting${NC}"
+        echo ""
+        echo -e "${YELLOW}=== STAGE ANALYSIS ===${NC}"
+        echo "  1. 📊 Current Stage Distribution"
+        echo "  2. 🔄 Stage Transition History"
+        echo "  3. ⏱️  Time in Stage Analysis"
+        echo "  4. 📈 Stage Progression Trends"
+        echo ""
+        echo -e "${YELLOW}=== LIFECYCLE TIMELINES ===${NC}"
+        echo "  5. 📅 Suspension Timeline Reports"
+        echo "  6. 🗑️  Deletion Timeline Analysis"
+        echo "  7. 🔄 Account Recovery Patterns"
+        echo "  8. ⚡ Rapid Progression Detection"
+        echo ""
+        echo -e "${YELLOW}=== TENURE & AGING ===${NC}"
+        echo "  9. 📊 Account Age Distribution"
+        echo " 10. ⏱️  Average Tenure by Stage"
+        echo " 11. 🏢 Department Lifecycle Patterns"
+        echo " 12. 📈 Tenure Trend Analysis"
+        echo ""
+        echo -e "${YELLOW}=== COMPLIANCE & AUDIT ===${NC}"
+        echo " 13. 📋 Lifecycle Compliance Report"
+        echo " 14. 🔍 Exception & Anomaly Detection"
+        echo " 15. 📊 Lifecycle Performance Metrics"
+        echo " 16. 🎯 SLA Compliance Analysis"
+        echo ""
+        echo -e "${YELLOW}=== PREDICTIVE ANALYSIS ===${NC}"
+        echo " 17. 🔮 Predicted Deletions"
+        echo " 18. 📈 Lifecycle Forecasting"
+        echo " 19. ⚠️  At-Risk Account Identification"
+        echo " 20. 📊 Lifecycle Health Score"
+        echo ""
+        echo " 99. Return to User & Group Management"
+        echo ""
+        echo -e "${GRAY}Additional Options:${NC}"
+        echo "  p. Previous menu"
+        echo "  m. Main menu"
+        echo "  x. Exit"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+
+        read -p "Enter your choice: " lifecycle_choice
+        echo ""
+
+        case $lifecycle_choice in
+            1) current_stage_distribution ;;
+            2) stage_transition_history ;;
+            3) time_in_stage_analysis ;;
+            4) stage_progression_trends ;;
+            5) suspension_timeline_reports ;;
+            6) deletion_timeline_analysis ;;
+            7) account_recovery_patterns ;;
+            8) rapid_progression_detection ;;
+            9) account_age_distribution ;;
+            10) average_tenure_by_stage ;;
+            11) department_lifecycle_patterns ;;
+            12) tenure_trend_analysis ;;
+            13) lifecycle_compliance_report ;;
+            14) exception_anomaly_detection ;;
+            15) lifecycle_performance_metrics ;;
+            16) sla_compliance_analysis ;;
+            17) predicted_deletions ;;
+            18) lifecycle_forecasting ;;
+            19) at_risk_account_identification ;;
+            20) lifecycle_health_score ;;
+            99|p) return 0 ;;
+            m) return 0 ;;
+            x) exit_gracefully ;;
+            *)
+                echo -e "${RED}Invalid option. Please try again.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Account Lifecycle Reports Functions
@@ -12453,7 +12995,86 @@ lifecycle_health_score() {
 }
 
 export_account_data_menu() {
-    render_menu "account_list_management"
+    while true; do
+        clear
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                         GWOMBAT - Export Account Data                         ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${CYAN}Export account information to various formats with filtering options${NC}"
+        echo ""
+        echo -e "${YELLOW}=== QUICK EXPORTS ===${NC}"
+        echo "  1. 📊 Export All Active Accounts"
+        echo "  2. 🚫 Export Suspended Accounts"
+        echo "  3. 👤 Export Admin Accounts"
+        echo "  4. 🔐 Export Accounts with 2FA"
+        echo ""
+        echo -e "${YELLOW}=== FILTERED EXPORTS ===${NC}"
+        echo "  5. 🏢 Export by Organizational Unit"
+        echo "  6. 📅 Export by Creation Date Range"
+        echo "  7. 💾 Export by Storage Usage"
+        echo "  8. 🔄 Export by Lifecycle Stage"
+        echo ""
+        echo -e "${YELLOW}=== CUSTOM EXPORTS ===${NC}"
+        echo "  9. 🎯 Custom Field Selection Export"
+        echo " 10. 📋 Export with Custom Filters"
+        echo " 11. 🔍 Export Search Results"
+        echo " 12. 📊 Export Statistics Summary"
+        echo ""
+        echo -e "${YELLOW}=== SPECIALIZED EXPORTS ===${NC}"
+        echo " 13. 📈 Export Storage History Data"
+        echo " 14. 🔄 Export Lifecycle History"
+        echo " 15. 🛡️  Export Security Compliance Data"
+        echo " 16. 📧 Export Contact Information"
+        echo ""
+        echo -e "${YELLOW}=== BULK OPERATIONS ===${NC}"
+        echo " 17. 📋 Export for Bulk Operations"
+        echo " 18. 🔄 Export Stage Management Lists"
+        echo " 19. 📊 Export Analytics Data"
+        echo " 20. 🗂️  Export Complete Database Dump"
+        echo ""
+        echo " 99. Return to User & Group Management"
+        echo ""
+        echo -e "${GRAY}Additional Options:${NC}"
+        echo "  p. Previous menu"
+        echo "  m. Main menu"
+        echo "  x. Exit"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+
+        read -p "Enter your choice: " export_choice
+        echo ""
+
+        case $export_choice in
+            1) export_all_active_accounts ;;
+            2) export_suspended_accounts ;;
+            3) export_admin_accounts ;;
+            4) export_accounts_with_2fa ;;
+            5) export_by_organizational_unit ;;
+            6) export_by_creation_date ;;
+            7) export_by_storage_usage ;;
+            8) export_by_lifecycle_stage ;;
+            9) custom_field_selection_export ;;
+            10) export_with_custom_filters ;;
+            11) export_search_results ;;
+            12) export_statistics_summary ;;
+            13) export_storage_history_data ;;
+            14) export_lifecycle_history ;;
+            15) export_security_compliance_data ;;
+            16) export_contact_information ;;
+            17) export_for_bulk_operations ;;
+            18) export_stage_management_lists ;;
+            19) export_analytics_data ;;
+            20) export_complete_database_dump ;;
+            99|p) return 0 ;;
+            m) return 0 ;;
+            x) exit_gracefully ;;
+            *)
+                echo -e "${RED}Invalid option. Please try again.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Export Functions
@@ -13250,7 +13871,44 @@ user_group_management_menu() {
 
 # Group Operations Menu (extracted from buried shared drive menu)
 group_operations_menu() {
-    render_menu "user_group_management"
+    while true; do
+        clear
+        echo -e "${GREEN}=== Group Operations ===${NC}"
+        echo ""
+        echo -e "${CYAN}Manage Google Groups membership and analytics${NC}"
+        echo ""
+        echo "1. 👥 Manage memberships for a single user"
+        echo "2. 📦 Bulk group membership operations"
+        echo "3. 📥 Bulk add users from CSV"
+        echo "4. 🗑️  Bulk remove users from a group"
+        echo "5. 📋 Add account list members to group"
+        echo "6. 📊 Group membership analytics"
+        echo "7. 📈 Group statistics overview"
+        echo "8. 📝 Bulk group membership report"
+        echo ""
+        echo "m) Return to main menu"
+        echo "x) Exit"
+        echo ""
+        read -p "Select option (1-8, m, x): " group_choice
+        echo ""
+
+        case $group_choice in
+            1) manage_user_groups ;;
+            2) bulk_group_membership_operations ;;
+            3) bulk_add_users_to_groups_csv ;;
+            4) bulk_remove_users_from_group ;;
+            5) bulk_add_list_to_group ;;
+            6) group_membership_analytics ;;
+            7) group_statistics_analysis ;;
+            8) bulk_group_membership_report ;;
+            m) return ;;
+            x) exit 0 ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Source database functions
@@ -13281,7 +13939,7 @@ database_operations_menu() {
 # File Operations Menu - SQLite-driven dynamic menu
 # File Operations Menu - SQLite-driven dynamic menu
 file_operations_menu() {
-    render_menu "file_drive_operations"
+    render_menu "fdo_file_tools"
 }
 
 # Implementation functions for file operations menu items
@@ -13699,7 +14357,7 @@ permission_management_function_dispatcher() {
 # File and folder permission management and security operations interface
 # Uses database-driven menu items from permission_management section
 permission_management_menu() {
-    render_menu "analysis_discovery"
+    render_menu "fdo_permissions"
 }
 # File Permission Functions
 
@@ -14216,22 +14874,22 @@ file_discovery_removed_notice() {
 }
 
 file_discovery_menu() {
-    render_menu "analysis_discovery"
+    render_menu "analysis_file"
 }
 
 # Fast Duplicate Scan Menu - Optimized for speed and efficiency
 fast_duplicate_scan_menu() {
-    render_menu "analysis_discovery"
+    render_menu "analysis_file"
 }
 
 # Directory Structure Analysis Menu - Comprehensive directory analysis and visualization
 directory_structure_analysis_menu() {
-    render_menu "analysis_discovery"
+    render_menu "analysis_file"
 }
 
 # File Type Distribution Menu - Comprehensive file type analysis and categorization
 file_type_distribution_menu() {
-    render_menu "analysis_discovery"
+    render_menu "analysis_file"
 }
 
 # Analysis & Discovery Menu - SQLite-driven implementation
@@ -14243,7 +14901,7 @@ analysis_discovery_menu() {
 
 # System Diagnostics Menu
 system_diagnostics_menu() {
-    render_menu "system_administration"
+    render_menu "analysis_system"
 }
 
 # Account Analysis Menu
@@ -16149,7 +16807,7 @@ shared_drive_function_dispatcher() {
 # Shared drive operations and team collaboration management interface
 # Uses database-driven menu items from shared_drives section
 shared_drive_menu() {
-    render_menu "file_drive_operations"
+    render_menu "fdo_shared_drive"
 }
 # Shared Drive Management Functions
 list_all_shared_drives() {
@@ -17303,12 +17961,60 @@ monitoring_menu() {
 
 # Drive Cleanup Operations Menu
 drive_cleanup_menu() {
-    render_menu "file_drive_operations"
+    while true; do
+        clear
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                         GWOMBAT - Drive Cleanup Operations                      ${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${WHITE}/ File & Drive Operations / Cleanup & Maintenance${NC}"
+        echo ""
+
+        echo -e "${CYAN}Cleanup & Maintenance Tools:${NC}"
+        echo "1. 🧹 Clean duplicate folders"
+        echo "2. 🧽 Clean duplicate Sheets"
+        echo "3. 🗑️  Delete empty shared drives"
+        echo "4. 🧾 Drive cleanup report"
+        echo "5. 🔍 Scan inactive shared drives"
+        echo "6. 🛡️ Validate drive security settings"
+        echo "7. 🚮 Clean orphaned files"
+        echo "8. 📦 Archive old shared drives"
+        echo "9. 📊 Drive cleanup summary"
+        echo ""
+        echo "b. ⬅️ Back to File & Drive Operations"
+        echo "m. 🏠 Main menu"
+        echo "x. ❌ Exit"
+        echo ""
+
+        read -p "Select an option (1-9, b, m, x): " cleanup_choice
+        echo ""
+
+        case $cleanup_choice in
+            1) clean_duplicate_folders ;;
+            2) clean_duplicate_sheets ;;
+            3) delete_empty_shared_drives ;;
+            4) drive_cleanup_report ;;
+            5) analyze_inactive_shared_drives ;;
+            6) validate_drive_security_settings ;;
+            7) cleanup_orphaned_files ;;
+            8) archive_old_shared_drives ;;
+            9) drive_cleanup_summary ;;
+            b) return ;;
+            m) return ;;
+            x)
+                echo -e "${BLUE}Goodbye!${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option.${NC}"
+                read -p "Press Enter to continue..."
+                ;;
+        esac
+    done
 }
 
 # Backup Operations Menu
 backup_operations_menu() {
-    render_menu "system_administration"
+    render_menu "fdo_backup_recovery"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -24475,4 +25181,3 @@ else
     # Use original system
     main
 fi
-

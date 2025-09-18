@@ -12,10 +12,10 @@ GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) is a
 ## Implementation Status
 | Area | Status | Notes |
 | --- | --- | --- |
-| User & Group Management | ⚠️ Partial | Operational routines exist (password resets, bulk OU moves, suspended workflow stages), but menu entries like `individual_user_management_menu` and `bulk_user_operations_menu` now loop back to the root menu. Functions must be called manually until rewired. |
-| File & Drive Operations | ⚠️ Partial | Core actions (list/create shared drives, manage members, run diagnostics) work; advanced analytics, permission cleanup, and backup operations remain “Coming Soon”. `backup_operations_menu` currently redirects to `system_administration`. |
-| Analysis & Discovery | 🚧 Stubbed | `account_analysis` submenu is empty in `menu_items_v2`, and related functions print placeholder text. Documentation claiming comprehensive analytics is outdated. |
-| Account List Management | ⚠️ Partial | CSV/database helpers exist, but top-level menu functions were rewritten to `render_menu "account_list_management"`, so interactive access is broken. |
+| User & Group Management | ⚠️ Partial | Database-driven categories are live; restored interactive workflows run, but some child actions still rely on legacy Bash flows and need eventual replacement with pure menu-driven handlers. |
+| File & Drive Operations | ⚠️ Partial | Top-level categories now exist in `menu_items_v2`, yet many submenu entries still call legacy Bash menus and several advanced tools remain “Coming Soon”. |
+| Analysis & Discovery | ⚠️ Partial | Hierarchical buckets (account analysis, file discovery, system diagnostics, AI) are wired up; numerous actions still surface placeholder text or need implementation. |
+| Account List Management | ⚠️ Partial | Initial submenu shells exist (lists, CSV, database maintenance); legacy Bash menu still handles the detailed workflows until entries are migrated. |
 | Dashboard & Statistics | ⚠️ Partial | Some reporting functions still operate, yet multiple menu options (e.g. login activity summaries) are stubs. |
 | Reports & Monitoring | ⚠️ Partial | Similar to dashboard: structural menus exist, many actions are placeholders. |
 | System Administration | 🚧 Stubbed | `system_maintenance_menu` and `system_backup_menu` only echo “Coming Soon”. |
@@ -24,16 +24,16 @@ GWOMBAT (Google Workspace Optimization, Management, Backups And Taskrunner) is a
 | Setup Wizard | ✅ Working | Handles `.env` generation, GAM/gyb/rclone config, directory scaffolding, and logging. |
 
 ## Known Issues & Gaps
-- **Menu rewiring required** – Many `*_menu()` functions now call `render_menu "<root>"`, preventing access to the detailed routines defined later in the file.
+- **Remaining menu rewiring** – Several sections (Dashboard, Reports, System Administration, SCuBA, Configuration) still point to placeholder `render_menu` handlers and need hierarchical submenus similar to the User & Group/File & Drive work.
 - **Legacy loader** – `shared-utilities/menu_data_loader.sh` still targets the flat `menu_items` schema; running it will wipe `menu_items_v2` data. Create a new loader or guard the old one.
 - **Placeholder functions** – `login_activity_summary`, `drive_usage_statistics`, `backup_operations_function_dispatcher`, and dozens of analytics/backup helpers only log forthcoming features. Keep them out of live menus until implemented.
 - **Testing gaps** – Automated scripts (`test_hierarchical_menu.sh`, `test_menu_rendering.sh`) validate structure only; they do not cover workflows such as suspending a user, exporting data, or manipulating shared drives.
 - **Documentation drift** – Prior README/docs promised fully operational hierarchical menus and advanced analytics. Adjust messaging to prevent operational surprises.
 
 ## Recommended Next Steps
-1. **Repair menu routing** – For each `*_menu()` function that currently calls `render_menu`, point it to the correct submenu in `menu_items_v2` or reinstate the legacy interactive loop until the submenu exists. Examples: `individual_user_management_menu`, `account_search_diagnostics_menu`, `bulk_user_operations_menu`.
+1. **Finish hierarchical builds** – Extend the new `menu_items_v2` structure to Dashboard, Reports, System Administration, SCuBA, and Configuration menus, then retire the temporary `render_menu` stubs.
 2. **Migrate data loader** – Update `menu_data_loader.sh` (or create `menu_data_loader_v2.sh`) to populate `menu_items_v2`, including parent-child relationships and keywords, so future deployments can rebuild the menu safely.
-3. **Audit live menu items** – Remove or hide entries whose implementations echo “Coming Soon”, or back-fill the functionality before exposing them.
+3. **Audit live menu items** – Hide or implement entries that still emit “Coming Soon” (e.g. AI analytics, advanced drive tools) before leaving them exposed in the database.
 4. **Strengthen tests** – Add smoke tests that source `gwombat.sh`, call representative operations (`rescan_all_accounts`, `bulk_ou_moves_from_csv`, shared drive creation), and assert non-zero exit codes. Pair with linting and shellcheck where possible.
 5. **Documentation updates** – Keep README, `docs/HIERARCHICAL_MENU_SYSTEM.md`, and deployment guides aligned with the real behaviour. Flag partial features clearly.
 

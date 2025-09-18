@@ -8,7 +8,7 @@ GWOMBAT is a large Bash-based operations toolkit for Google Workspace domains. I
 - Architecture: Bash 3.2+ scripts with SQLite for persistent state and menu metadata
 - Dependencies: GAM (GAMADV-XTD3 recommended), sqlite3, git, optional Python 3.12+, GYB, rclone (see `docs/REQUIREMENTS.md`)
 - Primary focus: User & group lifecycle tooling, domain data exports, shared drive administration, compliance workflows
-- Current status: Core operations still live in imperative Bash functions; the new hierarchical menu renders but many options route back to the main menu or stub functions
+- Current status: User & Group Management and core File & Drive Operations now load database-driven submenus, but several other sections still fall back to placeholder `render_menu` handlers and legacy Bash loops
 
 ## What Works Reliably Today
 - **Domain inventory & lifecycle** – `sync_domain_to_database`, `rescan_all_accounts`, suspended-stage workflows, and bulk OU moves continue to function when their helper routines are called directly
@@ -17,9 +17,9 @@ GWOMBAT is a large Bash-based operations toolkit for Google Workspace domains. I
 - **Setup tooling** – `shared-utilities/setup_wizard.sh` still provisions `.env`, configures GAM/gyb/rclone, and seeds local directories; logs live under `local-config/logs/`
 
 ## Areas Needing Attention
-- **Hierarchical menu conversion is incomplete** – dozens of `*_menu()` functions were auto-rewritten to `render_menu "<root>"`, so selecting options such as “Individual user management” or “Bulk operations” simply redraws the same menu. Many substantive routines (password resets, bulk CSV imports, analytics) are effectively hidden unless invoked manually.
+- **Hierarchical menu conversion is ongoing** – key User & Group and File/Drive flows are now exposed through real `menu_items_v2` submenus, but other top-level sections (Dashboard, Reports, System Administration, SCuBA, Configuration) still point to placeholder `render_menu` handlers until their menus are rebuilt.
 - **Legacy menu loader** – `shared-utilities/menu_data_loader.sh` still targets the legacy `menu_sections/menu_items` schema. Running it will overwrite the new `menu_items_v2` data and break the hierarchical menus.
-- **Placeholder analytics/backup features** – functions like `login_activity_summary`, `backup_operations_function_dispatcher`, and numerous shared-drive reports only print "Coming Soon" messaging. Documentation previously advertised them as complete.
+- **Placeholder analytics/backup features** – functions like `login_activity_summary`, `drive_quick_search`, `backup_operations_function_dispatcher`, and many shared-drive reports still emit "Coming Soon" status. Keep them hidden from the database menus until production-ready.
 - **Tests do not exercise behaviour** – `test_hierarchical_menu.sh` and related scripts confirm database structure, but they never drive real workflows, so regressions (like the looping menus) go undetected.
 
 ## Getting Started
@@ -65,9 +65,10 @@ GWOMBAT is a large Bash-based operations toolkit for Google Workspace domains. I
 - `TESTING.md` / `docs/TESTING_PLAN.md` – QA expectations and security-focused testing checklist
 - `TO-DO.md` – running backlog of enhancements and historical milestones
 - `CLAUDE.md` – AI pair-programming context and technical notes for contributors
+- `TODO_SESSION.md` – working list of outstanding menu-migration tasks from the current session
 
 ## Known Issues & Next Steps
-- Fix the `render_menu` conversions so each menu item calls the correct action (e.g. `individual_user_management_menu` should present the functions defined around lines 9020‑9800 instead of returning to the top-level menu).
+- Expand the new hierarchical pattern to the remaining root menus (Dashboard, Reports, System Administration, SCuBA, Configuration), replacing the temporary `render_menu` placeholders with real submenu structures in `menu_items_v2`.
 - Update `menu_data_loader.sh` (and related SQL) to populate `menu_items_v2` and preserve the hierarchical relationships. Consider archiving the legacy schema to avoid accidental reversion.
 - Audit every menu entry whose implementation currently prints “Coming Soon” or “This feature will…”, decide whether to expose it as a planned feature or remove it from the live menu until complete.
 - Expand automated tests beyond structural checks—smoke-test the main user workflows (`rescan_all_accounts`, `bulk_ou_moves_from_csv`, shared drive creation, CSV exports) so regressions are caught early.
